@@ -1,9 +1,18 @@
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufRead, BufReader},
+    path::Path,
+};
 
-use anyhow::Result;
-use log::{info, warn};
+use anyhow::{Context, Result};
+use log::{debug, info, warn};
 
-use crate::{datasource::file_path::*, model::gpu::GPU, utils::file_operate::check_read_simple};
+use crate::{
+    datasource::file_path::*,
+    model::gpu::{TabType, GPU},
+    utils::file_operate::{check_read_simple, read_file},
+};
 
 // 检测GPU驱动类型，但不读取系统支持的频率表
 fn detect_gpu_driver_type(gpu: &mut GPU) -> Result<()> {
@@ -77,12 +86,87 @@ fn detect_gpu_driver_type(gpu: &mut GPU) -> Result<()> {
     Ok(())
 }
 
+// 读取v2 driver设备的频率表
+fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
+    let mut freq_list = Vec::new();
+
+    // 检查频率表文件是否存在
+    if !Path::new(GPUFREQV2_TABLE).exists() || !check_read_simple(GPUFREQV2_TABLE) {
+        warn!("V2 driver frequency table file not found: {}", GPUFREQV2_TABLE);
+        return Ok(freq_list);
+    }
+
+    // 打开并读取频率表文件
+    let file = File::open(GPUFREQV2_TABLE)
+        .with_context(|| format!("Failed to open V2 driver frequency table file: {}", GPUFREQV2_TABLE))?;
+
+    let reader = BufReader::new(file);
+
+    // 解析每一行，提取频率值
+    for line in reader.lines() {
+        let line = line?;
+
+        // 查找频率值
+        if let Some(freq_pos) = line.find("freq: ") {
+            let freq_str = line[freq_pos + 6..].split(',').next().unwrap_or("0");
+            if let Ok(freq) = freq_str.trim().parse::<i64>() {
+                freq_list.push(freq);
+                debug!("Found V2 driver frequency: {}", freq);
+            }
+        }
+    }
+
+    // 按降序排序（从高到低）
+    freq_list.sort_by(|a, b| b.cmp(a));
+
+    info!("Read {} frequencies from V2 driver table", freq_list.len());
+
+    Ok(freq_list)
+}
+
+// 验证频率是否在v2 driver支持的范围内
+pub fn validate_freq_for_v2_driver(freq: i64, supported_freqs: &[i64]) -> bool {
+    if supported_freqs.is_empty() {
+        // 如果没有读取到支持的频率，则不进行验证
+        return true;
+    }
+
+    // 检查频率是否在支持的范围内
+    supported_freqs.contains(&freq)
+}
+
 pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
-    // 只检测GPU驱动类型，不读取系统支持的频率表
+    // 检测GPU驱动类型
     detect_gpu_driver_type(gpu)?;
 
-    // 输出当前配置信息
-    info!("Using frequencies from config file only");
+    // 如果是v2 driver，读取系统支持的频率表
+    let v2_supported_freqs = if gpu.is_gpuv2() {
+        info!("Reading V2 driver frequency table");
+        read_v2_driver_freq_table()?
+    } else {
+        Vec::new()
+    };
+
+    // 保存v2 driver支持的频率列表到GPU对象
+    if gpu.is_gpuv2() && !v2_supported_freqs.is_empty() {
+        // 将支持的频率列表保存到GPU对象，以便后续使用
+        gpu.set_v2_supported_freqs(v2_supported_freqs.clone());
+
+        if let Some(&max_freq) = v2_supported_freqs.first() {
+            info!("V2 Driver Max Supported Freq: {}", max_freq);
+        }
+
+        if let Some(&min_freq) = v2_supported_freqs.last() {
+            info!("V2 Driver Min Supported Freq: {}", min_freq);
+        }
+
+        info!("V2 Driver Supported Frequencies Total: {}", v2_supported_freqs.len());
+    } else if gpu.is_gpuv2() {
+        warn!("No frequencies found in V2 driver table");
+    } else {
+        // 对于v1 driver，输出当前配置信息
+        info!("Using frequencies from config file only");
+    }
 
     // 输出当前频率表信息
     let config_list = gpu.get_config_list();

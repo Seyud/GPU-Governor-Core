@@ -57,6 +57,7 @@ pub struct GPU {
     freq_volt: HashMap<i64, i64>,
     freq_dram: HashMap<i64, i64>,
     def_volt: HashMap<i64, i64>,
+    v2_supported_freqs: Vec<i64>, // v2 driver支持的频率列表
     cur_freq: i64,
     cur_freq_idx: i64,
     cur_volt: i64,
@@ -75,6 +76,7 @@ impl GPU {
             freq_volt: HashMap::new(),
             freq_dram: HashMap::new(),
             def_volt: HashMap::new(),
+            v2_supported_freqs: Vec::new(),
             cur_freq: 0,
             cur_freq_idx: 0,
             cur_volt: 0,
@@ -190,8 +192,20 @@ impl GPU {
                 || (final_freq == self.cur_freq && target_freq > self.cur_freq)
             {
                 debug!("go up");
-                self.cur_freq = self.gen_cur_freq(final_freq_index);
-                self.cur_freq_idx = final_freq_index;
+                let new_freq = self.gen_cur_freq(final_freq_index);
+
+                // 对于v2 driver设备，验证频率是否在系统支持范围内
+                if self.gpuv2 && !self.is_freq_supported_by_v2_driver(new_freq) {
+                    debug!("Freq {} not supported by V2 driver, finding closest supported freq", new_freq);
+                    // 如果新频率不在v2 driver支持的范围内，找到最接近的支持频率
+                    self.cur_freq = self.get_closest_v2_supported_freq(new_freq);
+                    // 更新频率索引
+                    self.cur_freq_idx = self.read_freq_index(self.cur_freq);
+                } else {
+                    self.cur_freq = new_freq;
+                    self.cur_freq_idx = final_freq_index;
+                }
+
                 self.load_low = 0;
                 goto_gen_volt!(self, util);
             }
@@ -204,8 +218,20 @@ impl GPU {
 
             if self.load_low >= 30 {
                 debug!("detect down");
-                self.cur_freq = self.gen_cur_freq(final_freq_index);
-                self.cur_freq_idx = final_freq_index;
+                let new_freq = self.gen_cur_freq(final_freq_index);
+
+                // 对于v2 driver设备，验证频率是否在系统支持范围内
+                if self.gpuv2 && !self.is_freq_supported_by_v2_driver(new_freq) {
+                    debug!("Freq {} not supported by V2 driver, finding closest supported freq", new_freq);
+                    // 如果新频率不在v2 driver支持的范围内，找到最接近的支持频率
+                    self.cur_freq = self.get_closest_v2_supported_freq(new_freq);
+                    // 更新频率索引
+                    self.cur_freq_idx = self.read_freq_index(self.cur_freq);
+                } else {
+                    self.cur_freq = new_freq;
+                    self.cur_freq_idx = final_freq_index;
+                }
+
                 goto_gen_volt!(self, util);
             }
 
@@ -238,8 +264,11 @@ impl GPU {
     }
 
     pub fn write_freq(&self) -> Result<()> {
-        let content = self.cur_freq.to_string();
-        let volt_content = format!("{} {}", self.cur_freq, self.cur_volt);
+        // 对于v2 driver设备，获取支持的最接近频率
+        let freq_to_use = self.get_closest_v2_supported_freq(self.cur_freq);
+
+        let content = freq_to_use.to_string();
+        let volt_content = format!("{} {}", freq_to_use, self.cur_volt);
         let volt_reset = "0 0";
         let opp_reset = "0";
         let opp_reset_v1 = "0";
@@ -371,7 +400,10 @@ impl GPU {
     }
 
     pub fn gen_cur_volt(&mut self) -> i64 {
-        self.cur_volt = self.get_volt(self.cur_freq);
+        // 对于v2 driver设备，获取支持的最接近频率
+        let freq_to_use = self.get_closest_v2_supported_freq(self.cur_freq);
+
+        self.cur_volt = self.get_volt(freq_to_use);
         self.cur_volt
     }
 
@@ -381,5 +413,46 @@ impl GPU {
 
     pub fn set_precise(&mut self, precise: bool) {
         self.precise = precise;
+    }
+
+    pub fn get_v2_supported_freqs(&self) -> Vec<i64> {
+        self.v2_supported_freqs.clone()
+    }
+
+    pub fn set_v2_supported_freqs(&mut self, freqs: Vec<i64>) {
+        self.v2_supported_freqs = freqs;
+    }
+
+    pub fn is_freq_supported_by_v2_driver(&self, freq: i64) -> bool {
+        if !self.gpuv2 || self.v2_supported_freqs.is_empty() {
+            // 如果不是v2 driver或者没有读取到支持的频率，则不进行验证
+            return true;
+        }
+
+        // 检查频率是否在支持的范围内
+        self.v2_supported_freqs.contains(&freq)
+    }
+
+    // 获取v2 driver支持的最接近频率
+    pub fn get_closest_v2_supported_freq(&self, freq: i64) -> i64 {
+        if !self.gpuv2 || self.v2_supported_freqs.is_empty() || self.is_freq_supported_by_v2_driver(freq) {
+            // 如果不是v2 driver或者没有读取到支持的频率，或者频率已经在支持范围内，则直接返回原频率
+            return freq;
+        }
+
+        // 找到最接近的支持频率
+        let mut closest_freq = self.v2_supported_freqs[0];
+        let mut min_diff = (freq - closest_freq).abs();
+
+        for &supported_freq in &self.v2_supported_freqs {
+            let diff = (freq - supported_freq).abs();
+            if diff < min_diff {
+                min_diff = diff;
+                closest_freq = supported_freq;
+            }
+        }
+
+        debug!("Freq {} not supported by V2 driver, using closest supported freq: {}", freq, closest_freq);
+        closest_freq
     }
 }
