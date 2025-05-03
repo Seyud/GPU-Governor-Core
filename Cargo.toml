@@ -1,0 +1,18 @@
+[package]
+name = "gpugovernor"
+version = "0.1.0"
+edition = "2021"
+authors = ["Original: HamJin @CoolApk", "Rust Port: Seyud"]
+description = "Mediatek Mali GPU Load-Based Frequency Adjustment"
+license = "MulanPSL-2.0"
+
+[dependencies]
+log = "0.4"
+env_logger = "0.10"
+chrono = "0.4"
+inotify = "0.10"
+nix = "0.26"
+libc = "0.2"
+anyhow = "1.0"
+thiserror = "1.0"
+once_cell = "1.17"
