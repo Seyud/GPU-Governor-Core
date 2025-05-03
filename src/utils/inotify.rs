@@ -32,7 +32,8 @@ impl InotifyWatcher {
 
         let wd = self
             .inotify
-            .add_watch(path_ref, mask)
+            .watches()
+            .add(path_ref, mask)
             .with_context(|| format!("Failed to add watch for: {}", path_ref.display()))?;
 
         self.watches.insert(wd, path_str.to_string());
@@ -75,7 +76,8 @@ impl InotifyWatcher {
 
             let new_wd = self
                 .inotify
-                .add_watch(&path, mask)
+                .watches()
+                .add(&path, mask)
                 .with_context(|| format!("Failed to re-add watch for: {}", path))?;
 
             // Update the watches map

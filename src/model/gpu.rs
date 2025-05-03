@@ -41,6 +41,7 @@ macro_rules! goto_gen_volt {
 pub enum TabType {
     FreqVolt,
     FreqDram,
+    #[allow(dead_code)]
     DefVolt,
 }
 
@@ -415,6 +416,7 @@ impl GPU {
         self.precise = precise;
     }
 
+    #[allow(dead_code)]
     pub fn get_v2_supported_freqs(&self) -> Vec<i64> {
         self.v2_supported_freqs.clone()
     }
