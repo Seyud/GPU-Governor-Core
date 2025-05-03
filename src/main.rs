@@ -1,26 +1,25 @@
+#![allow(non_snake_case)]
 mod datasource;
 mod model;
 mod utils;
 
-use std::env;
-use std::path::Path;
-use std::process;
-use std::thread;
-use std::time::Duration;
+use std::{env, path::Path, thread, time::Duration};
 
-use log::{info, warn, error};
-use anyhow::{Result, Context};
+use anyhow::Result;
+use log::{error, info, warn};
 
-use crate::datasource::file_path::*;
-use crate::datasource::freq_table::gpufreq_table_init;
-use crate::datasource::load_monitor::utilization_init;
-use crate::datasource::node_monitor::{monitor_gaming, monitor_config};
-use crate::datasource::foreground_app::monitor_foreground_app;
-use crate::datasource::config_parser::{config_read, gen_default_freq_table};
-use crate::model::gpu::GPU;
-use crate::utils::file_operate::{check_read, write_file};
-use crate::utils::file_status::get_status;
-use crate::utils::logger::init_logger;
+use crate::{
+    datasource::{
+        config_parser::{config_read, gen_default_freq_table},
+        file_path::*,
+        foreground_app::monitor_foreground_app,
+        freq_table::gpufreq_table_init,
+        load_monitor::utilization_init,
+        node_monitor::{monitor_config, monitor_gaming},
+    },
+    model::gpu::GPU,
+    utils::{file_status::get_status, logger::init_logger},
+};
 
 const NOTES: &str = "Mediatek Mali GPU Governor";
 const AUTHOR: &str = "Author: walika @CoolApk";
@@ -39,24 +38,19 @@ fn main() -> Result<()> {
                     println!("{}", SPECIAL);
                     println!("Usage:\n\t-v show version\n\t-h show help");
                     return Ok(());
-                },
+                }
                 "-v" => {
                     println!("{}", NOTES);
                     println!("{}", AUTHOR);
                     println!("{}", SPECIAL);
                     println!("{}", VERSION);
                     return Ok(());
-                },
+                }
                 _ => {}
             }
         }
     }
 
-    main_func()
-}
-
-fn main_func() -> Result<()> {
-    // Initialize logger
     init_logger()?;
 
     info!("{}", NOTES);
@@ -93,23 +87,22 @@ fn main_func() -> Result<()> {
 
     // Start monitoring threads
     let gpu_clone1 = gpu.clone();
-    let gaming_handle = thread::spawn(move || {
+    thread::spawn(move || {
         if let Err(e) = monitor_gaming(gpu_clone1) {
             error!("Gaming monitor error: {}", e);
         }
     });
 
     let gpu_clone2 = gpu.clone();
-    let config_handle = thread::spawn(move || {
+    thread::spawn(move || {
         if let Err(e) = monitor_config(gpu_clone2) {
             error!("Config monitor error: {}", e);
         }
     });
 
     // 启动前台应用监控线程
-    let gpu_clone3 = gpu.clone();
-    let foreground_app_handle = thread::spawn(move || {
-        if let Err(e) = monitor_foreground_app(gpu_clone3) {
+    thread::spawn(move || {
+        if let Err(e) = monitor_foreground_app() {
             error!("Foreground app monitor error: {}", e);
         }
     });
@@ -126,27 +119,16 @@ fn main_func() -> Result<()> {
 
     // Bootstrap information
     info!("BootFreq: {}KHz", gpu.get_cur_freq());
-    info!("Driver: gpufreq{}", if gpu.is_gpuv2() { "v2" } else { "v1" });
-    info!("Is Precise: {}", if gpu.is_precise() { "Yes" } else { "No" });
+    info!(
+        "Driver: gpufreq{}",
+        if gpu.is_gpuv2() { "v2" } else { "v1" }
+    );
+    info!(
+        "Is Precise: {}",
+        if gpu.is_precise() { "Yes" } else { "No" }
+    );
     info!("Governor Started");
 
     // Adjust GPU frequency
     gpu.adjust_gpufreq()
-}
-
-fn lock_ged() -> Result<()> {
-    // Set thread name
-    // Note: In Rust, we can't set thread name for current thread directly
-    // We would need to use nix or libc bindings for this
-
-    let idm = "99";
-    let idM = "0";
-
-    info!("Locking GED Freq");
-
-    loop {
-        write_file(GEDFREQ_MIN, idm, idm.len())?;
-        write_file(GEDFREQ_MAX, idM, idM.len())?;
-        thread::sleep(Duration::from_secs(1));
-    }
 }

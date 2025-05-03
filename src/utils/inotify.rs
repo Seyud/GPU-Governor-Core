@@ -1,13 +1,7 @@
-use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
-use std::os::unix::io::AsRawFd;
-use std::path::Path;
-use std::thread;
-use std::time::Duration;
+use std::{collections::HashMap, path::Path, thread, time::Duration};
 
-use log::{debug, error};
-use anyhow::{Result, Context};
-use inotify::{Inotify, WatchMask, EventMask};
+use anyhow::{Context, Result};
+use inotify::{EventMask, Inotify, WatchMask};
 
 const WAIT_MOVE_US: u64 = 500 * 1000;
 const RECREATE_DEFAULT_PERM: u32 = 0o666;
@@ -19,8 +13,7 @@ pub struct InotifyWatcher {
 
 impl InotifyWatcher {
     pub fn new() -> Result<Self> {
-        let inotify = Inotify::init()
-            .with_context(|| "Failed to initialize inotify")?;
+        let inotify = Inotify::init().with_context(|| "Failed to initialize inotify")?;
 
         Ok(Self {
             inotify,
@@ -30,13 +23,16 @@ impl InotifyWatcher {
 
     pub fn add<P: AsRef<Path>>(&mut self, path: P, mask: WatchMask) -> Result<()> {
         let path_ref = path.as_ref();
-        let path_str = path_ref.to_str()
+        let path_str = path_ref
+            .to_str()
             .with_context(|| format!("Invalid path: {}", path_ref.display()))?;
 
         // Add DELETE_SELF and MOVE_SELF to the mask
         let mask = mask | WatchMask::DELETE_SELF | WatchMask::MOVE_SELF;
 
-        let wd = self.inotify.add_watch(path_ref, mask)
+        let wd = self
+            .inotify
+            .add_watch(path_ref, mask)
             .with_context(|| format!("Failed to add watch for: {}", path_ref.display()))?;
 
         self.watches.insert(wd, path_str.to_string());
@@ -46,7 +42,9 @@ impl InotifyWatcher {
 
     pub fn wait_and_handle(&mut self) -> Result<()> {
         let mut buffer = [0; 4096];
-        let events = self.inotify.read_events_blocking(&mut buffer)
+        let events = self
+            .inotify
+            .read_events_blocking(&mut buffer)
             .with_context(|| "Failed to read inotify events")?;
 
         // Collect all watches that need to be updated
@@ -55,9 +53,10 @@ impl InotifyWatcher {
         for event in events {
             if let Some(path) = self.watches.get(&event.wd) {
                 // Re-establish watching after deleting
-                if event.mask.contains(EventMask::IGNORED) ||
-                   event.mask.contains(EventMask::DELETE_SELF) ||
-                   event.mask.contains(EventMask::MOVE_SELF) {
+                if event.mask.contains(EventMask::IGNORED)
+                    || event.mask.contains(EventMask::DELETE_SELF)
+                    || event.mask.contains(EventMask::MOVE_SELF)
+                {
                     watches_to_update.push((event.wd, path.clone()));
                 }
             }
@@ -69,10 +68,14 @@ impl InotifyWatcher {
             try_path(&path)?;
 
             // Re-add the watch
-            let mask = WatchMask::MODIFY | WatchMask::CLOSE_WRITE |
-                       WatchMask::DELETE_SELF | WatchMask::MOVE_SELF;
+            let mask = WatchMask::MODIFY
+                | WatchMask::CLOSE_WRITE
+                | WatchMask::DELETE_SELF
+                | WatchMask::MOVE_SELF;
 
-            let new_wd = self.inotify.add_watch(&path, mask)
+            let new_wd = self
+                .inotify
+                .add_watch(&path, mask)
                 .with_context(|| format!("Failed to re-add watch for: {}", path))?;
 
             // Update the watches map
@@ -91,19 +94,11 @@ fn try_path(path: &str) -> Result<()> {
         // Sleep a bit to allow for file system operations to complete
         thread::sleep(Duration::from_micros(WAIT_MOVE_US));
 
-        // Create the file if it doesn't exist
-        let file = OpenOptions::new()
-            .read(true)
-            .create(true)
-            .open(path)
-            .with_context(|| format!("Failed to create file: {}", path.display()))?;
-
         // Set permissions
-        let fd = file.as_raw_fd();
         unsafe {
             libc::chmod(
                 path.to_str().unwrap_or("").as_ptr() as *const libc::c_char,
-                RECREATE_DEFAULT_PERM
+                RECREATE_DEFAULT_PERM,
             );
         }
     }

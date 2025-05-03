@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use log::{LevelFilter, Record, Level, Metadata};
+use anyhow::{Context, Result};
 use chrono::Local;
-use anyhow::{Result, Context};
+use log::{Level, LevelFilter, Metadata, Record};
 use once_cell::sync::Lazy;
 
 use crate::datasource::file_path::LOG_LEVEL_PATH;

@@ -1,14 +1,9 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-use log::{debug, info, warn, error};
-use anyhow::{Result, Context, anyhow};
+use anyhow::Result;
+use log::{info, warn};
 
-use crate::datasource::file_path::*;
-use crate::model::gpu::{GPU, TabType};
-use crate::utils::file_operate::check_read_simple;
+use crate::{datasource::file_path::*, model::gpu::GPU, utils::file_operate::check_read_simple};
 
 // 检测GPU驱动类型，但不读取系统支持的频率表
 fn detect_gpu_driver_type(gpu: &mut GPU) -> Result<()> {
@@ -22,10 +17,22 @@ fn detect_gpu_driver_type(gpu: &mut GPU) -> Result<()> {
 
     // 记录检测到的文件
     info!("GPU Driver Files Detection:");
-    info!("  V1 Voltage File: {}", if v1_volt_exists { "Found" } else { "Not Found" });
-    info!("  V1 Frequency File: {}", if v1_opp_exists { "Found" } else { "Not Found" });
-    info!("  V2 Voltage File: {}", if v2_volt_exists { "Found" } else { "Not Found" });
-    info!("  V2 Frequency File: {}", if v2_opp_exists { "Found" } else { "Not Found" });
+    info!(
+        "  V1 Voltage File: {}",
+        if v1_volt_exists { "Found" } else { "Not Found" }
+    );
+    info!(
+        "  V1 Frequency File: {}",
+        if v1_opp_exists { "Found" } else { "Not Found" }
+    );
+    info!(
+        "  V2 Voltage File: {}",
+        if v2_volt_exists { "Found" } else { "Not Found" }
+    );
+    info!(
+        "  V2 Frequency File: {}",
+        if v2_opp_exists { "Found" } else { "Not Found" }
+    );
 
     // 检查v1驱动
     if v1_volt_exists || v1_opp_exists {

@@ -1,17 +1,13 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufRead, BufReader},
+};
 
-use log::{debug, info, warn, error};
-use anyhow::{Result, Context, anyhow};
+use anyhow::{Context, Result};
+use log::{debug, error, info, warn};
 
-use crate::model::gpu::{GPU, TabType};
-use crate::utils::strstrip::trim;
-
-fn is_in_table(vec: &[i64], freq: i64) -> bool {
-    vec.iter().any(|&x| x == freq)
-}
+use crate::model::gpu::{TabType, GPU};
 
 fn volt_is_valid(v: i64) -> bool {
     v != 0 && v % 625 == 0
@@ -49,10 +45,10 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     let mut new_fdtab = HashMap::new();
 
     for line in reader.lines() {
-        let mut line = line?;
+        let line = line?;
 
         // Trim whitespace
-        let mut trimmed = line.trim().to_string();
+        let trimmed = line.trim().to_string();
 
         // Skip empty lines and comments
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -67,7 +63,7 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
             if let (Ok(freq), Ok(volt), Ok(dram)) = (
                 parts[0].parse::<i64>(),
                 parts[1].parse::<i64>(),
-                parts[2].parse::<i64>()
+                parts[2].parse::<i64>(),
             ) {
                 // 只验证电压是否有效
                 if !volt_is_valid(volt) {
@@ -96,7 +92,10 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     info!("Using frequencies directly from config file without system support check");
 
     // 输出频率表条目数量
-    info!("Loaded {} frequency entries from config file (no limit)", new_config_list.len());
+    info!(
+        "Loaded {} frequency entries from config file (no limit)",
+        new_config_list.len()
+    );
 
     // Update GPU with new configuration
     gpu.set_config_list(new_config_list);
@@ -107,10 +106,12 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
 
     // Log the configuration
     for &freq in &gpu.get_config_list() {
-        info!("Freq={}, Volt={}, Dram={}",
-              freq,
-              gpu.read_tab(TabType::FreqVolt, freq),
-              gpu.read_tab(TabType::FreqDram, freq));
+        info!(
+            "Freq={}, Volt={}, Dram={}",
+            freq,
+            gpu.read_tab(TabType::FreqVolt, freq),
+            gpu.read_tab(TabType::FreqDram, freq)
+        );
     }
 
     Ok(())

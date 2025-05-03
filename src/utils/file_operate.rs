@@ -1,15 +1,14 @@
-use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
-use std::os::unix::fs::PermissionsExt;
-use std::path::Path;
+use std::{
+    fs::{File, OpenOptions},
+    io::{Read, Write},
+    os::unix::fs::PermissionsExt,
+    path::Path,
+};
 
+use anyhow::{Context, Result};
 use log::{debug, error};
-use anyhow::{Result, Context, anyhow};
 
 use crate::utils::file_status::write_status;
-
-const RD_FLAGS: i32 = libc::O_RDONLY;
-const WR_FLAGS: i32 = libc::O_WRONLY;
 
 pub fn check_read<P: AsRef<Path>>(path: P, status: &mut bool) -> String {
     let path_ref = path.as_ref();
@@ -33,19 +32,25 @@ pub fn read_file<P: AsRef<Path>>(path: P, max_len: usize) -> Result<String> {
         .with_context(|| format!("Failed to open file for reading: {}", path_ref.display()))?;
 
     let mut content = String::with_capacity(max_len);
-    let bytes_read = file.read_to_string(&mut content)
+    let bytes_read = file
+        .read_to_string(&mut content)
         .with_context(|| format!("Failed to read from file: {}", path_ref.display()))?;
 
     content.truncate(bytes_read);
     Ok(content)
 }
 
-pub fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, content: C, max_len: usize) -> Result<usize> {
+pub fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(
+    path: P,
+    content: C,
+    max_len: usize,
+) -> Result<usize> {
     let path_ref = path.as_ref();
 
     // Set permissions to writable
     if path_ref.exists() {
-        let metadata = path_ref.metadata()
+        let metadata = path_ref
+            .metadata()
             .with_context(|| format!("Failed to get metadata for: {}", path_ref.display()))?;
         let mut perms = metadata.permissions();
         perms.set_mode(0o644);
@@ -62,11 +67,13 @@ pub fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, content: C, max_len: 
 
     let content_ref = content.as_ref();
     let len = std::cmp::min(content_ref.len(), max_len);
-    let bytes_written = file.write(&content_ref[..len])
+    let bytes_written = file
+        .write(&content_ref[..len])
         .with_context(|| format!("Failed to write to file: {}", path_ref.display()))?;
 
     // Set permissions back to read-only
-    let metadata = path_ref.metadata()
+    let metadata = path_ref
+        .metadata()
         .with_context(|| format!("Failed to get metadata for: {}", path_ref.display()))?;
     let mut perms = metadata.permissions();
     perms.set_mode(0o444);
@@ -77,7 +84,11 @@ pub fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, content: C, max_len: 
 }
 
 /// 安全地写入文件，如果文件不存在则记录错误但不中断程序
-pub fn write_file_safe<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, content: C, max_len: usize) -> Result<usize> {
+pub fn write_file_safe<P: AsRef<Path>, C: AsRef<[u8]>>(
+    path: P,
+    content: C,
+    max_len: usize,
+) -> Result<usize> {
     let path_ref = path.as_ref();
 
     // 检查文件是否存在
@@ -100,7 +111,11 @@ pub fn write_file_safe<P: AsRef<Path>, C: AsRef<[u8]>>(path: P, content: C, max_
         Ok(bytes) => Ok(bytes),
         Err(e) => {
             // 记录错误但不中断程序
-            error!("写入文件失败，但继续执行: {} - 错误: {}", path_ref.display(), e);
+            error!(
+                "写入文件失败，但继续执行: {} - 错误: {}",
+                path_ref.display(),
+                e
+            );
             Ok(0)
         }
     }

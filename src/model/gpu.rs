@@ -1,15 +1,13 @@
 use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
-use std::sync::{Arc, Mutex};
 
-use log::{debug, info, warn, error};
-use anyhow::{Result, Context, anyhow};
+use anyhow::Result;
+use log::{debug, warn};
 
 use crate::datasource::file_path::*;
 use crate::datasource::load_monitor::get_gpu_load;
-use crate::utils::file_operate::{read_file, write_file, write_file_safe};
-use crate::utils::file_status::get_status;
+use crate::utils::file_operate::write_file_safe;
 
 // Macro to simulate goto in Rust
 macro_rules! goto_gen_volt {
@@ -40,12 +38,6 @@ macro_rules! goto_gen_volt {
     };
 }
 
-// List and Tab types
-pub enum ListType {
-    GpufreqList,
-    ConfigList,
-}
-
 pub enum TabType {
     FreqVolt,
     FreqDram,
@@ -61,7 +53,6 @@ pub enum WriterOpt {
 
 #[derive(Clone)]
 pub struct GPU {
-    gpufreq_list: Vec<i64>,
     config_list: Vec<i64>,
     freq_volt: HashMap<i64, i64>,
     freq_dram: HashMap<i64, i64>,
@@ -70,19 +61,16 @@ pub struct GPU {
     cur_freq_idx: i64,
     cur_volt: i64,
     load_low: i64,
-    need_dcs: bool,
     is_idle: bool,
     gpuv2: bool,
     dcs_enable: bool,
     gaming_mode: bool,
-    have_config: bool,
     precise: bool,
 }
 
 impl GPU {
     pub fn new() -> Self {
         Self {
-            gpufreq_list: Vec::new(),
             config_list: Vec::new(),
             freq_volt: HashMap::new(),
             freq_dram: HashMap::new(),
@@ -91,12 +79,10 @@ impl GPU {
             cur_freq_idx: 0,
             cur_volt: 0,
             load_low: 0,
-            need_dcs: false,
             is_idle: false,
             gpuv2: false,
             dcs_enable: false,
             gaming_mode: false,
-            have_config: false,
             precise: false,
         }
     }
@@ -190,15 +176,6 @@ impl GPU {
                 final_freq = self.read_freq_le(target_freq);
             }
 
-            #[cfg(feature = "dcs_enable")]
-            {
-                if final_freq < self.get_freq_by_index(0) && self.gpuv2 {
-                    self.need_dcs = true;
-                } else {
-                    self.need_dcs = false;
-                }
-            }
-
             final_freq_index = self.read_freq_index(final_freq);
             debug!(
                 "target_freq:{}, cur_freq:{}, final_freq:{}, down_freq:{}, up_freq:{}",
@@ -209,7 +186,9 @@ impl GPU {
                 self.gen_cur_freq(final_freq_index)
             );
 
-            if final_freq > self.cur_freq || (final_freq == self.cur_freq && target_freq > self.cur_freq) {
+            if final_freq > self.cur_freq
+                || (final_freq == self.cur_freq && target_freq > self.cur_freq)
+            {
                 debug!("go up");
                 self.cur_freq = self.gen_cur_freq(final_freq_index);
                 self.cur_freq_idx = final_freq_index;
@@ -265,8 +244,16 @@ impl GPU {
         let opp_reset = "0";
         let opp_reset_v1 = "0";
 
-        let volt_path = if self.gpuv2 { GPUFREQV2_VOLT } else { GPUFREQ_VOLT };
-        let opp_path = if self.gpuv2 { GPUFREQV2_OPP } else { GPUFREQ_OPP };
+        let volt_path = if self.gpuv2 {
+            GPUFREQV2_VOLT
+        } else {
+            GPUFREQ_VOLT
+        };
+        let opp_path = if self.gpuv2 {
+            GPUFREQV2_OPP
+        } else {
+            GPUFREQ_OPP
+        };
 
         // 检查文件是否存在
         let volt_path_exists = std::path::Path::new(volt_path).exists();
@@ -297,19 +284,33 @@ impl GPU {
             WriterOpt::Idle => {
                 debug!("is idle");
                 write_file_safe(volt_path, volt_reset, volt_reset.len())?;
-                write_file_safe(opp_path, if self.gpuv2 { opp_reset } else { opp_reset_v1 },
-                          if self.gpuv2 { opp_reset.len() } else { opp_reset_v1.len() })?;
-            },
+                write_file_safe(
+                    opp_path,
+                    if self.gpuv2 { opp_reset } else { opp_reset_v1 },
+                    if self.gpuv2 {
+                        opp_reset.len()
+                    } else {
+                        opp_reset_v1.len()
+                    },
+                )?;
+            }
             WriterOpt::NoVolt => {
                 debug!("writer has no volt");
                 debug!("write {} to opp path", content);
                 write_file_safe(volt_path, volt_reset, volt_reset.len())?;
                 write_file_safe(opp_path, &content, content.len())?;
-            },
+            }
             WriterOpt::Normal => {
                 debug!("write {} to volt path", volt_content);
-                write_file_safe(opp_path, if self.gpuv2 { opp_reset } else { opp_reset_v1 },
-                          if self.gpuv2 { opp_reset.len() } else { opp_reset_v1.len() })?;
+                write_file_safe(
+                    opp_path,
+                    if self.gpuv2 { opp_reset } else { opp_reset_v1 },
+                    if self.gpuv2 {
+                        opp_reset.len()
+                    } else {
+                        opp_reset_v1.len()
+                    },
+                )?;
                 write_file_safe(volt_path, &volt_content, volt_content.len())?;
             }
         }
@@ -321,58 +322,12 @@ impl GPU {
         self.get_freq_by_index(idx)
     }
 
-    // Getters and setters
-    pub fn get_cur_volt(&self) -> i64 {
-        self.cur_volt
-    }
-
-    pub fn set_cur_volt(&mut self, cur_volt: i64) {
-        self.cur_volt = cur_volt;
-    }
-
-    pub fn insert_to_list(&mut self, list_type: ListType, freq: i64) {
-        match list_type {
-            ListType::GpufreqList => self.gpufreq_list.push(freq),
-            ListType::ConfigList => self.config_list.push(freq),
-        }
-    }
-
-    pub fn replace_list(&mut self, list_type: ListType, list: Vec<i64>) {
-        match list_type {
-            ListType::GpufreqList => self.gpufreq_list = list,
-            ListType::ConfigList => self.config_list = list,
-        }
-    }
-
-    pub fn get_list(&self, list_type: ListType) -> Vec<i64> {
-        match list_type {
-            ListType::GpufreqList => self.gpufreq_list.clone(),
-            ListType::ConfigList => self.config_list.clone(),
-        }
-    }
-
-    pub fn get_gpufreq_list(&self) -> Vec<i64> {
-        self.gpufreq_list.clone()
-    }
-
     pub fn get_config_list(&self) -> Vec<i64> {
         self.config_list.clone()
     }
 
     pub fn set_config_list(&mut self, config_list: Vec<i64>) {
         self.config_list = config_list;
-    }
-
-    pub fn set_gpufreq_list(&mut self, gpufreq_list: Vec<i64>) {
-        self.gpufreq_list = gpufreq_list;
-    }
-
-    pub fn insert_to_tab(&mut self, tab_type: TabType, freq: i64, data: i64) {
-        match tab_type {
-            TabType::FreqVolt => { self.freq_volt.insert(freq, data); },
-            TabType::FreqDram => { self.freq_dram.insert(freq, data); },
-            TabType::DefVolt => { self.def_volt.insert(freq, data); },
-        }
     }
 
     pub fn replace_tab(&mut self, tab_type: TabType, tab: HashMap<i64, i64>) {
@@ -399,14 +354,6 @@ impl GPU {
         self.cur_freq = cur_freq;
     }
 
-    pub fn get_cur_freq_idx(&self) -> i64 {
-        self.cur_freq_idx
-    }
-
-    pub fn set_cur_freq_idx(&mut self, cur_freq_idx: i64) {
-        self.cur_freq_idx = cur_freq_idx;
-    }
-
     pub fn is_gpuv2(&self) -> bool {
         self.gpuv2
     }
@@ -415,16 +362,8 @@ impl GPU {
         self.gpuv2 = gpuv2;
     }
 
-    pub fn is_dcs_enable(&self) -> bool {
-        self.dcs_enable
-    }
-
     pub fn set_dcs_enable(&mut self, dcs_enable: bool) {
         self.dcs_enable = dcs_enable;
-    }
-
-    pub fn is_gaming_mode(&self) -> bool {
-        self.gaming_mode
     }
 
     pub fn set_gaming_mode(&mut self, gaming_mode: bool) {
@@ -436,38 +375,6 @@ impl GPU {
         self.cur_volt
     }
 
-    pub fn get_load_low(&self) -> i64 {
-        self.load_low
-    }
-
-    pub fn set_load_low(&mut self, load_low: i64) {
-        self.load_low = load_low;
-    }
-
-    pub fn is_idle(&self) -> bool {
-        self.is_idle
-    }
-
-    pub fn set_is_idle(&mut self, is_idle: bool) {
-        self.is_idle = is_idle;
-    }
-
-    pub fn is_need_dcs(&self) -> bool {
-        self.need_dcs
-    }
-
-    pub fn set_need_dcs(&mut self, need_dcs: bool) {
-        self.need_dcs = need_dcs;
-    }
-
-    pub fn is_have_config(&self) -> bool {
-        self.have_config
-    }
-
-    pub fn set_have_config(&mut self, have_config: bool) {
-        self.have_config = have_config;
-    }
-
     pub fn is_precise(&self) -> bool {
         self.precise
     }
@@ -475,26 +382,4 @@ impl GPU {
     pub fn set_precise(&mut self, precise: bool) {
         self.precise = precise;
     }
-
-    fn conf2tab(&self, id: i64) -> i64 {
-        if id < 0 {
-            return -1;
-        }
-        for i in 0..self.gpufreq_list.len() {
-            if self.config_list[id as usize] == self.gpufreq_list[i] {
-                return i as i64;
-            }
-        }
-        -1
-    }
-
-    fn tab2conf(&self, id: i64) -> i64 {
-        for i in 0..self.config_list.len() {
-            if self.gpufreq_list[id as usize] == self.config_list[i] {
-                return i as i64;
-            }
-        }
-        -1
-    }
 }
-

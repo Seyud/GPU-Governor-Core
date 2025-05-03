@@ -1,16 +1,18 @@
-use std::path::Path;
-use std::thread;
-use std::time::Duration;
-
-use log::{debug, info, warn, error};
-use anyhow::{Result, Context, anyhow};
+use anyhow::Result;
 use inotify::WatchMask;
+use log::{debug, error, info, warn};
 
-use crate::datasource::file_path::*;
-use crate::datasource::config_parser::{config_read, gen_default_freq_table};
-use crate::model::gpu::GPU;
-use crate::utils::file_operate::{read_file, check_read_simple};
-use crate::utils::inotify::InotifyWatcher;
+use crate::{
+    datasource::{
+        config_parser::{config_read, gen_default_freq_table},
+        file_path::*,
+    },
+    model::gpu::GPU,
+    utils::{
+        file_operate::{check_read_simple, read_file},
+        inotify::InotifyWatcher,
+    },
+};
 
 pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
     // Set thread name (in Rust we can't set the current thread name easily)
@@ -22,7 +24,10 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
     // 检查游戏模式文件路径
     if !check_read_simple(GPU_GOVERNOR_GAME_MODE_PATH) {
         // 如果文件不存在，记录日志
-        info!("Game mode file does not exist: {}", GPU_GOVERNOR_GAME_MODE_PATH);
+        info!(
+            "Game mode file does not exist: {}",
+            GPU_GOVERNOR_GAME_MODE_PATH
+        );
     } else {
         info!("Using game mode path: {}", GPU_GOVERNOR_GAME_MODE_PATH);
 
@@ -38,7 +43,10 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
 
     // 设置文件监控
     let mut inotify = InotifyWatcher::new()?;
-    inotify.add(GPU_GOVERNOR_GAME_MODE_PATH, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
+    inotify.add(
+        GPU_GOVERNOR_GAME_MODE_PATH,
+        WatchMask::CLOSE_WRITE | WatchMask::MODIFY,
+    )?;
 
     // 主循环
     loop {
@@ -59,7 +67,7 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                 let is_gaming = value != 0;
                 gpu.set_gaming_mode(is_gaming);
                 debug!("Game mode changed: {}", is_gaming);
-            },
+            }
             Err(e) => {
                 warn!("Failed to read game mode file: {}", e);
                 // 如果读取失败，设置为非游戏模式
