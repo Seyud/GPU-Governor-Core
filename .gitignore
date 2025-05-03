@@ -1,0 +1,15 @@
+# 忽略除src文件夹外的所有内容
+/*
+!.gitignore
+!src/
+
+# 忽略Rust编译产物
+target/
+**/*.rs.bk
+Cargo.lock
+Cargo.toml
+README.md
+
+# 忽略可执行文件
+*.exe
+gpugovernor

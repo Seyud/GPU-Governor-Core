@@ -1,0 +1,112 @@
+use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
+use std::os::unix::io::AsRawFd;
+use std::path::Path;
+use std::thread;
+use std::time::Duration;
+
+use log::{debug, error};
+use anyhow::{Result, Context};
+use inotify::{Inotify, WatchMask, EventMask};
+
+const WAIT_MOVE_US: u64 = 500 * 1000;
+const RECREATE_DEFAULT_PERM: u32 = 0o666;
+
+pub struct InotifyWatcher {
+    inotify: Inotify,
+    watches: HashMap<inotify::WatchDescriptor, String>,
+}
+
+impl InotifyWatcher {
+    pub fn new() -> Result<Self> {
+        let inotify = Inotify::init()
+            .with_context(|| "Failed to initialize inotify")?;
+
+        Ok(Self {
+            inotify,
+            watches: HashMap::new(),
+        })
+    }
+
+    pub fn add<P: AsRef<Path>>(&mut self, path: P, mask: WatchMask) -> Result<()> {
+        let path_ref = path.as_ref();
+        let path_str = path_ref.to_str()
+            .with_context(|| format!("Invalid path: {}", path_ref.display()))?;
+
+        // Add DELETE_SELF and MOVE_SELF to the mask
+        let mask = mask | WatchMask::DELETE_SELF | WatchMask::MOVE_SELF;
+
+        let wd = self.inotify.add_watch(path_ref, mask)
+            .with_context(|| format!("Failed to add watch for: {}", path_ref.display()))?;
+
+        self.watches.insert(wd, path_str.to_string());
+
+        Ok(())
+    }
+
+    pub fn wait_and_handle(&mut self) -> Result<()> {
+        let mut buffer = [0; 4096];
+        let events = self.inotify.read_events_blocking(&mut buffer)
+            .with_context(|| "Failed to read inotify events")?;
+
+        // Collect all watches that need to be updated
+        let mut watches_to_update = Vec::new();
+
+        for event in events {
+            if let Some(path) = self.watches.get(&event.wd) {
+                // Re-establish watching after deleting
+                if event.mask.contains(EventMask::IGNORED) ||
+                   event.mask.contains(EventMask::DELETE_SELF) ||
+                   event.mask.contains(EventMask::MOVE_SELF) {
+                    watches_to_update.push((event.wd, path.clone()));
+                }
+            }
+        }
+
+        // Update watches
+        for (wd, path) in watches_to_update {
+            // Try to recreate the file if it doesn't exist
+            try_path(&path)?;
+
+            // Re-add the watch
+            let mask = WatchMask::MODIFY | WatchMask::CLOSE_WRITE |
+                       WatchMask::DELETE_SELF | WatchMask::MOVE_SELF;
+
+            let new_wd = self.inotify.add_watch(&path, mask)
+                .with_context(|| format!("Failed to re-add watch for: {}", path))?;
+
+            // Update the watches map
+            self.watches.remove(&wd);
+            self.watches.insert(new_wd, path);
+        }
+
+        Ok(())
+    }
+}
+
+fn try_path(path: &str) -> Result<()> {
+    let path = Path::new(path);
+
+    if !path.exists() {
+        // Sleep a bit to allow for file system operations to complete
+        thread::sleep(Duration::from_micros(WAIT_MOVE_US));
+
+        // Create the file if it doesn't exist
+        let file = OpenOptions::new()
+            .read(true)
+            .create(true)
+            .open(path)
+            .with_context(|| format!("Failed to create file: {}", path.display()))?;
+
+        // Set permissions
+        let fd = file.as_raw_fd();
+        unsafe {
+            libc::chmod(
+                path.to_str().unwrap_or("").as_ptr() as *const libc::c_char,
+                RECREATE_DEFAULT_PERM
+            );
+        }
+    }
+
+    Ok(())
+}
