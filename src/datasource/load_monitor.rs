@@ -247,6 +247,31 @@ pub fn get_gpu_load() -> Result<i32> {
     debug_dvfs_load_func()
 }
 
+pub fn get_gpu_current_freq() -> Result<i64> {
+    if !get_status(GPU_CURRENT_FREQ_PATH) {
+        debug!("GPU current frequency path not available: {}", GPU_CURRENT_FREQ_PATH);
+        return Ok(0);
+    }
+
+    let buf = read_file(GPU_CURRENT_FREQ_PATH, 64)?;
+    let parts: Vec<&str> = buf.split_whitespace().collect();
+
+    // 读取第二个整数作为当前频率
+    if parts.len() >= 2 {
+        if let Ok(freq) = parts[1].parse::<i64>() {
+            debug!("Current GPU frequency: {}", freq);
+            return Ok(freq);
+        } else {
+            debug!("Failed to parse second value as frequency from: {}", buf);
+        }
+    } else {
+        debug!("Not enough values in GPU frequency file, content: {}", buf);
+    }
+
+    // 如果无法读取或解析，返回0
+    Ok(0)
+}
+
 pub fn utilization_init() -> Result<()> {
     let mut is_good = false;
     info!("Init LoadMonitor");

@@ -4,7 +4,7 @@ use anyhow::Result;
 use log::{debug, warn};
 
 use crate::{
-    datasource::{file_path::*, load_monitor::get_gpu_load},
+    datasource::{file_path::*, load_monitor::{get_gpu_load, get_gpu_current_freq}},
     utils::file_operate::write_file_safe,
 };
 
@@ -156,6 +156,17 @@ impl GPU {
         debug!("config:{:?}, freq:{}", self.config_list, self.cur_freq);
 
         loop {
+            // 读取当前GPU频率
+            if let Ok(current_freq) = get_gpu_current_freq() {
+                if current_freq > 0 {
+                    // 只有当读取到的频率大于0时才更新
+                    self.cur_freq = current_freq;
+                    // 更新频率索引
+                    self.cur_freq_idx = self.read_freq_index(self.cur_freq);
+                    debug!("Updated current GPU frequency from file: {}", current_freq);
+                }
+            }
+
             util = get_gpu_load()?;
             if util <= 0 {
                 self.load_low += 1;
