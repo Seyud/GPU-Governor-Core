@@ -7,11 +7,7 @@ use std::{
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
 
-use crate::{
-    datasource::file_path::*,
-    model::gpu::GPU,
-    utils::file_operate::check_read_simple,
-};
+use crate::{datasource::file_path::*, model::gpu::GPU, utils::file_operate::check_read_simple};
 
 // 检测GPU驱动类型，但不读取系统支持的频率表
 fn detect_gpu_driver_type(gpu: &mut GPU) -> Result<()> {
