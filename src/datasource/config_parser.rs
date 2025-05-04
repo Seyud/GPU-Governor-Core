@@ -94,9 +94,6 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
         return Ok(());
     }
 
-    // Sort the frequency list in descending order (highest frequency first)
-    new_config_list.sort_by(|a, b| b.cmp(a));
-
     // 直接使用配置文件中的频率，不进行任何系统支持检查
     info!("Using frequencies directly from config file without system support check");
 
