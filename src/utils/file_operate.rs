@@ -94,14 +94,14 @@ pub fn write_file_safe<P: AsRef<Path>, C: AsRef<[u8]>>(
     // 检查文件是否存在
     if !path_ref.exists() {
         // 文件不存在，记录错误但不中断程序
-        debug!("文件不存在，跳过写入: {}", path_ref.display());
+        debug!("File does not exist, skipping writing: {}", path_ref.display());
         return Ok(0);
     }
 
     // 检查父目录是否存在
     if let Some(parent) = path_ref.parent() {
         if !parent.exists() {
-            debug!("父目录不存在，跳过写入: {}", parent.display());
+            debug!("Parent directory does not exist, skipping writing.: {}", parent.display());
             return Ok(0);
         }
     }
@@ -112,7 +112,7 @@ pub fn write_file_safe<P: AsRef<Path>, C: AsRef<[u8]>>(
         Err(e) => {
             // 记录错误但不中断程序
             error!(
-                "写入文件失败，但继续执行: {} - 错误: {}",
+                "Failed to write to file, but continued execution: {}-Error: {}",
                 path_ref.display(),
                 e
             );

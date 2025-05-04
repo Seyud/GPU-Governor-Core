@@ -152,6 +152,8 @@ impl GPU {
         let mut final_freq;
         let mut final_freq_index;
         let margin = if self.gaming_mode { 30 } else { 20 };
+        
+        debug!("config:{:?}, freq:{}", self.config_list, self.cur_freq);
 
         loop {
             util = get_gpu_load()?;
@@ -336,7 +338,7 @@ impl GPU {
                 write_file_safe(opp_path, &content, content.len())?;
             }
             WriterOpt::Normal => {
-                debug!("write {} to volt path", volt_content);
+                debug!("write {} to volt {}", volt_content, opp_path);
                 write_file_safe(
                     opp_path,
                     if self.gpuv2 { opp_reset } else { opp_reset_v1 },
@@ -346,6 +348,7 @@ impl GPU {
                         opp_reset_v1.len()
                     },
                 )?;
+                debug!("write {} to volt {}", volt_content, volt_path);
                 write_file_safe(volt_path, &volt_content, volt_content.len())?;
             }
         }
