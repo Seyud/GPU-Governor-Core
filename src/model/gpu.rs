@@ -1,13 +1,12 @@
-use std::collections::HashMap;
-use std::thread;
-use std::time::Duration;
+use std::{collections::HashMap, thread, time::Duration};
 
 use anyhow::Result;
 use log::{debug, warn};
 
-use crate::datasource::file_path::*;
-use crate::datasource::load_monitor::get_gpu_load;
-use crate::utils::file_operate::write_file_safe;
+use crate::{
+    datasource::{load_monitor::get_gpu_load, file_path::*},
+    utils::file_operate::write_file_safe,
+};
 
 // Macro to simulate goto in Rust
 macro_rules! goto_gen_volt {
@@ -197,7 +196,10 @@ impl GPU {
 
                 // 对于v2 driver设备，验证频率是否在系统支持范围内
                 if self.gpuv2 && !self.is_freq_supported_by_v2_driver(new_freq) {
-                    debug!("Freq {} not supported by V2 driver, finding closest supported freq", new_freq);
+                    debug!(
+                        "Freq {} not supported by V2 driver, finding closest supported freq",
+                        new_freq
+                    );
                     // 如果新频率不在v2 driver支持的范围内，找到最接近的支持频率
                     self.cur_freq = self.get_closest_v2_supported_freq(new_freq);
                     // 更新频率索引
@@ -223,7 +225,10 @@ impl GPU {
 
                 // 对于v2 driver设备，验证频率是否在系统支持范围内
                 if self.gpuv2 && !self.is_freq_supported_by_v2_driver(new_freq) {
-                    debug!("Freq {} not supported by V2 driver, finding closest supported freq", new_freq);
+                    debug!(
+                        "Freq {} not supported by V2 driver, finding closest supported freq",
+                        new_freq
+                    );
                     // 如果新频率不在v2 driver支持的范围内，找到最接近的支持频率
                     self.cur_freq = self.get_closest_v2_supported_freq(new_freq);
                     // 更新频率索引
@@ -437,7 +442,10 @@ impl GPU {
 
     // 获取v2 driver支持的最接近频率
     pub fn get_closest_v2_supported_freq(&self, freq: i64) -> i64 {
-        if !self.gpuv2 || self.v2_supported_freqs.is_empty() || self.is_freq_supported_by_v2_driver(freq) {
+        if !self.gpuv2
+            || self.v2_supported_freqs.is_empty()
+            || self.is_freq_supported_by_v2_driver(freq)
+        {
             // 如果不是v2 driver或者没有读取到支持的频率，或者频率已经在支持范围内，则直接返回原频率
             return freq;
         }
@@ -454,7 +462,10 @@ impl GPU {
             }
         }
 
-        debug!("Freq {} not supported by V2 driver, using closest supported freq: {}", freq, closest_freq);
+        debug!(
+            "Freq {} not supported by V2 driver, using closest supported freq: {}",
+            freq, closest_freq
+        );
         closest_freq
     }
 }

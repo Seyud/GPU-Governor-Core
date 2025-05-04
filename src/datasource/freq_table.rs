@@ -91,13 +91,20 @@ fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
 
     // 检查频率表文件是否存在
     if !Path::new(GPUFREQV2_TABLE).exists() || !check_read_simple(GPUFREQV2_TABLE) {
-        warn!("V2 driver frequency table file not found: {}", GPUFREQV2_TABLE);
+        warn!(
+            "V2 driver frequency table file not found: {}",
+            GPUFREQV2_TABLE
+        );
         return Ok(freq_list);
     }
 
     // 打开并读取频率表文件
-    let file = File::open(GPUFREQV2_TABLE)
-        .with_context(|| format!("Failed to open V2 driver frequency table file: {}", GPUFREQV2_TABLE))?;
+    let file = File::open(GPUFREQV2_TABLE).with_context(|| {
+        format!(
+            "Failed to open V2 driver frequency table file: {}",
+            GPUFREQV2_TABLE
+        )
+    })?;
 
     let reader = BufReader::new(file);
 
@@ -160,7 +167,10 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
             info!("V2 Driver Min Supported Freq: {}", min_freq);
         }
 
-        info!("V2 Driver Supported Frequencies Total: {}", v2_supported_freqs.len());
+        info!(
+            "V2 Driver Supported Frequencies Total: {}",
+            v2_supported_freqs.len()
+        );
     } else if gpu.is_gpuv2() {
         warn!("No frequencies found in V2 driver table");
     } else {

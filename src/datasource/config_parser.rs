@@ -73,7 +73,10 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
 
                 // 对于v2 driver设备，验证频率是否在系统支持范围内
                 if gpu.is_gpuv2() && !gpu.is_freq_supported_by_v2_driver(freq) {
-                    warn!("{} is not supported by V2 driver: freq {} is not in supported range", trimmed, freq);
+                    warn!(
+                        "{} is not supported by V2 driver: freq {} is not in supported range",
+                        trimmed, freq
+                    );
                     // 不跳过，仍然添加到配置中，但会发出警告
                 }
 
