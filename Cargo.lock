@@ -152,6 +152,7 @@ dependencies = [
  "log",
  "nix",
  "once_cell",
+ "regex",
  "thiserror",
 ]
 
