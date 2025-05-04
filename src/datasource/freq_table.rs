@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use log::{debug, info, warn};
 
 use crate::{
-    datasource::file_path::{GPUFREQ_OPP, GPUFREQ_VOLT, GPUFREQV2_OPP, GPUFREQV2_VOLT},
+    datasource::file_path::*,
     model::gpu::GPU,
     utils::file_operate::check_read_simple,
 };
@@ -89,18 +89,15 @@ fn detect_gpu_driver_type(gpu: &mut GPU) -> Result<()> {
 fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
     let mut freq_list = Vec::new();
 
-    // 定义v2驱动频率表文件路径
-    let gpufreqv2_table = "/proc/gpufreqv2/stack_working_opp_table";
-
     // 检查频率表文件是否存在
-    if !Path::new(gpufreqv2_table).exists() || !check_read_simple(gpufreqv2_table) {
-        warn!("V2 driver frequency table file not found: {}", gpufreqv2_table);
+    if !Path::new(GPUFREQV2_TABLE).exists() || !check_read_simple(GPUFREQV2_TABLE) {
+        warn!("V2 driver frequency table file not found: {}", GPUFREQV2_TABLE);
         return Ok(freq_list);
     }
 
     // 打开并读取频率表文件
-    let file = File::open(gpufreqv2_table)
-        .with_context(|| format!("Failed to open V2 driver frequency table file: {}", gpufreqv2_table))?;
+    let file = File::open(GPUFREQV2_TABLE)
+        .with_context(|| format!("Failed to open V2 driver frequency table file: {}", GPUFREQV2_TABLE))?;
 
     let reader = BufReader::new(file);
 
