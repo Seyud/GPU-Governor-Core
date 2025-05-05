@@ -160,13 +160,19 @@ impl GPU {
 
         loop {
             // 读取当前GPU频率
-            if let Ok(current_freq) = get_gpu_current_freq() {
-                if current_freq > 0 {
-                    // 只有当读取到的频率大于0时才更新
-                    self.cur_freq = current_freq;
-                    // 更新频率索引
-                    self.cur_freq_idx = self.read_freq_index(self.cur_freq);
-                    debug!("Updated current GPU frequency from file: {}", current_freq);
+            match get_gpu_current_freq() {
+                Ok(current_freq) => {
+                    if current_freq > 0 {
+                        // 只有当读取到的频率大于0时才更新
+                        self.cur_freq = current_freq;
+                        // 更新频率索引
+                        self.cur_freq_idx = self.read_freq_index(self.cur_freq);
+                        debug!("Updated current GPU frequency from file: {}", current_freq);
+                    }
+                },
+                Err(e) => {
+                    // 如果无法读取GPU频率，记录错误并退出
+                    return Err(e);
                 }
             }
 
@@ -293,7 +299,7 @@ impl GPU {
         let content = freq_to_use.to_string();
         let volt_content = format!("{} {}", freq_to_use, self.cur_volt);
         let volt_reset = "0 0";
-        let opp_reset = "0";
+        let opp_reset = if self.gpuv2 { "-1" } else { "0" };
         let opp_reset_v1 = "0";
 
         let volt_path = if self.gpuv2 {

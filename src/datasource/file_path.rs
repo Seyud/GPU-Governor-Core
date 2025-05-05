@@ -8,7 +8,6 @@ pub const GED_LOCKER: &str = "GedLocker";
 pub const FOREGROUND_APP_THREAD: &str = "ForegroundAppWatcher";
 
 // File paths
-pub const GAME_MODE_PATH: &str = "/dev/asopt_game";
 pub const GPU_GOVERNOR_GAME_MODE_PATH: &str = "/data/adb/gpu_governor/game_mode";
 pub const MODULE_LOAD: &str = "/sys/module/ged/parameters/gpu_loading";
 pub const MODULE_IDLE: &str = "/sys/module/ged/parameters/gpu_idle";

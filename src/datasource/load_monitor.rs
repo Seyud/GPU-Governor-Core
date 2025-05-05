@@ -248,35 +248,87 @@ pub fn get_gpu_load() -> Result<i32> {
 }
 
 pub fn get_gpu_current_freq() -> Result<i64> {
-    if !get_status(GPU_CURRENT_FREQ_PATH) {
+    // 首先尝试从GPU_CURRENT_FREQ_PATH读取频率
+    if get_status(GPU_CURRENT_FREQ_PATH) {
+        let buf = match read_file(GPU_CURRENT_FREQ_PATH, 64) {
+            Ok(content) => content,
+            Err(e) => {
+                debug!("Failed to read GPU_CURRENT_FREQ_PATH: {}", e);
+                write_status(GPU_CURRENT_FREQ_PATH, false);
+                // 不立即返回，继续尝试其他路径
+                String::new()
+            }
+        };
+
+        if !buf.is_empty() {
+            let parts: Vec<&str> = buf.split_whitespace().collect();
+
+            // 读取第二个整数作为当前频率
+            if parts.len() >= 2 {
+                if let Ok(freq) = parts[1].parse::<i64>() {
+                    debug!("Current GPU frequency from {}: {}", GPU_CURRENT_FREQ_PATH, freq);
+                    return Ok(freq);
+                } else {
+                    debug!("Failed to parse second value as frequency from: {}", buf);
+                }
+            } else {
+                debug!("Not enough values in GPU frequency file, content: {}", buf);
+            }
+        }
+    } else {
         debug!(
             "GPU current frequency path not available: {}",
             GPU_CURRENT_FREQ_PATH
         );
-        return Ok(0);
     }
 
-    let buf = read_file(GPU_CURRENT_FREQ_PATH, 64)?;
-    let parts: Vec<&str> = buf.split_whitespace().collect();
+    // 如果无法从GPU_CURRENT_FREQ_PATH读取，尝试从GPU_FREQ_LOAD_PATH读取
+    if get_status(GPU_FREQ_LOAD_PATH) {
+        debug!("Trying to read frequency from {}", GPU_FREQ_LOAD_PATH);
 
-    // 读取第二个整数作为当前频率
-    if parts.len() >= 2 {
-        if let Ok(freq) = parts[1].parse::<i64>() {
-            debug!("Current GPU frequency: {}", freq);
-            return Ok(freq);
-        } else {
-            debug!("Failed to parse second value as frequency from: {}", buf);
+        let file = match File::open(GPU_FREQ_LOAD_PATH) {
+            Ok(file) => file,
+            Err(e) => {
+                debug!("Failed to open GPU_FREQ_LOAD_PATH: {}", e);
+                write_status(GPU_FREQ_LOAD_PATH, false);
+                // 如果两个路径都不可用，抛出异常
+                return Err(anyhow!("Cannot read GPU frequency: both GPU_CURRENT_FREQ_PATH and GPU_FREQ_LOAD_PATH are unavailable"));
+            }
+        };
+
+        let reader = BufReader::new(file);
+
+        for line in reader.lines() {
+            let line = match line {
+                Ok(l) => l,
+                Err(e) => {
+                    debug!("Error reading line from GPU_FREQ_LOAD_PATH: {}", e);
+                    continue;
+                }
+            };
+
+            // 尝试解析"cur_freq = XX"格式
+            if let Some(pos) = line.find("cur_freq = ") {
+                if let Ok(freq) = line[pos + 11..].trim().parse::<i64>() {
+                    debug!("Current GPU frequency from {}: {}", GPU_FREQ_LOAD_PATH, freq);
+                    return Ok(freq);
+                }
+            }
         }
     } else {
-        debug!("Not enough values in GPU frequency file, content: {}", buf);
+        debug!(
+            "GPU frequency load path not available: {}",
+            GPU_FREQ_LOAD_PATH
+        );
     }
 
-    // 如果无法读取或解析，返回0
-    Ok(0)
+    // 如果两个路径都不可用，抛出异常
+    Err(anyhow!("Cannot read GPU frequency: both GPU_CURRENT_FREQ_PATH and GPU_FREQ_LOAD_PATH are unavailable"))
 }
 
 pub fn utilization_init() -> Result<()> {
     let mut is_good = false;
+    let mut freq_path_available = false;
     info!("Init LoadMonitor");
     info!("Testing GED...");
 
@@ -299,13 +351,15 @@ pub fn utilization_init() -> Result<()> {
         check_read(KERNEL_D_LOAD, &mut is_good)
     );
 
+    // 检查GPU频率路径
+    info!("Testing GPU frequency paths...");
+    let current_freq_status = check_read(GPU_CURRENT_FREQ_PATH, &mut freq_path_available);
+    info!("{}: {}", GPU_CURRENT_FREQ_PATH, current_freq_status);
+
     // Method 4: Read From /proc/gpufreq
     info!("Testing gpufreq Driver...");
-    info!(
-        "{}: {}",
-        GPU_FREQ_LOAD_PATH,
-        check_read(GPU_FREQ_LOAD_PATH, &mut is_good)
-    );
+    let freq_load_status = check_read(GPU_FREQ_LOAD_PATH, &mut freq_path_available);
+    info!("{}: {}", GPU_FREQ_LOAD_PATH, freq_load_status);
 
     // Method 5: Read From Mali Driver
     info!("Testing mali driver ...");
@@ -332,10 +386,17 @@ pub fn utilization_init() -> Result<()> {
         check_read(DEBUG_DVFS_LOAD_OLD, &mut is_good)
     );
 
-    // Determine if it's OK
+    // 检查是否可以监控GPU负载
     if !is_good {
         error!("Can't Monitor GPU Loading!");
         return Err(anyhow!("Can't Monitor GPU Loading!"));
+    }
+
+    // 检查是否可以读取GPU频率
+    if !freq_path_available {
+        error!("Can't read GPU frequency: both {} and {} are unavailable!",
+               GPU_CURRENT_FREQ_PATH, GPU_FREQ_LOAD_PATH);
+        return Err(anyhow!("Can't read GPU frequency: no valid frequency path available"));
     }
 
     info!("Test Finished.");
