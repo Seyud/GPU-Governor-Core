@@ -4,7 +4,10 @@ use anyhow::Result;
 use log::{debug, warn};
 
 use crate::{
-    datasource::{file_path::*, load_monitor::{get_gpu_load, get_gpu_current_freq}},
+    datasource::{
+        file_path::*,
+        load_monitor::{get_gpu_current_freq, get_gpu_load},
+    },
     utils::file_operate::write_file_safe,
 };
 
@@ -151,7 +154,7 @@ impl GPU {
         let mut target_freq;
         let mut final_freq;
         let mut final_freq_index;
-        let margin = if self.gaming_mode { 30 } else { 20 };
+        let mut margin;
 
         debug!("config:{:?}, freq:{}", self.config_list, self.cur_freq);
 
@@ -168,6 +171,7 @@ impl GPU {
             }
 
             util = get_gpu_load()?;
+            margin = if self.gaming_mode { 30 } else { 20 };
             if util <= 0 {
                 self.load_low += 1;
                 if self.load_low >= 60 {
