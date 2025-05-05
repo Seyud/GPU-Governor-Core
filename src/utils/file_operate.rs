@@ -67,9 +67,17 @@ pub fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(
 
     let content_ref = content.as_ref();
     let len = std::cmp::min(content_ref.len(), max_len);
-    let bytes_written = file
-        .write(&content_ref[..len])
-        .with_context(|| format!("Failed to write to file: {}", path_ref.display()))?;
+    let bytes_written = match file.write(&content_ref[..len]) {
+        Ok(n) => n,
+        Err(e) => {
+            error!(
+                "Failed to write to file: {}. Error: {}",
+                path_ref.display(),
+                e
+            );
+            return Err(anyhow::anyhow!(""));
+        }
+    };
 
     // Set permissions back to read-only
     let metadata = path_ref
