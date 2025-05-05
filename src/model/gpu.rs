@@ -299,7 +299,9 @@ impl GPU {
         let content = freq_to_use.to_string();
         let volt_content = format!("{} {}", freq_to_use, self.cur_volt);
         let volt_reset = "0 0";
-        let opp_reset = if self.gpuv2 { "-1" } else { "0" };
+        // 对于v2 driver设备，先尝试写入"-1"，再尝试写入"0"
+        let opp_reset_minus_one = "-1";
+        let opp_reset_zero = "0";
         let opp_reset_v1 = "0";
 
         let volt_path = if self.gpuv2 {
@@ -342,15 +344,19 @@ impl GPU {
             WriterOpt::Idle => {
                 debug!("is idle");
                 write_file_safe(volt_path, volt_reset, volt_reset.len())?;
-                write_file_safe(
-                    opp_path,
-                    if self.gpuv2 { opp_reset } else { opp_reset_v1 },
-                    if self.gpuv2 {
-                        opp_reset.len()
-                    } else {
-                        opp_reset_v1.len()
-                    },
-                )?;
+
+                // 对于v2 driver设备，先尝试写入"-1"，再尝试写入"0"
+                if self.gpuv2 {
+                    // 先尝试写入"-1"
+                    let result = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
+                    if result.is_err() || result.unwrap() == 0 {
+                        debug!("Failed to write '-1' to v2 opp_path, trying '0'");
+                        // 如果写入"-1"失败，尝试写入"0"
+                        write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
+                    }
+                } else {
+                    write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len())?;
+                }
             }
             WriterOpt::NoVolt => {
                 debug!("writer has no volt");
@@ -360,15 +366,20 @@ impl GPU {
             }
             WriterOpt::Normal => {
                 debug!("write {} to volt {}", volt_content, opp_path);
-                write_file_safe(
-                    opp_path,
-                    if self.gpuv2 { opp_reset } else { opp_reset_v1 },
-                    if self.gpuv2 {
-                        opp_reset.len()
-                    } else {
-                        opp_reset_v1.len()
-                    },
-                )?;
+
+                // 对于v2 driver设备，先尝试写入"-1"，再尝试写入"0"
+                if self.gpuv2 {
+                    // 先尝试写入"-1"
+                    let result = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
+                    if result.is_err() || result.unwrap() == 0 {
+                        debug!("Failed to write '-1' to v2 opp_path, trying '0'");
+                        // 如果写入"-1"失败，尝试写入"0"
+                        write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
+                    }
+                } else {
+                    write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len())?;
+                }
+
                 debug!("write {} to volt {}", volt_content, volt_path);
                 write_file_safe(volt_path, &volt_content, volt_content.len())?;
             }
