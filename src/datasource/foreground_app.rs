@@ -10,6 +10,7 @@ use std::{
 use anyhow::{anyhow, Context, Result};
 use inotify::WatchMask;
 use log::{debug, info, warn};
+use regex::Regex;
 
 use crate::{
     datasource::file_path::*,
@@ -45,35 +46,27 @@ impl ForegroundAppCache {
 
 // 获取前台应用包名
 fn get_foreground_app() -> Result<String> {
-    // 使用dumpsys命令获取前台应用信息
-    let output = Command::new("dumpsys")
-        .arg("window")
-        .arg("windows")
-        .output()
-        .with_context(|| "Failed to execute dumpsys command")?;
-
-    if !output.status.success() {
-        return Err(anyhow!(
-            "dumpsys command failed with status: {}",
-            output.status
-        ));
-    }
-
-    let stdout = String::from_utf8(output.stdout)
-        .with_context(|| "Failed to parse dumpsys output as UTF-8")?;
-
-    // 解析输出以获取前台应用包名
-    for line in stdout.lines() {
-        if line.contains("mCurrentFocus") || line.contains("mFocusedApp") {
-            // 提取包名，格式通常是 mCurrentFocus=Window{...} com.package.name/...
-            if let Some(package_end) = line.find('/') {
-                if let Some(package_start) = line[..package_end].rfind(' ') {
-                    return Ok(line[package_start + 1..package_end].to_string());
-                }
+    let output = loop {
+        match Command::new("/system/bin/dumpsys")
+            .args(["activity", "lru"])
+            .output()
+        {
+            Ok(o) => {
+                break String::from_utf8_lossy(&o.stdout).to_string();
+            }
+            Err(e) => {
+                log::error!("Unable to get foreground application.:{e}");
+                std::thread::sleep(Duration::from_secs(1));
             }
         }
-    }
+    };
 
+    let re = Regex::new(r"  TOP  .*?([a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)").unwrap();
+    for line in output.lines() {
+        if let Some(caps) = re.captures(line) {
+            return Ok(caps[1].to_string());
+        }
+    }
     Err(anyhow!("Failed to find foreground app in dumpsys output"))
 }
 

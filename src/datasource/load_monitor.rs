@@ -249,7 +249,10 @@ pub fn get_gpu_load() -> Result<i32> {
 
 pub fn get_gpu_current_freq() -> Result<i64> {
     if !get_status(GPU_CURRENT_FREQ_PATH) {
-        debug!("GPU current frequency path not available: {}", GPU_CURRENT_FREQ_PATH);
+        debug!(
+            "GPU current frequency path not available: {}",
+            GPU_CURRENT_FREQ_PATH
+        );
         return Ok(0);
     }
 
