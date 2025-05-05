@@ -1,7 +1,7 @@
 use std::{collections::HashMap, thread, time::Duration};
 
 use anyhow::Result;
-use log::{debug, warn};
+use log::{debug, info, warn};
 
 use crate::{
     datasource::{
