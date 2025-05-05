@@ -70,6 +70,7 @@ pub struct GPU {
     dcs_enable: bool,
     gaming_mode: bool,
     precise: bool,
+    margin: i64, // 频率计算的余量百分比
 }
 
 impl GPU {
@@ -89,7 +90,19 @@ impl GPU {
             dcs_enable: false,
             gaming_mode: false,
             precise: false,
+            margin: 10, // 默认余量为10%
         }
+    }
+
+    // 获取当前余量值
+    pub fn get_margin(&self) -> i64 {
+        self.margin
+    }
+
+    // 设置余量值
+    pub fn set_margin(&mut self, margin: i64) {
+        self.margin = margin;
+        info!("设置GPU频率计算余量为: {}%", margin);
     }
 
     fn unify_id(&self, id: i64) -> i64 {
@@ -177,7 +190,10 @@ impl GPU {
             }
 
             util = get_gpu_load()?;
-            margin = if self.gaming_mode { 30 } else { 20 };
+            // 使用自定义margin值，游戏模式时增加10%的余量
+            margin = if self.gaming_mode { self.margin + 10 } else { self.margin };
+            debug!("当前使用的margin值: {}%", margin);
+
             if util <= 0 {
                 self.load_low += 1;
                 if self.load_low >= 60 {
@@ -241,8 +257,8 @@ impl GPU {
             } else {
                 self.load_low = 0;
             }
-
-            if self.load_low >= 30 {
+            // 使用san常数
+            if self.load_low >= 27 {
                 debug!("detect down");
                 let new_freq = self.gen_cur_freq(final_freq_index);
 

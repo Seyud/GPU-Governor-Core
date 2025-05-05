@@ -50,8 +50,25 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
         // Trim whitespace
         let trimmed = line.trim().to_string();
 
-        // Skip empty lines and comments
-        if trimmed.is_empty() || trimmed.starts_with('#') {
+        // Skip empty lines
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // 解析Margin配置，确保不是注释行
+        if trimmed.starts_with("Margin=") && !trimmed.starts_with("#") {
+            let margin_str = trimmed.trim_start_matches("Margin=");
+            if let Ok(margin) = margin_str.parse::<i64>() {
+                info!("从配置文件读取到Margin值: {}%", margin);
+                gpu.set_margin(margin);
+            } else {
+                warn!("无效的Margin值: {}", margin_str);
+            }
+            continue;
+        }
+
+        // Skip comments
+        if trimmed.starts_with('#') {
             continue;
         }
 
