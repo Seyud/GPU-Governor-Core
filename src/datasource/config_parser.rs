@@ -59,10 +59,10 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
         if trimmed.starts_with("Margin=") && !trimmed.starts_with("#") {
             let margin_str = trimmed.trim_start_matches("Margin=");
             if let Ok(margin) = margin_str.parse::<i64>() {
-                info!("从配置文件读取到Margin值: {}%", margin);
+                info!("Read Margin value from config file: {}%", margin);
                 gpu.set_margin(margin);
             } else {
-                warn!("无效的Margin值: {}", margin_str);
+                warn!("Invalid Margin value: {}", margin_str);
             }
             continue;
         }

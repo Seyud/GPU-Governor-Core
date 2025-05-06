@@ -71,6 +71,7 @@ pub struct GPU {
     gaming_mode: bool,
     precise: bool,
     margin: i64, // 频率计算的余量百分比
+    up_rate_delay: u64, // 升频延迟（毫秒）
 }
 
 impl GPU {
@@ -91,6 +92,7 @@ impl GPU {
             gaming_mode: false,
             precise: false,
             margin: 10, // 默认余量为10%
+            up_rate_delay: 50, // 默认升频延迟为50毫秒
         }
     }
 
@@ -102,7 +104,7 @@ impl GPU {
     // 设置余量值
     pub fn set_margin(&mut self, margin: i64) {
         self.margin = margin;
-        info!("设置GPU频率计算余量为: {}%", margin);
+        info!("Set GPU frequency calculation margin to: {}%", margin);
     }
 
     fn unify_id(&self, id: i64) -> i64 {
@@ -192,7 +194,7 @@ impl GPU {
             util = get_gpu_load()?;
             // 使用自定义margin值，游戏模式时增加10%的余量
             margin = if self.gaming_mode { self.margin + 10 } else { self.margin };
-            debug!("当前使用的margin值: {}%", margin);
+            debug!("Current margin value: {}%", margin);
 
             if util <= 0 {
                 self.load_low += 1;
@@ -231,6 +233,13 @@ impl GPU {
                 || (final_freq == self.cur_freq && target_freq > self.cur_freq)
             {
                 debug!("go up");
+
+                // 如果设置了升频延迟，则等待指定的时间
+                if self.up_rate_delay > 0 {
+                    debug!("Applying up rate delay: {}ms", self.up_rate_delay);
+                    thread::sleep(Duration::from_millis(self.up_rate_delay));
+                }
+
                 let new_freq = self.gen_cur_freq(final_freq_index);
 
                 // 对于v2 driver设备，验证频率是否在系统支持范围内
@@ -338,10 +347,10 @@ impl GPU {
         if !volt_path_exists || !opp_path_exists {
             // 记录警告但不中断程序
             if !volt_path_exists {
-                warn!("电压控制文件不存在: {}", volt_path);
+                warn!("Voltage control file does not exist: {}", volt_path);
             }
             if !opp_path_exists {
-                warn!("频率控制文件不存在: {}", opp_path);
+                warn!("Frequency control file does not exist: {}", opp_path);
             }
             // 如果文件不存在，直接返回成功，不尝试写入
             return Ok(());
@@ -470,6 +479,17 @@ impl GPU {
 
     pub fn set_precise(&mut self, precise: bool) {
         self.precise = precise;
+    }
+
+    // 获取当前升频延迟值
+    pub fn get_up_rate_delay(&self) -> u64 {
+        self.up_rate_delay
+    }
+
+    // 设置升频延迟值
+    pub fn set_up_rate_delay(&mut self, delay: u64) {
+        self.up_rate_delay = delay;
+        info!("Set GPU up rate delay to: {}ms", delay);
     }
 
     #[allow(dead_code)]

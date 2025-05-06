@@ -127,6 +127,11 @@ fn main() -> Result<()> {
         "Is Precise: {}",
         if gpu.is_precise() { "Yes" } else { "No" }
     );
+
+    // 设置默认的升频延迟为50毫秒
+    gpu.set_up_rate_delay(50);
+    info!("Up Rate Delay: {}ms", gpu.get_up_rate_delay());
+
     info!("Governor Started");
 
     // Adjust GPU frequency
