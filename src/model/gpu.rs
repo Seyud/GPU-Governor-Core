@@ -92,7 +92,7 @@ impl GPU {
             gaming_mode: false,
             precise: false,
             margin: 10, // 默认余量为10%
-            up_rate_delay: 50, // 默认升频延迟为50毫秒
+            up_rate_delay: 50, // 默认升频延迟为50ms
         }
     }
 

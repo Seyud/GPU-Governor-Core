@@ -128,9 +128,8 @@ fn main() -> Result<()> {
         if gpu.is_precise() { "Yes" } else { "No" }
     );
 
-    // 设置默认的升频延迟为50毫秒
-    gpu.set_up_rate_delay(50);
-    info!("Up Rate Delay: {}ms", gpu.get_up_rate_delay());
+    // 初始升频延迟将由游戏模式监控线程设置
+    info!("Up Rate Delay will be set based on game mode");
 
     info!("Governor Started");
 

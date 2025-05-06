@@ -14,6 +14,10 @@ use crate::{
     },
 };
 
+// 定义游戏模式和普通模式的升频延迟常量
+const GAME_MODE_UP_RATE_DELAY: u64 = 20; // 游戏模式使用20ms的升频延迟
+const NORMAL_MODE_UP_RATE_DELAY: u64 = 50; // 普通模式使用50ms的升频延迟
+
 pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
     // Set thread name (in Rust we can't set the current thread name easily)
     info!("{} Start", GAME_THREAD);
@@ -34,10 +38,27 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
         // 初始读取游戏模式状态
         if let Ok(buf) = read_file(GPU_GOVERNOR_GAME_MODE_PATH, 3) {
             let value = buf.trim().parse::<i32>().unwrap_or(0);
-            gpu.set_gaming_mode(value != 0);
+            let is_gaming = value != 0;
+            gpu.set_gaming_mode(is_gaming);
+
+            // 根据初始游戏模式设置不同的升频延迟
+            let up_rate_delay = if is_gaming {
+                GAME_MODE_UP_RATE_DELAY
+            } else {
+                NORMAL_MODE_UP_RATE_DELAY
+            };
+
+            gpu.set_up_rate_delay(up_rate_delay);
+            info!("Initial game mode {}, setting up rate delay to {}ms",
+                  if is_gaming { "enabled" } else { "disabled" },
+                  up_rate_delay);
+
             info!("Initial game mode value: {}", value);
         } else {
             info!("Failed to read initial game mode value, defaulting to non-gaming mode");
+            // 默认为普通模式
+            gpu.set_up_rate_delay(NORMAL_MODE_UP_RATE_DELAY);
+            info!("Setting default up rate delay to {}ms", NORMAL_MODE_UP_RATE_DELAY);
         }
     }
 
@@ -66,6 +87,19 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                 let value = buf.trim().parse::<i32>().unwrap_or(0);
                 let is_gaming = value != 0;
                 gpu.set_gaming_mode(is_gaming);
+
+                // 根据游戏模式设置不同的升频延迟
+                let up_rate_delay = if is_gaming {
+                    GAME_MODE_UP_RATE_DELAY
+                } else {
+                    NORMAL_MODE_UP_RATE_DELAY
+                };
+
+                gpu.set_up_rate_delay(up_rate_delay);
+                debug!("Game mode {}, setting up rate delay to {}ms",
+                      if is_gaming { "enabled" } else { "disabled" },
+                      up_rate_delay);
+
                 debug!("Game mode changed: {}", is_gaming);
             }
             Err(e) => {
