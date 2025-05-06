@@ -18,6 +18,10 @@ use crate::{
 const GAME_MODE_UP_RATE_DELAY: u64 = 20; // 游戏模式使用20ms的升频延迟
 const NORMAL_MODE_UP_RATE_DELAY: u64 = 50; // 普通模式使用50ms的升频延迟
 
+// 定义游戏模式和普通模式的降频阈值常量
+const GAME_MODE_DOWN_THRESHOLD: i64 = 27; // 游戏模式保持原有的27次阈值
+const NORMAL_MODE_DOWN_THRESHOLD: i64 = 10; // 普通模式使用更低的10次阈值，更积极降频
+
 pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
     // Set thread name (in Rust we can't set the current thread name easily)
     info!("{} Start", GAME_THREAD);
@@ -41,24 +45,34 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
             let is_gaming = value != 0;
             gpu.set_gaming_mode(is_gaming);
 
-            // 根据初始游戏模式设置不同的升频延迟
+            // 根据初始游戏模式设置不同的升频延迟和降频阈值
             let up_rate_delay = if is_gaming {
                 GAME_MODE_UP_RATE_DELAY
             } else {
                 NORMAL_MODE_UP_RATE_DELAY
             };
 
+            let down_threshold = if is_gaming {
+                GAME_MODE_DOWN_THRESHOLD
+            } else {
+                NORMAL_MODE_DOWN_THRESHOLD
+            };
+
             gpu.set_up_rate_delay(up_rate_delay);
-            info!("Initial game mode {}, setting up rate delay to {}ms",
+            gpu.set_down_threshold(down_threshold);
+            info!("Initial game mode {}, setting up rate delay to {}ms, down threshold to {}",
                   if is_gaming { "enabled" } else { "disabled" },
-                  up_rate_delay);
+                  up_rate_delay,
+                  down_threshold);
 
             info!("Initial game mode value: {}", value);
         } else {
             info!("Failed to read initial game mode value, defaulting to non-gaming mode");
             // 默认为普通模式
             gpu.set_up_rate_delay(NORMAL_MODE_UP_RATE_DELAY);
-            info!("Setting default up rate delay to {}ms", NORMAL_MODE_UP_RATE_DELAY);
+            gpu.set_down_threshold(NORMAL_MODE_DOWN_THRESHOLD);
+            info!("Setting default up rate delay to {}ms, down threshold to {}",
+                 NORMAL_MODE_UP_RATE_DELAY, NORMAL_MODE_DOWN_THRESHOLD);
         }
     }
 
@@ -88,17 +102,25 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                 let is_gaming = value != 0;
                 gpu.set_gaming_mode(is_gaming);
 
-                // 根据游戏模式设置不同的升频延迟
+                // 根据游戏模式设置不同的升频延迟和降频阈值
                 let up_rate_delay = if is_gaming {
                     GAME_MODE_UP_RATE_DELAY
                 } else {
                     NORMAL_MODE_UP_RATE_DELAY
                 };
 
+                let down_threshold = if is_gaming {
+                    GAME_MODE_DOWN_THRESHOLD
+                } else {
+                    NORMAL_MODE_DOWN_THRESHOLD
+                };
+
                 gpu.set_up_rate_delay(up_rate_delay);
-                debug!("Game mode {}, setting up rate delay to {}ms",
+                gpu.set_down_threshold(down_threshold);
+                debug!("Game mode {}, setting up rate delay to {}ms, down threshold to {}",
                       if is_gaming { "enabled" } else { "disabled" },
-                      up_rate_delay);
+                      up_rate_delay,
+                      down_threshold);
 
                 debug!("Game mode changed: {}", is_gaming);
             }

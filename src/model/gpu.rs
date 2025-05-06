@@ -72,6 +72,7 @@ pub struct GPU {
     precise: bool,
     margin: i64, // 频率计算的余量百分比
     up_rate_delay: u64, // 升频延迟（毫秒）
+    down_threshold: i64, // 降频阈值，达到此值时触发降频
 }
 
 impl GPU {
@@ -93,6 +94,7 @@ impl GPU {
             precise: false,
             margin: 10, // 默认余量为10%
             up_rate_delay: 50, // 默认升频延迟为50ms
+            down_threshold: 10, // 默认降频阈值为10
         }
     }
 
@@ -266,9 +268,9 @@ impl GPU {
             } else {
                 self.load_low = 0;
             }
-            // 使用san常数
-            if self.load_low >= 27 {
-                debug!("detect down");
+            // 使用可配置的降频阈值
+            if self.load_low >= self.down_threshold {
+                debug!("detect down, threshold: {}", self.down_threshold);
                 let new_freq = self.gen_cur_freq(final_freq_index);
 
                 // 对于v2 driver设备，验证频率是否在系统支持范围内
@@ -490,6 +492,17 @@ impl GPU {
     pub fn set_up_rate_delay(&mut self, delay: u64) {
         self.up_rate_delay = delay;
         info!("Set GPU up rate delay to: {}ms", delay);
+    }
+
+    // 获取当前降频阈值
+    pub fn get_down_threshold(&self) -> i64 {
+        self.down_threshold
+    }
+
+    // 设置降频阈值
+    pub fn set_down_threshold(&mut self, threshold: i64) {
+        self.down_threshold = threshold;
+        info!("Set GPU down threshold to: {}", threshold);
     }
 
     #[allow(dead_code)]
