@@ -56,7 +56,7 @@ pub fn init_logger() -> Result<()> {
 }
 
 // 读取日志等级配置文件
-fn read_log_level_config() -> Result<LevelFilter> {
+pub fn read_log_level_config() -> Result<LevelFilter> {
     // 默认日志等级为Info
     let default_level = LevelFilter::Info;
 
@@ -80,4 +80,18 @@ fn read_log_level_config() -> Result<LevelFilter> {
         "error" => Ok(LevelFilter::Error),
         _ => Ok(default_level),
     }
+}
+
+// 更新日志等级
+pub fn update_log_level() -> Result<()> {
+    // 读取新的日志等级
+    let new_level = read_log_level_config()?;
+
+    // 更新全局日志等级
+    log::set_max_level(new_level);
+
+    // 记录日志等级变更
+    log::info!("Log level updated to: {}", new_level);
+
+    Ok(())
 }

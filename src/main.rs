@@ -18,7 +18,11 @@ use crate::{
         node_monitor::{monitor_config, monitor_gaming},
     },
     model::gpu::GPU,
-    utils::{file_status::get_status, logger::init_logger},
+    utils::{
+        file_status::get_status,
+        log_monitor::monitor_log_level,
+        logger::init_logger
+    },
 };
 
 const NOTES: &str = "Mediatek Mali GPU Governor";
@@ -104,6 +108,13 @@ fn main() -> Result<()> {
     thread::spawn(move || {
         if let Err(e) = monitor_foreground_app() {
             error!("Foreground app monitor error: {}", e);
+        }
+    });
+
+    // 启动日志等级监控线程
+    thread::spawn(move || {
+        if let Err(e) = monitor_log_level() {
+            error!("Log level monitor error: {}", e);
         }
     });
 
