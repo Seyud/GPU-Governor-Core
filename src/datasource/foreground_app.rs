@@ -55,25 +55,43 @@ fn get_foreground_app() -> Result<String> {
                 break String::from_utf8_lossy(&o.stdout).to_string();
             }
             Err(e) => {
-                log::error!("Unable to get foreground application.:{e}");
+                log::error!("Unable to get foreground application: {e}");
                 std::thread::sleep(Duration::from_secs(1));
             }
         }
     };
 
-    // 匹配包含 "fg" 和 "TOP" 但不包含 "BTOP" 的行
+    // 方法1：使用Android 10+的方式查找前台应用
+    // 查找包含" TOP"关键字的行，但不包含"BTOP"的行
+    for line in output.lines() {
+        if line.contains(" TOP") && !line.contains("BTOP") && line.contains("fg") {
+            debug!("Found matching line: {}", line);
+
+            // 查找":"字符后的包名
+            if let Some(colon_pos) = line.find(':') {
+                let after_colon = &line[colon_pos + 1..];
+
+                // 查找"/"字符前的包名
+                if let Some(slash_pos) = after_colon.find('/') {
+                    let package_name = &after_colon[..slash_pos];
+                    debug!("Extracted package name: {}", package_name);
+                    return Ok(package_name.to_string());
+                }
+            }
+        }
+    }
+
+    // 方法2：使用正则表达式作为备选方法
     for line in output.lines() {
         if line.contains("fg") && line.contains("TOP") && !line.contains("BTOP") {
-            debug!("找到匹配行: {}", line);
+            debug!("Trying regex on line: {}", line);
 
             // 使用正则表达式提取包名部分
             let re = Regex::new(r"(\d+):([a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)/").unwrap();
             if let Some(caps) = re.captures(line) {
                 let package_name = caps[2].to_string();
-                debug!("提取的包名: {}", package_name);
+                debug!("Extracted package name with regex: {}", package_name);
                 return Ok(package_name);
-            } else {
-                debug!("正则表达式未能匹配行: {}", line);
             }
         }
     }
@@ -83,9 +101,9 @@ fn get_foreground_app() -> Result<String> {
     for (i, line) in output.lines().take(5).enumerate() {
         debug!("Line {}: {}", i + 1, line);
     }
-    debug!("Lines containing 'fg' and 'TOP':");
-    for line in output.lines().filter(|l| l.contains("fg") && l.contains("TOP")) {
-        debug!("Matching line: {}", line);
+    debug!("Lines containing 'TOP':");
+    for line in output.lines().filter(|l| l.contains("TOP")) {
+        debug!("Line with TOP: {}", line);
     }
     Err(anyhow!("Failed to find foreground app in dumpsys output"))
 }
@@ -125,7 +143,7 @@ pub fn monitor_foreground_app() -> Result<()> {
 
     // 初始化缓存
     let mut app_cache = ForegroundAppCache::new();
-    let cache_ttl = Duration::from_millis(500); // 缓存有效期500毫秒
+    let cache_ttl = Duration::from_millis(1000); // 缓存有效期1秒
 
     // 读取游戏列表
     let mut games = read_games_list(GAMES_CONF_PATH)?;
