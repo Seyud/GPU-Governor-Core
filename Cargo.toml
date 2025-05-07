@@ -1,7 +1,7 @@
 [package]
 name = "gpugovernor"
 version = "2.3.0"
-edition = "2025"
+edition = "2021"
 authors = ["Rust Port: Seyud"]
 description = "Mediatek Mali GPU Load-Based Frequency Adjustment"
 
