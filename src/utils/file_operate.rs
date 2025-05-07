@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use log::{debug, error};
 
 use crate::{
-    datasource::file_path::GPUFREQV2_OPP,
+    datasource::file_path::{GPUFREQ_OPP, GPUFREQV2_OPP},
     utils::file_status::write_status,
 };
 
@@ -73,11 +73,21 @@ pub fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(
     let bytes_written = match file.write(&content_ref[..len]) {
         Ok(n) => n,
         Err(e) => {
-            error!(
-                "Failed to write to file: {}. Error: {}",
-                path_ref.display(),
-                e
-            );
+            // 检查是否是特定文件路径，如果是则使用debug级别记录错误
+            let path_str = path_ref.to_str().unwrap_or("");
+            if path_str == GPUFREQV2_OPP || path_str == GPUFREQ_OPP {
+                debug!(
+                    "Failed to write to file: {}. Error: {}",
+                    path_ref.display(),
+                    e
+                );
+            } else {
+                error!(
+                    "Failed to write to file: {}. Error: {}",
+                    path_ref.display(),
+                    e
+                );
+            }
             return Err(anyhow::anyhow!(""));
         }
     };
@@ -129,7 +139,7 @@ pub fn write_file_safe<P: AsRef<Path>, C: AsRef<[u8]>>(
         Err(e) => {
             // 检查是否是特定文件路径，如果是则使用debug级别记录错误
             let path_str = path_ref.to_str().unwrap_or("");
-            if path_str == GPUFREQV2_OPP {
+            if path_str == GPUFREQV2_OPP || path_str == GPUFREQ_OPP {
                 // 对于特定文件路径，使用debug级别记录错误
                 debug!(
                     "Failed to write to file: {}. Error: {}",
