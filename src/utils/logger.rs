@@ -12,19 +12,20 @@ struct CustomLogger;
 
 impl log::Log for CustomLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.level() <= Level::Debug
+        // 这个方法只检查日志级别是否被启用
+        // 实际的过滤由log库根据设置的max_level完成
+        true
     }
 
     fn log(&self, record: &Record) {
-        if self.enabled(record.metadata()) {
-            let now = Local::now();
-            let timestamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
-            let level_str = record.level().to_string();
-            let log_message = format!("[{}][{}]: {}\n", timestamp, level_str, record.args());
+        // 这里不需要再次检查enabled，因为log库已经根据max_level过滤了
+        let now = Local::now();
+        let timestamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
+        let level_str = record.level().to_string();
+        let log_message = format!("[{}][{}]: {}\n", timestamp, level_str, record.args());
 
-            // 只输出到控制台
-            print!("{}", log_message);
-        }
+        // 只输出到控制台
+        print!("{}", log_message);
     }
 
     fn flush(&self) {
@@ -47,6 +48,9 @@ pub fn init_logger() -> Result<()> {
     // 记录当前使用的日志等级
     log::info!("Logger initialized with level: {}", log_level);
     log::info!("Console output only mode");
+
+    // 在debug级别记录一条消息，说明某些错误只会在debug级别显示
+    log::debug!("Some error messages (like writing to /proc/gpufreqv2/fix_target_opp_index) will only be shown at debug level");
 
     Ok(())
 }

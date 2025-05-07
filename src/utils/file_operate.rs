@@ -8,7 +8,10 @@ use std::{
 use anyhow::{Context, Result};
 use log::{debug, error};
 
-use crate::utils::file_status::write_status;
+use crate::{
+    datasource::file_path::GPUFREQV2_OPP,
+    utils::file_status::write_status,
+};
 
 pub fn check_read<P: AsRef<Path>>(path: P, status: &mut bool) -> String {
     let path_ref = path.as_ref();
@@ -124,12 +127,23 @@ pub fn write_file_safe<P: AsRef<Path>, C: AsRef<[u8]>>(
     match write_file(path_ref, content, max_len) {
         Ok(bytes) => Ok(bytes),
         Err(e) => {
-            // 记录错误但不中断程序
-            error!(
-                "Failed to write to file, but continued execution: {}-Error: {}",
-                path_ref.display(),
-                e
-            );
+            // 检查是否是特定文件路径，如果是则使用debug级别记录错误
+            let path_str = path_ref.to_str().unwrap_or("");
+            if path_str == GPUFREQV2_OPP {
+                // 对于特定文件路径，使用debug级别记录错误
+                debug!(
+                    "Failed to write to file: {}. Error: {}",
+                    path_ref.display(),
+                    e
+                );
+            } else {
+                // 对于其他文件路径，使用error级别记录错误
+                error!(
+                    "Failed to write to file, but continued execution: {}-Error: {}",
+                    path_ref.display(),
+                    e
+                );
+            }
             Ok(0)
         }
     }
