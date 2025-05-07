@@ -73,6 +73,22 @@ pub struct GPU {
     margin: i64, // 频率计算的余量百分比
     up_rate_delay: u64, // 升频延迟（毫秒）
     down_threshold: i64, // 降频阈值，达到此值时触发降频
+
+    // 新增多级负载阈值
+    very_low_load_threshold: i32, // 极低负载阈值
+    low_load_threshold: i32,      // 低负载阈值
+    high_load_threshold: i32,     // 高负载阈值
+    very_high_load_threshold: i32, // 极高负载阈值
+
+    // 负载稳定性计数器
+    load_zone_counter: i32,       // 当前负载区域持续计数
+    current_load_zone: i32,       // 当前负载区域 (0=极低, 1=低, 2=中, 3=高, 4=极高)
+    load_stability_threshold: i32, // 负载稳定性阈值，需要连续多少次采样才确认负载区域变化
+
+    // 频率调整策略标志
+    aggressive_down: bool,        // 是否使用激进降频策略
+    last_adjustment_time: u64,    // 上次频率调整时间（毫秒）
+    sampling_interval: u64,       // 采样间隔（毫秒）
 }
 
 impl GPU {
@@ -95,6 +111,22 @@ impl GPU {
             margin: 10, // 默认余量为10%
             up_rate_delay: 50, // 默认升频延迟为50ms
             down_threshold: 10, // 默认降频阈值为10
+
+            // 多级负载阈值默认值
+            very_low_load_threshold: 10,  // 10% 以下为极低负载
+            low_load_threshold: 30,       // 30% 以下为低负载
+            high_load_threshold: 70,      // 70% 以上为高负载
+            very_high_load_threshold: 90, // 90% 以上为极高负载
+
+            // 负载稳定性默认值
+            load_zone_counter: 0,
+            current_load_zone: 2,         // 默认为中等负载区域
+            load_stability_threshold: 3,  // 需要连续3次采样确认负载区域变化
+
+            // 频率调整策略默认值
+            aggressive_down: true,        // 默认启用激进降频
+            last_adjustment_time: 0,
+            sampling_interval: 16,        // 默认采样间隔16ms
         }
     }
 
@@ -167,15 +199,29 @@ impl GPU {
     }
 
     pub fn adjust_gpufreq(&mut self) -> Result<()> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
         let mut util;
         let mut target_freq;
         let mut final_freq;
         let mut final_freq_index;
         let mut margin;
+        let mut new_load_zone;
+        let mut current_time;
 
+        info!("Starting advanced GPU governor with multi-threshold strategy");
+        info!("Load thresholds: very_low={}%, low={}%, high={}%, very_high={}%",
+              self.very_low_load_threshold, self.low_load_threshold,
+              self.high_load_threshold, self.very_high_load_threshold);
         debug!("config:{:?}, freq:{}", self.config_list, self.cur_freq);
 
         loop {
+            // 获取当前时间戳（毫秒）
+            current_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+
             // 读取当前GPU频率
             match get_gpu_current_freq() {
                 Ok(current_freq) => {
@@ -193,11 +239,30 @@ impl GPU {
                 }
             }
 
+            // 读取当前GPU负载
             util = get_gpu_load()?;
+
             // 使用自定义margin值，游戏模式时增加10%的余量
             margin = if self.gaming_mode { self.margin + 10 } else { self.margin };
-            debug!("Current margin value: {}%", margin);
+            debug!("Current margin value: {}%, GPU load: {}%", margin, util);
 
+            // 确定当前负载区域
+            new_load_zone = self.determine_load_zone(util);
+
+            // 负载区域稳定性检查
+            if new_load_zone == self.current_load_zone {
+                // 如果负载区域没有变化，增加计数器
+                self.load_zone_counter += 1;
+            } else {
+                // 如果负载区域发生变化，重置计数器
+                self.load_zone_counter = 1;
+                debug!("Load zone changed from {} to {}", self.current_load_zone, new_load_zone);
+            }
+
+            // 更新当前负载区域
+            self.current_load_zone = new_load_zone;
+
+            // 特殊处理：如果负载为0，增加idle计数
             if util <= 0 {
                 self.load_low += 1;
                 if self.load_low >= 60 {
@@ -208,89 +273,199 @@ impl GPU {
                     continue;
                 }
             } else {
+                // 如果负载不为0，重置idle计数
                 self.load_low = 0;
             }
 
             let now_freq = self.cur_freq;
-            debug!("now_freq {} util={}", now_freq, util);
+            debug!("Current freq: {}KHz, load: {}%", now_freq, util);
 
-            target_freq = now_freq * (util as i64 + margin) / 100;
-            if now_freq < target_freq {
-                final_freq = self.read_freq_ge(target_freq);
+            // 检查是否需要调整频率
+            // 只有当负载区域稳定或者处于极端负载区域时才调整频率
+            if self.load_zone_counter >= self.load_stability_threshold ||
+               self.current_load_zone == 0 || self.current_load_zone == 4 {
+
+                // 根据负载区域选择调频策略
+                match self.current_load_zone {
+                    0 => {
+                        // 极低负载区域 - 策略二：目标式跳转（激进降频）
+                        debug!("Very low load zone ({}%) detected, applying aggressive downscaling", util);
+
+                        if self.aggressive_down {
+                            // 直接跳转到最低频率（Race to Idle）
+                            final_freq = self.get_min_freq();
+                            debug!("Aggressive down: jumping to min freq: {}KHz", final_freq);
+                        } else {
+                            // 保守降频：降低到次低频率
+                            final_freq = self.get_second_lowest_freq();
+                            debug!("Conservative down: stepping to second lowest freq: {}KHz", final_freq);
+                        }
+
+                        final_freq_index = self.read_freq_index(final_freq);
+
+                        // 应用新频率
+                        let new_freq = self.gen_cur_freq(final_freq_index);
+                        self.apply_new_frequency(new_freq, final_freq_index)?;
+
+                        // 重置负载区域计数器
+                        self.load_zone_counter = 0;
+                        self.last_adjustment_time = current_time;
+
+                        // 更新电压并写入
+                        goto_gen_volt!(self, util);
+                    },
+                    1 => {
+                        // 低负载区域 - 策略一：步进式调整（保守降频）
+                        debug!("Low load zone ({}%) detected, applying conservative downscaling", util);
+
+                        // 计算目标频率
+                        target_freq = now_freq * (util as i64 + margin) / 100;
+
+                        // 如果目标频率低于当前频率，降低一个档位
+                        if target_freq < now_freq {
+                            // 步进式降频：降低一个档位
+                            let next_lower_idx = self.cur_freq_idx + 1; // 注意：频率表是从高到低排序的
+                            final_freq = self.gen_cur_freq(next_lower_idx);
+                            final_freq_index = next_lower_idx;
+
+                            debug!("Stepping down one level to: {}KHz", final_freq);
+
+                            // 应用新频率
+                            let new_freq = self.gen_cur_freq(final_freq_index);
+                            self.apply_new_frequency(new_freq, final_freq_index)?;
+
+                            // 重置负载区域计数器
+                            self.load_zone_counter = 0;
+                            self.last_adjustment_time = current_time;
+
+                            // 更新电压并写入
+                            goto_gen_volt!(self, util);
+                        }
+                    },
+                    2 => {
+                        // 中等负载区域 - 保持当前频率或微调
+                        debug!("Medium load zone ({}%) detected, fine-tuning frequency", util);
+
+                        // 计算目标频率
+                        target_freq = now_freq * (util as i64 + margin) / 100;
+
+                        // 根据目标频率微调
+                        if target_freq > now_freq * 110 / 100 {
+                            // 如果目标频率比当前频率高10%以上，升高一个档位
+                            let next_higher_idx = self.cur_freq_idx - 1; // 注意：频率表是从高到低排序的
+                            final_freq = self.gen_cur_freq(next_higher_idx);
+                            final_freq_index = next_higher_idx;
+
+                            debug!("Fine-tuning: stepping up one level to: {}KHz", final_freq);
+
+                            // 应用升频延迟
+                            if self.up_rate_delay > 0 {
+                                debug!("Applying up rate delay: {}ms", self.up_rate_delay);
+                                thread::sleep(Duration::from_millis(self.up_rate_delay));
+                            }
+
+                            // 应用新频率
+                            let new_freq = self.gen_cur_freq(final_freq_index);
+                            self.apply_new_frequency(new_freq, final_freq_index)?;
+
+                            // 重置负载区域计数器
+                            self.load_zone_counter = 0;
+                            self.last_adjustment_time = current_time;
+
+                            // 更新电压并写入
+                            goto_gen_volt!(self, util);
+                        } else if target_freq < now_freq * 90 / 100 {
+                            // 如果目标频率比当前频率低10%以上，降低一个档位
+                            let next_lower_idx = self.cur_freq_idx + 1; // 注意：频率表是从高到低排序的
+                            final_freq = self.gen_cur_freq(next_lower_idx);
+                            final_freq_index = next_lower_idx;
+
+                            debug!("Fine-tuning: stepping down one level to: {}KHz", final_freq);
+
+                            // 应用新频率
+                            let new_freq = self.gen_cur_freq(final_freq_index);
+                            self.apply_new_frequency(new_freq, final_freq_index)?;
+
+                            // 重置负载区域计数器
+                            self.load_zone_counter = 0;
+                            self.last_adjustment_time = current_time;
+
+                            // 更新电压并写入
+                            goto_gen_volt!(self, util);
+                        }
+                    },
+                    3 => {
+                        // 高负载区域 - 策略一：步进式调整（保守升频）
+                        debug!("High load zone ({}%) detected, applying conservative upscaling", util);
+
+                        // 计算目标频率
+                        target_freq = now_freq * (util as i64 + margin) / 100;
+
+                        // 如果目标频率高于当前频率，升高一个档位
+                        if target_freq > now_freq {
+                            // 步进式升频：升高一个档位
+                            let next_higher_idx = self.cur_freq_idx - 1; // 注意：频率表是从高到低排序的
+                            final_freq = self.gen_cur_freq(next_higher_idx);
+                            final_freq_index = next_higher_idx;
+
+                            debug!("Stepping up one level to: {}KHz", final_freq);
+
+                            // 应用升频延迟
+                            if self.up_rate_delay > 0 {
+                                debug!("Applying up rate delay: {}ms", self.up_rate_delay);
+                                thread::sleep(Duration::from_millis(self.up_rate_delay));
+                            }
+
+                            // 应用新频率
+                            let new_freq = self.gen_cur_freq(final_freq_index);
+                            self.apply_new_frequency(new_freq, final_freq_index)?;
+
+                            // 重置负载区域计数器
+                            self.load_zone_counter = 0;
+                            self.last_adjustment_time = current_time;
+
+                            // 更新电压并写入
+                            goto_gen_volt!(self, util);
+                        }
+                    },
+                    4 => {
+                        // 极高负载区域 - 策略二：目标式跳转（激进升频）
+                        debug!("Very high load zone ({}%) detected, applying aggressive upscaling", util);
+
+                        // 直接跳转到最高频率或次高频率
+                        final_freq = self.get_max_freq();
+                        final_freq_index = self.read_freq_index(final_freq);
+
+                        debug!("Aggressive up: jumping to max freq: {}KHz", final_freq);
+
+                        // 应用升频延迟
+                        if self.up_rate_delay > 0 {
+                            debug!("Applying up rate delay: {}ms", self.up_rate_delay);
+                            thread::sleep(Duration::from_millis(self.up_rate_delay));
+                        }
+
+                        // 应用新频率
+                        let new_freq = self.gen_cur_freq(final_freq_index);
+                        self.apply_new_frequency(new_freq, final_freq_index)?;
+
+                        // 重置负载区域计数器
+                        self.load_zone_counter = 0;
+                        self.last_adjustment_time = current_time;
+
+                        // 更新电压并写入
+                        goto_gen_volt!(self, util);
+                    },
+                    _ => {
+                        // 不应该到达这里
+                        warn!("Invalid load zone: {}", self.current_load_zone);
+                    }
+                }
             } else {
-                final_freq = self.read_freq_le(target_freq);
+                debug!("Load zone {} not stable yet (counter: {}/{}), maintaining current frequency",
+                       self.current_load_zone, self.load_zone_counter, self.load_stability_threshold);
             }
 
-            final_freq_index = self.read_freq_index(final_freq);
-            debug!(
-                "target_freq:{}, cur_freq:{}, final_freq:{}, down_freq:{}, up_freq:{}",
-                target_freq,
-                self.cur_freq,
-                final_freq,
-                self.gen_cur_freq(self.cur_freq_idx - 1),
-                self.gen_cur_freq(final_freq_index)
-            );
-
-            if final_freq > self.cur_freq
-                || (final_freq == self.cur_freq && target_freq > self.cur_freq)
-            {
-                debug!("go up");
-
-                // 如果设置了升频延迟，则等待指定的时间
-                if self.up_rate_delay > 0 {
-                    debug!("Applying up rate delay: {}ms", self.up_rate_delay);
-                    thread::sleep(Duration::from_millis(self.up_rate_delay));
-                }
-
-                let new_freq = self.gen_cur_freq(final_freq_index);
-
-                // 对于v2 driver设备，验证频率是否在系统支持范围内
-                if self.gpuv2 && !self.is_freq_supported_by_v2_driver(new_freq) {
-                    debug!(
-                        "Freq {} not supported by V2 driver, finding closest supported freq",
-                        new_freq
-                    );
-                    // 如果新频率不在v2 driver支持的范围内，找到最接近的支持频率
-                    self.cur_freq = self.get_closest_v2_supported_freq(new_freq);
-                    // 更新频率索引
-                    self.cur_freq_idx = self.read_freq_index(self.cur_freq);
-                } else {
-                    self.cur_freq = new_freq;
-                    self.cur_freq_idx = final_freq_index;
-                }
-
-                self.load_low = 0;
-                goto_gen_volt!(self, util);
-            }
-
-            if util <= 30 {
-                self.load_low += 1;
-            } else {
-                self.load_low = 0;
-            }
-            // 使用可配置的降频阈值
-            if self.load_low >= self.down_threshold {
-                debug!("detect down, threshold: {}", self.down_threshold);
-                let new_freq = self.gen_cur_freq(final_freq_index);
-
-                // 对于v2 driver设备，验证频率是否在系统支持范围内
-                if self.gpuv2 && !self.is_freq_supported_by_v2_driver(new_freq) {
-                    debug!(
-                        "Freq {} not supported by V2 driver, finding closest supported freq",
-                        new_freq
-                    );
-                    // 如果新频率不在v2 driver支持的范围内，找到最接近的支持频率
-                    self.cur_freq = self.get_closest_v2_supported_freq(new_freq);
-                    // 更新频率索引
-                    self.cur_freq_idx = self.read_freq_index(self.cur_freq);
-                } else {
-                    self.cur_freq = new_freq;
-                    self.cur_freq_idx = final_freq_index;
-                }
-
-                goto_gen_volt!(self, util);
-            }
-
+            // 处理空闲状态
             if self.load_low >= 60 {
                 self.is_idle = true;
             }
@@ -298,9 +473,11 @@ impl GPU {
                 self.is_idle = false;
             }
 
+            // 更新电压并写入频率
             self.cur_volt = self.gen_cur_volt();
             self.write_freq()?;
 
+            // 根据状态决定休眠时间
             if self.is_idle {
                 if self.precise {
                     thread::sleep(Duration::from_millis(200));
@@ -314,9 +491,30 @@ impl GPU {
             if self.precise {
                 continue;
             } else {
-                thread::sleep(Duration::from_millis(RESP_TIME));
+                thread::sleep(Duration::from_millis(self.sampling_interval));
             }
         }
+    }
+
+    // 辅助方法：应用新频率
+    fn apply_new_frequency(&mut self, new_freq: i64, freq_index: i64) -> Result<()> {
+        // 对于v2 driver设备，验证频率是否在系统支持范围内
+        if self.gpuv2 && !self.is_freq_supported_by_v2_driver(new_freq) {
+            debug!(
+                "Freq {} not supported by V2 driver, finding closest supported freq",
+                new_freq
+            );
+            // 如果新频率不在v2 driver支持的范围内，找到最接近的支持频率
+            self.cur_freq = self.get_closest_v2_supported_freq(new_freq);
+            // 更新频率索引
+            self.cur_freq_idx = self.read_freq_index(self.cur_freq);
+        } else {
+            self.cur_freq = new_freq;
+            self.cur_freq_idx = freq_index;
+        }
+
+        debug!("Applied new frequency: {}KHz (index: {})", self.cur_freq, self.cur_freq_idx);
+        Ok(())
     }
 
     pub fn write_freq(&self) -> Result<()> {
@@ -467,6 +665,10 @@ impl GPU {
         self.gaming_mode = gaming_mode;
     }
 
+    pub fn is_gaming_mode(&self) -> bool {
+        self.gaming_mode
+    }
+
     pub fn gen_cur_volt(&mut self) -> i64 {
         // 对于v2 driver设备，获取支持的最接近频率
         let freq_to_use = self.get_closest_v2_supported_freq(self.cur_freq);
@@ -512,6 +714,102 @@ impl GPU {
 
     pub fn set_v2_supported_freqs(&mut self, freqs: Vec<i64>) {
         self.v2_supported_freqs = freqs;
+    }
+
+    // 设置负载阈值
+    pub fn set_load_thresholds(&mut self, very_low: i32, low: i32, high: i32, very_high: i32) {
+        self.very_low_load_threshold = very_low;
+        self.low_load_threshold = low;
+        self.high_load_threshold = high;
+        self.very_high_load_threshold = very_high;
+        info!("Set GPU load thresholds: very_low={}%, low={}%, high={}%, very_high={}%",
+              very_low, low, high, very_high);
+    }
+
+    // 设置负载稳定性阈值
+    pub fn set_load_stability_threshold(&mut self, threshold: i32) {
+        self.load_stability_threshold = threshold;
+        info!("Set GPU load stability threshold: {} consecutive samples", threshold);
+    }
+
+    // 设置采样间隔
+    pub fn set_sampling_interval(&mut self, interval: u64) {
+        self.sampling_interval = interval;
+        info!("Set GPU sampling interval: {}ms", interval);
+    }
+
+    // 设置激进降频模式
+    pub fn set_aggressive_down(&mut self, aggressive: bool) {
+        self.aggressive_down = aggressive;
+        info!("Set GPU aggressive downscaling: {}", if aggressive { "enabled" } else { "disabled" });
+    }
+
+    // 确定当前负载所属区域
+    pub fn determine_load_zone(&self, load: i32) -> i32 {
+        if load <= self.very_low_load_threshold {
+            return 0; // 极低负载区域
+        } else if load <= self.low_load_threshold {
+            return 1; // 低负载区域
+        } else if load >= self.very_high_load_threshold {
+            return 4; // 极高负载区域
+        } else if load >= self.high_load_threshold {
+            return 3; // 高负载区域
+        } else {
+            return 2; // 中等负载区域
+        }
+    }
+
+    // 获取最高频率
+    pub fn get_max_freq(&self) -> i64 {
+        if self.config_list.is_empty() {
+            return 0;
+        }
+        *self.config_list.iter().max().unwrap_or(&0)
+    }
+
+    // 获取最低频率
+    pub fn get_min_freq(&self) -> i64 {
+        if self.config_list.is_empty() {
+            return 0;
+        }
+        *self.config_list.iter().min().unwrap_or(&0)
+    }
+
+    // 获取次高频率
+    pub fn get_second_highest_freq(&self) -> i64 {
+        if self.config_list.len() < 2 {
+            return self.get_max_freq();
+        }
+
+        // 找出次高频率
+        let mut sorted_freqs = self.config_list.clone();
+        sorted_freqs.sort_by(|a, b| b.cmp(a)); // 降序排序
+        sorted_freqs[1] // 第二个元素是次高频率
+    }
+
+    // 获取次低频率
+    pub fn get_second_lowest_freq(&self) -> i64 {
+        if self.config_list.len() < 2 {
+            return self.get_min_freq();
+        }
+
+        // 找出次低频率
+        let mut sorted_freqs = self.config_list.clone();
+        sorted_freqs.sort(); // 升序排序
+        sorted_freqs[1] // 第二个元素是次低频率
+    }
+
+    // 获取中间频率
+    pub fn get_middle_freq(&self) -> i64 {
+        if self.config_list.is_empty() {
+            return 0;
+        }
+
+        // 对频率列表进行排序，然后取中间值
+        let mut sorted_freqs = self.config_list.clone();
+        sorted_freqs.sort(); // 升序排序
+        let mid_idx = sorted_freqs.len() / 2;
+        sorted_freqs[mid_idx]
     }
 
     pub fn is_freq_supported_by_v2_driver(&self, freq: i64) -> bool {

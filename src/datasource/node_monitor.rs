@@ -65,6 +65,21 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                   up_rate_delay,
                   down_threshold);
 
+            // 设置初始高级调速器参数
+            if is_gaming {
+                // 游戏模式：更激进的升频，更保守的降频
+                gpu.set_load_thresholds(5, 20, 60, 85); // 更低的高负载阈值，更快进入高负载区域
+                gpu.set_load_stability_threshold(2);    // 更低的稳定性阈值，更快响应负载变化
+                gpu.set_aggressive_down(false);         // 禁用激进降频，保持性能
+                info!("Initial game mode enabled: Using performance-oriented governor settings");
+            } else {
+                // 普通模式：更保守的升频，更激进的降频
+                gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
+                gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
+                gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+                info!("Initial game mode disabled: Using power-saving governor settings");
+            }
+
             info!("Initial game mode value: {}", value);
         } else {
             info!("Failed to read initial game mode value, defaulting to non-gaming mode");
@@ -73,6 +88,12 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
             gpu.set_down_threshold(NORMAL_MODE_DOWN_THRESHOLD);
             info!("Setting default up rate delay to {}ms, down threshold to {}",
                  NORMAL_MODE_UP_RATE_DELAY, NORMAL_MODE_DOWN_THRESHOLD);
+
+            // 设置默认高级调速器参数（普通模式）
+            gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
+            gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
+            gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+            info!("Default mode: Using power-saving governor settings");
         }
     }
 
@@ -121,6 +142,21 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                       if is_gaming { "enabled" } else { "disabled" },
                       up_rate_delay,
                       down_threshold);
+
+                // 更新高级调速器参数
+                if is_gaming {
+                    // 游戏模式：更激进的升频，更保守的降频
+                    gpu.set_load_thresholds(5, 20, 60, 85); // 更低的高负载阈值，更快进入高负载区域
+                    gpu.set_load_stability_threshold(2);    // 更低的稳定性阈值，更快响应负载变化
+                    gpu.set_aggressive_down(false);         // 禁用激进降频，保持性能
+                    info!("Game mode enabled: Using performance-oriented governor settings");
+                } else {
+                    // 普通模式：更保守的升频，更激进的降频
+                    gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
+                    gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
+                    gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+                    info!("Game mode disabled: Using power-saving governor settings");
+                }
 
                 debug!("Game mode changed: {}", is_gaming);
             }

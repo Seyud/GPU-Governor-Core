@@ -177,14 +177,12 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
     // 输出当前频率表信息
     let config_list = gpu.get_config_list();
     if !config_list.is_empty() {
-        if let Some(&max_freq) = config_list.first() {
-            info!("Config Max Freq: {}", max_freq);
-        }
+        // 找出最大和最小频率，不假设列表的排序方式
+        let max_freq = *config_list.iter().max().unwrap_or(&0);
+        let min_freq = *config_list.iter().min().unwrap_or(&0);
 
-        if let Some(&min_freq) = config_list.last() {
-            info!("Config Min Freq: {}", min_freq);
-        }
-
+        info!("Config Max Freq: {}", max_freq);
+        info!("Config Min Freq: {}", min_freq);
         info!("Config Frequencies Total: {}", config_list.len());
     } else {
         warn!("No frequencies in config list yet");

@@ -131,7 +131,26 @@ fn main() -> Result<()> {
     // 初始升频延迟将由游戏模式监控线程设置
     info!("Up Rate Delay will be set based on game mode");
 
-    info!("Governor Started");
+    // 设置新的调速器参数
+    // 游戏模式下使用更激进的升频策略，普通模式下使用更激进的降频策略
+    if gpu.is_gaming_mode() {
+        // 游戏模式：更激进的升频，更保守的降频
+        gpu.set_load_thresholds(5, 20, 60, 85); // 更低的高负载阈值，更快进入高负载区域
+        gpu.set_load_stability_threshold(2);    // 更低的稳定性阈值，更快响应负载变化
+        gpu.set_aggressive_down(false);         // 禁用激进降频，保持性能
+        info!("Game mode detected: Using performance-oriented governor settings");
+    } else {
+        // 普通模式：更保守的升频，更激进的降频
+        gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
+        gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
+        gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+        info!("Normal mode detected: Using power-saving governor settings");
+    }
+
+    // 设置采样间隔
+    gpu.set_sampling_interval(16); // 16ms采样间隔，约60Hz
+
+    info!("Advanced GPU Governor Started");
 
     // Adjust GPU frequency
     gpu.adjust_gpufreq()
