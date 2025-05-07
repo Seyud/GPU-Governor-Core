@@ -304,8 +304,7 @@ impl GPU {
                         final_freq_index = self.read_freq_index(final_freq);
 
                         // 应用新频率
-                        let new_freq = self.gen_cur_freq(final_freq_index);
-                        self.apply_new_frequency(new_freq, final_freq_index)?;
+                        self.apply_new_frequency(final_freq, final_freq_index)?;
 
                         // 重置负载区域计数器
                         self.load_zone_counter = 0;
@@ -324,15 +323,16 @@ impl GPU {
                         // 如果目标频率低于当前频率，降低一个档位
                         if target_freq < now_freq {
                             // 步进式降频：降低一个档位
-                            let next_lower_idx = self.cur_freq_idx + 1; // 注意：频率表是从高到低排序的
+                            let next_lower_idx = self.cur_freq_idx - 1; // 注意：频率表是从低到高排序的，所以降频需要减小索引
+                            // 确保索引不会小于0
+                            let next_lower_idx = if next_lower_idx < 0 { 0 } else { next_lower_idx };
                             final_freq = self.gen_cur_freq(next_lower_idx);
                             final_freq_index = next_lower_idx;
 
                             debug!("Stepping down one level to: {}KHz", final_freq);
 
                             // 应用新频率
-                            let new_freq = self.gen_cur_freq(final_freq_index);
-                            self.apply_new_frequency(new_freq, final_freq_index)?;
+                            self.apply_new_frequency(final_freq, final_freq_index)?;
 
                             // 重置负载区域计数器
                             self.load_zone_counter = 0;
@@ -352,7 +352,13 @@ impl GPU {
                         // 根据目标频率微调
                         if target_freq > now_freq * 110 / 100 {
                             // 如果目标频率比当前频率高10%以上，升高一个档位
-                            let next_higher_idx = self.cur_freq_idx - 1; // 注意：频率表是从高到低排序的
+                            let next_higher_idx = self.cur_freq_idx + 1; // 注意：频率表是从低到高排序的，所以升频需要增加索引
+                            // 确保索引不会超出范围
+                            let next_higher_idx = if next_higher_idx >= self.config_list.len() as i64 {
+                                (self.config_list.len() - 1) as i64
+                            } else {
+                                next_higher_idx
+                            };
                             final_freq = self.gen_cur_freq(next_higher_idx);
                             final_freq_index = next_higher_idx;
 
@@ -365,8 +371,7 @@ impl GPU {
                             }
 
                             // 应用新频率
-                            let new_freq = self.gen_cur_freq(final_freq_index);
-                            self.apply_new_frequency(new_freq, final_freq_index)?;
+                            self.apply_new_frequency(final_freq, final_freq_index)?;
 
                             // 重置负载区域计数器
                             self.load_zone_counter = 0;
@@ -376,15 +381,16 @@ impl GPU {
                             goto_gen_volt!(self, util);
                         } else if target_freq < now_freq * 90 / 100 {
                             // 如果目标频率比当前频率低10%以上，降低一个档位
-                            let next_lower_idx = self.cur_freq_idx + 1; // 注意：频率表是从高到低排序的
+                            let next_lower_idx = self.cur_freq_idx - 1; // 注意：频率表是从低到高排序的，所以降频需要减小索引
+                            // 确保索引不会小于0
+                            let next_lower_idx = if next_lower_idx < 0 { 0 } else { next_lower_idx };
                             final_freq = self.gen_cur_freq(next_lower_idx);
                             final_freq_index = next_lower_idx;
 
                             debug!("Fine-tuning: stepping down one level to: {}KHz", final_freq);
 
                             // 应用新频率
-                            let new_freq = self.gen_cur_freq(final_freq_index);
-                            self.apply_new_frequency(new_freq, final_freq_index)?;
+                            self.apply_new_frequency(final_freq, final_freq_index)?;
 
                             // 重置负载区域计数器
                             self.load_zone_counter = 0;
@@ -404,7 +410,13 @@ impl GPU {
                         // 如果目标频率高于当前频率，升高一个档位
                         if target_freq > now_freq {
                             // 步进式升频：升高一个档位
-                            let next_higher_idx = self.cur_freq_idx - 1; // 注意：频率表是从高到低排序的
+                            let next_higher_idx = self.cur_freq_idx + 1; // 注意：频率表是从低到高排序的，所以升频需要增加索引
+                            // 确保索引不会超出范围
+                            let next_higher_idx = if next_higher_idx >= self.config_list.len() as i64 {
+                                (self.config_list.len() - 1) as i64
+                            } else {
+                                next_higher_idx
+                            };
                             final_freq = self.gen_cur_freq(next_higher_idx);
                             final_freq_index = next_higher_idx;
 
@@ -417,8 +429,7 @@ impl GPU {
                             }
 
                             // 应用新频率
-                            let new_freq = self.gen_cur_freq(final_freq_index);
-                            self.apply_new_frequency(new_freq, final_freq_index)?;
+                            self.apply_new_frequency(final_freq, final_freq_index)?;
 
                             // 重置负载区域计数器
                             self.load_zone_counter = 0;
@@ -445,8 +456,7 @@ impl GPU {
                         }
 
                         // 应用新频率
-                        let new_freq = self.gen_cur_freq(final_freq_index);
-                        self.apply_new_frequency(new_freq, final_freq_index)?;
+                        self.apply_new_frequency(final_freq, final_freq_index)?;
 
                         // 重置负载区域计数器
                         self.load_zone_counter = 0;
@@ -759,44 +769,42 @@ impl GPU {
         }
     }
 
-    // 获取最高频率
+    // 获取最高频率 - 频率表从低到高排序，所以最高频率在最后
     pub fn get_max_freq(&self) -> i64 {
         if self.config_list.is_empty() {
             return 0;
         }
-        *self.config_list.iter().max().unwrap_or(&0)
+        // 频率表从低到高排序，最后一个元素是最高频率
+        *self.config_list.last().unwrap_or(&0)
     }
 
-    // 获取最低频率
+    // 获取最低频率 - 频率表从低到高排序，所以最低频率在最前
     pub fn get_min_freq(&self) -> i64 {
         if self.config_list.is_empty() {
             return 0;
         }
-        *self.config_list.iter().min().unwrap_or(&0)
+        // 频率表从低到高排序，第一个元素是最低频率
+        *self.config_list.first().unwrap_or(&0)
     }
 
-    // 获取次高频率
+    // 获取次高频率 - 频率表从低到高排序，所以次高频率是倒数第二个
     pub fn get_second_highest_freq(&self) -> i64 {
         if self.config_list.len() < 2 {
             return self.get_max_freq();
         }
 
-        // 找出次高频率
-        let mut sorted_freqs = self.config_list.clone();
-        sorted_freqs.sort_by(|a, b| b.cmp(a)); // 降序排序
-        sorted_freqs[1] // 第二个元素是次高频率
+        // 频率表从低到高排序，倒数第二个元素是次高频率
+        self.config_list[self.config_list.len() - 2]
     }
 
-    // 获取次低频率
+    // 获取次低频率 - 频率表从低到高排序，所以次低频率是第二个
     pub fn get_second_lowest_freq(&self) -> i64 {
         if self.config_list.len() < 2 {
             return self.get_min_freq();
         }
 
-        // 找出次低频率
-        let mut sorted_freqs = self.config_list.clone();
-        sorted_freqs.sort(); // 升序排序
-        sorted_freqs[1] // 第二个元素是次低频率
+        // 频率表从低到高排序，第二个元素是次低频率
+        self.config_list[1]
     }
 
     // 获取中间频率
@@ -805,11 +813,9 @@ impl GPU {
             return 0;
         }
 
-        // 对频率列表进行排序，然后取中间值
-        let mut sorted_freqs = self.config_list.clone();
-        sorted_freqs.sort(); // 升序排序
-        let mid_idx = sorted_freqs.len() / 2;
-        sorted_freqs[mid_idx]
+        // 频率表已经是从低到高排序的，直接取中间值
+        let mid_idx = self.config_list.len() / 2;
+        self.config_list[mid_idx]
     }
 
     pub fn is_freq_supported_by_v2_driver(&self, freq: i64) -> bool {
