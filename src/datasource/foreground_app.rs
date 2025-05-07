@@ -61,11 +61,31 @@ fn get_foreground_app() -> Result<String> {
         }
     };
 
-    let re = Regex::new(r"  TOP  .*?([a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)").unwrap();
+    // 匹配包含 "fg" 和 "TOP" 但不包含 "BTOP" 的行
     for line in output.lines() {
-        if let Some(caps) = re.captures(line) {
-            return Ok(caps[1].to_string());
+        if line.contains("fg") && line.contains("TOP") && !line.contains("BTOP") {
+            debug!("找到匹配行: {}", line);
+
+            // 使用正则表达式提取包名部分
+            let re = Regex::new(r"(\d+):([a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)/").unwrap();
+            if let Some(caps) = re.captures(line) {
+                let package_name = caps[2].to_string();
+                debug!("提取的包名: {}", package_name);
+                return Ok(package_name);
+            } else {
+                debug!("正则表达式未能匹配行: {}", line);
+            }
         }
+    }
+
+    // 如果上面的匹配失败，记录一些调试信息
+    debug!("Failed to find foreground app. Dumpsys output first few lines:");
+    for (i, line) in output.lines().take(5).enumerate() {
+        debug!("Line {}: {}", i + 1, line);
+    }
+    debug!("Lines containing 'fg' and 'TOP':");
+    for line in output.lines().filter(|l| l.contains("fg") && l.contains("TOP")) {
+        debug!("Matching line: {}", line);
     }
     Err(anyhow!("Failed to find foreground app in dumpsys output"))
 }

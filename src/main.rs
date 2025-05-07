@@ -24,7 +24,7 @@ use crate::{
 const NOTES: &str = "Mediatek Mali GPU Governor";
 const AUTHOR: &str = "Author: walika @CoolApk, rtools @CoolApk";
 const SPECIAL: &str = "Special Thanks: HamJin @CoolApk, asto18089 @CoolApk and helloklf @Github";
-const VERSION: &str = "Version: v2.2";
+const VERSION: &str = "Version: v2.3";
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
