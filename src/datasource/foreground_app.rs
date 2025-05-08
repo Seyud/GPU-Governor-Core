@@ -80,15 +80,15 @@ fn get_foreground_app_window() -> Result<String> {
 
                 // 查找斜杠前的包名
                 if let Some(slash_pos) = last_field.find('/') {
-                    let mut package_name = &last_field[..slash_pos];
+                    let mut package_name = last_field[..slash_pos].to_string();
 
                     // 移除可能的前缀字符
                     if package_name.starts_with('*') || package_name.starts_with('{') {
-                        package_name = &package_name[1..];
+                        package_name = package_name[1..].to_string();
                     }
 
                     debug!("Extracted package name: {}", package_name);
-                    return Ok(package_name.to_string());
+                    return Ok(package_name);
                 }
             }
         }
