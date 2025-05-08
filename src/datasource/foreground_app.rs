@@ -44,8 +44,64 @@ impl ForegroundAppCache {
     }
 }
 
-// 获取前台应用包名
-fn get_foreground_app() -> Result<String> {
+// 使用dumpsys window命令获取前台应用包名
+fn get_foreground_app_window() -> Result<String> {
+    debug!("Trying to get foreground app using dumpsys window method");
+
+    let output = loop {
+        match Command::new("/system/bin/dumpsys")
+            .args(["window"])
+            .output()
+        {
+            Ok(o) => {
+                break String::from_utf8_lossy(&o.stdout).to_string();
+            }
+            Err(e) => {
+                log::error!("Unable to execute dumpsys window command: {e}");
+                std::thread::sleep(Duration::from_secs(1));
+            }
+        }
+    };
+
+    // 记录输出预览用于调试
+    debug!("Dumpsys window output preview: {}",
+        output.chars().take(100).collect::<String>());
+
+    // 逐行分析输出
+    for line in output.lines() {
+        // 检查mCurrentFocus和mFocusedWindow
+        if line.contains("mCurrentFocus") || line.contains("mFocusedWindow") {
+            debug!("Found focus line: {}", line);
+
+            // 查找最后一个空格后的内容
+            if let Some(last_space_pos) = line.rfind(' ') {
+                let last_field = &line[last_space_pos + 1..];
+                debug!("Last field: {}", last_field);
+
+                // 查找斜杠前的包名
+                if let Some(slash_pos) = last_field.find('/') {
+                    let mut package_name = &last_field[..slash_pos];
+
+                    // 移除可能的前缀字符
+                    if package_name.starts_with('*') || package_name.starts_with('{') {
+                        package_name = &package_name[1..];
+                    }
+
+                    debug!("Extracted package name: {}", package_name);
+                    return Ok(package_name.to_string());
+                }
+            }
+        }
+    }
+
+    debug!("Failed to find foreground app using dumpsys window method");
+    Err(anyhow!("Failed to find foreground app in dumpsys window output"))
+}
+
+// 使用dumpsys activity lru命令获取前台应用包名
+fn get_foreground_app_activity() -> Result<String> {
+    debug!("Trying to get foreground app using dumpsys activity lru method");
+
     let output = loop {
         match Command::new("/system/bin/dumpsys")
             .args(["activity", "lru"])
@@ -97,7 +153,8 @@ fn get_foreground_app() -> Result<String> {
     }
 
     // 如果上面的匹配失败，记录一些调试信息
-    debug!("Failed to find foreground app. Dumpsys output first few lines:");
+    debug!("Failed to find foreground app using dumpsys activity lru method");
+    debug!("Dumpsys activity lru output first few lines:");
     for (i, line) in output.lines().take(5).enumerate() {
         debug!("Line {}: {}", i + 1, line);
     }
@@ -105,7 +162,35 @@ fn get_foreground_app() -> Result<String> {
     for line in output.lines().filter(|l| l.contains("TOP")) {
         debug!("Line with TOP: {}", line);
     }
-    Err(anyhow!("Failed to find foreground app in dumpsys output"))
+    Err(anyhow!("Failed to find foreground app in dumpsys activity lru output"))
+}
+
+// 获取前台应用包名（组合方法）
+fn get_foreground_app() -> Result<String> {
+    // 首先尝试使用window方法
+    match get_foreground_app_window() {
+        Ok(package_name) => {
+            debug!("Successfully got foreground app using window method: {}", package_name);
+            return Ok(package_name);
+        }
+        Err(e) => {
+            debug!("Window method failed: {}, trying activity lru method", e);
+        }
+    }
+
+    // 如果window方法失败，尝试使用activity lru方法
+    match get_foreground_app_activity() {
+        Ok(package_name) => {
+            debug!("Successfully got foreground app using activity lru method: {}", package_name);
+            return Ok(package_name);
+        }
+        Err(e) => {
+            debug!("Activity lru method also failed: {}", e);
+        }
+    }
+
+    // 如果两种方法都失败，返回错误
+    Err(anyhow!("Failed to get foreground app using all available methods"))
 }
 
 // 读取游戏列表
