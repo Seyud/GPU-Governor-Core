@@ -165,9 +165,66 @@ fn get_foreground_app_activity() -> Result<String> {
     Err(anyhow!("Failed to find foreground app in dumpsys activity lru output"))
 }
 
+// 使用dumpsys activity activities命令获取前台应用包名
+fn get_foreground_app_activities() -> Result<String> {
+    debug!("Trying to get foreground app using dumpsys activity activities method");
+
+    let output = loop {
+        match Command::new("/system/bin/dumpsys")
+            .args(["activity", "activities"])
+            .output()
+        {
+            Ok(o) => {
+                break String::from_utf8_lossy(&o.stdout).to_string();
+            }
+            Err(e) => {
+                log::error!("Unable to execute dumpsys activity activities command: {e}");
+                std::thread::sleep(Duration::from_secs(1));
+            }
+        }
+    };
+
+    // 记录输出预览用于调试
+    debug!("Dumpsys activity activities output preview: {}",
+        output.chars().take(100).collect::<String>());
+
+    // 查找包含ResumedActivity或topResumedActivity的行
+    for line in output.lines() {
+        if line.contains("ResumedActivity") || line.contains("topResumedActivity") {
+            debug!("Found activity line: {}", line);
+
+            // 查找" u0 "后的内容
+            if let Some(u0_pos) = line.find(" u0 ") {
+                let after_u0 = &line[u0_pos + 4..];
+
+                // 查找"/"字符前的包名
+                if let Some(slash_pos) = after_u0.find('/') {
+                    let package_name = &after_u0[..slash_pos];
+                    debug!("Extracted package name: {}", package_name);
+                    return Ok(package_name.to_string());
+                }
+            }
+        }
+    }
+
+    debug!("Failed to find foreground app using dumpsys activity activities method");
+    Err(anyhow!("Failed to find foreground app in dumpsys activity activities output"))
+}
+
 // 获取前台应用包名（组合方法）
 fn get_foreground_app() -> Result<String> {
-    // 首先尝试使用window方法
+    // 首先尝试使用activity activities方法
+    match get_foreground_app_activities() {
+        Ok(package_name) => {
+            debug!("Successfully got foreground app using activity activities method: {}", package_name);
+            return Ok(package_name);
+        }
+        Err(e) => {
+            debug!("Activity activities method failed: {}, trying window method", e);
+        }
+    }
+
+    // 如果activity activities方法失败，尝试使用window方法
     match get_foreground_app_window() {
         Ok(package_name) => {
             debug!("Successfully got foreground app using window method: {}", package_name);
@@ -178,7 +235,7 @@ fn get_foreground_app() -> Result<String> {
         }
     }
 
-    // 如果window方法失败，尝试使用activity lru方法
+    // 如果前两种方法都失败，尝试使用activity lru方法
     match get_foreground_app_activity() {
         Ok(package_name) => {
             debug!("Successfully got foreground app using activity lru method: {}", package_name);
@@ -189,7 +246,7 @@ fn get_foreground_app() -> Result<String> {
         }
     }
 
-    // 如果两种方法都失败，返回错误
+    // 如果所有方法都失败，返回错误
     Err(anyhow!("Failed to get foreground app using all available methods"))
 }
 
