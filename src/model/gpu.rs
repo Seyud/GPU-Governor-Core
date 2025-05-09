@@ -534,6 +534,31 @@ impl GPU {
         }
 
         debug!("Applied new frequency: {}KHz (index: {})", self.cur_freq, self.cur_freq_idx);
+
+        // 如果在游戏模式下，根据新的GPU频率更新内存频率
+        if self.gaming_mode {
+            // 默认使用自动模式（999）
+            let mut ddr_opp = 999;
+
+            // 获取新频率对应的DDR_OPP值
+            let config_ddr_opp = self.read_tab(TabType::FreqDram, self.cur_freq);
+
+            // 只有当配置表中明确指定了非零值时才使用它
+            if config_ddr_opp > 0 || config_ddr_opp == DDR_HIGHEST_FREQ {
+                ddr_opp = config_ddr_opp;
+            }
+
+            // 根据DDR_OPP值设置内存频率
+            let mode_desc = if ddr_opp == 999 { "auto mode" } else { "value" };
+            debug!("Game mode: updating DDR to {} {} based on new GPU frequency",
+                   mode_desc,
+                   ddr_opp);
+
+            if let Err(e) = self.set_ddr_freq(ddr_opp) {
+                warn!("Failed to update DDR frequency: {}", e);
+            }
+        }
+
         Ok(())
     }
 
@@ -685,10 +710,37 @@ impl GPU {
         self.gaming_mode = gaming_mode;
 
         if gaming_mode {
-            // 游戏模式下自动设置内存频率
-            // 使用最高内存频率和电压（DDR_OPP值为DDR_HIGHEST_FREQ）
-            info!("Game mode: setting DDR to highest frequency and voltage (OPP value: {})", DDR_HIGHEST_FREQ);
-            if let Err(e) = self.set_ddr_freq(DDR_HIGHEST_FREQ) {
+            // 游戏模式下使用配置表中的DDR_OPP值
+            // 确定要使用的GPU频率
+            let freq_to_use = if self.cur_freq > 0 {
+                self.cur_freq
+            } else if !self.config_list.is_empty() {
+                self.config_list[0]
+            } else {
+                0 // 如果没有可用频率，使用0作为默认值
+            };
+
+            // 默认使用自动模式（999）
+            let mut ddr_opp = 999;
+
+            if freq_to_use > 0 {
+                // 从配置表中读取DDR_OPP值
+                let config_ddr_opp = self.read_tab(TabType::FreqDram, freq_to_use);
+
+                // 只有当配置表中明确指定了非零值时才使用它
+                if config_ddr_opp > 0 || config_ddr_opp == DDR_HIGHEST_FREQ {
+                    ddr_opp = config_ddr_opp;
+                }
+            }
+
+            // 根据DDR_OPP值设置内存频率
+            let mode_desc = if ddr_opp == 999 { "auto mode" } else { "value" };
+            info!("Game mode: using DDR_OPP {} {} {}",
+                  mode_desc,
+                  ddr_opp,
+                  if ddr_opp == 999 { "(default)" } else { "from config table" });
+
+            if let Err(e) = self.set_ddr_freq(ddr_opp) {
                 warn!("Failed to set DDR frequency in game mode: {}", e);
             }
         } else if self.ddr_freq_fixed {
