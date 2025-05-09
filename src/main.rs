@@ -34,13 +34,16 @@ fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 {
-        for arg in &args[1..] {
-            match arg.as_str() {
+        let mut i = 1;
+        while i < args.len() {
+            match args[i].as_str() {
                 "-h" => {
                     println!("{}", NOTES);
                     println!("{}", AUTHOR);
                     println!("{}", SPECIAL);
-                    println!("Usage:\n\t-v show version\n\t-h show help");
+                    println!("Usage:");
+                    println!("\t-v show version");
+                    println!("\t-h show help");
                     return Ok(());
                 }
                 "-v" => {
@@ -50,8 +53,13 @@ fn main() -> Result<()> {
                     println!("{}", VERSION);
                     return Ok(());
                 }
-                _ => {}
+                _ => {
+                    println!("Unknown argument: {}", args[i]);
+                    println!("Use -h for help");
+                    return Ok(());
+                }
             }
+            i += 1;
         }
     }
 
