@@ -138,9 +138,46 @@ pub fn validate_freq_for_v2_driver(freq: i64, supported_freqs: &[i64]) -> bool {
     supported_freqs.contains(&freq)
 }
 
+// 检测内存频率控制文件
+fn detect_ddr_freq_paths() -> Result<()> {
+    // 检查v1驱动的内存频率控制文件
+    let v1_path_exists = Path::new(DVFSRC_V1_PATH).exists() && check_read_simple(DVFSRC_V1_PATH);
+
+    // 检查v2驱动的内存频率控制文件
+    let v2_path1_exists = Path::new(DVFSRC_V2_PATH_1).exists() && check_read_simple(DVFSRC_V2_PATH_1);
+    let v2_path2_exists = Path::new(DVFSRC_V2_PATH_2).exists() && check_read_simple(DVFSRC_V2_PATH_2);
+
+    // 记录检测到的文件
+    info!("DDR Frequency Control Files Detection:");
+    info!(
+        "  V1 DDR Path: {}",
+        if v1_path_exists { "Found" } else { "Not Found" }
+    );
+    info!(
+        "  V2 DDR Path 1: {}",
+        if v2_path1_exists { "Found" } else { "Not Found" }
+    );
+    info!(
+        "  V2 DDR Path 2: {}",
+        if v2_path2_exists { "Found" } else { "Not Found" }
+    );
+
+    // 检查是否至少有一个可用的内存频率控制文件
+    if v1_path_exists || v2_path1_exists || v2_path2_exists {
+        info!("DDR frequency control is available");
+    } else {
+        warn!("No DDR frequency control files found");
+    }
+
+    Ok(())
+}
+
 pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
     // 检测GPU驱动类型
     detect_gpu_driver_type(gpu)?;
+
+    // 检测内存频率控制文件
+    detect_ddr_freq_paths()?;
 
     // 如果是v2 driver，读取系统支持的频率表
     let v2_supported_freqs = if gpu.is_gpuv2() {
@@ -167,6 +204,30 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
             "V2 Driver Supported Frequencies Total: {}",
             v2_supported_freqs.len()
         );
+
+        // 如果是v2 driver，也读取内存频率表
+        info!("Reading V2 driver DDR frequency table");
+        let ddr_v2_supported_freqs = gpu.read_ddr_v2_freq_table()?;
+
+        if !ddr_v2_supported_freqs.is_empty() {
+            // 将支持的内存频率列表保存到GPU对象
+            gpu.set_ddr_v2_supported_freqs(ddr_v2_supported_freqs.clone());
+
+            if let Some(&min_freq) = ddr_v2_supported_freqs.first() {
+                info!("V2 Driver Min Supported DDR Freq: {}", min_freq);
+            }
+
+            if let Some(&max_freq) = ddr_v2_supported_freqs.last() {
+                info!("V2 Driver Max Supported DDR Freq: {}", max_freq);
+            }
+
+            info!(
+                "V2 Driver Supported DDR Frequencies Total: {}",
+                ddr_v2_supported_freqs.len()
+            );
+        } else {
+            warn!("No DDR frequencies found in V2 driver table");
+        }
     } else if gpu.is_gpuv2() {
         warn!("No frequencies found in V2 driver table");
     } else {

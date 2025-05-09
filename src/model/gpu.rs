@@ -1,6 +1,6 @@
-use std::{collections::HashMap, thread, time::Duration};
+use std::{collections::HashMap, path::Path, thread, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use log::{debug, info, warn};
 
 use crate::{
@@ -89,6 +89,11 @@ pub struct GPU {
     aggressive_down: bool,        // 是否使用激进降频策略
     last_adjustment_time: u64,    // 上次频率调整时间（毫秒）
     sampling_interval: u64,       // 采样间隔（毫秒）
+
+    // 内存频率控制相关字段
+    ddr_freq_fixed: bool,         // 是否固定内存频率
+    ddr_freq: i64,                // 当前固定的内存频率
+    ddr_v2_supported_freqs: Vec<i64>, // v2 driver支持的内存频率列表
 }
 
 impl GPU {
@@ -127,6 +132,11 @@ impl GPU {
             aggressive_down: true,        // 默认启用激进降频
             last_adjustment_time: 0,
             sampling_interval: 16,        // 默认采样间隔16ms
+
+            // 内存频率控制相关字段默认值
+            ddr_freq_fixed: false,        // 默认不固定内存频率
+            ddr_freq: 0,                  // 默认内存频率为0（不固定）
+            ddr_v2_supported_freqs: Vec::new(), // 默认v2 driver支持的内存频率列表为空
         }
     }
 
@@ -673,6 +683,22 @@ impl GPU {
 
     pub fn set_gaming_mode(&mut self, gaming_mode: bool) {
         self.gaming_mode = gaming_mode;
+
+        if gaming_mode {
+            // 游戏模式下自动设置内存频率
+            // 使用最高内存频率和电压（DDR_OPP值为DDR_HIGHEST_FREQ）
+            info!("Game mode: setting DDR to highest frequency and voltage (OPP value: {})", DDR_HIGHEST_FREQ);
+            if let Err(e) = self.set_ddr_freq(DDR_HIGHEST_FREQ) {
+                warn!("Failed to set DDR frequency in game mode: {}", e);
+            }
+        } else if self.ddr_freq_fixed {
+            // 非游戏模式下恢复内存频率为自动模式
+            info!("Game mode disabled: restoring DDR frequency to auto mode");
+            // 使用999作为通用的自动模式标识，set_ddr_freq方法会根据驱动类型选择正确的值
+            if let Err(e) = self.set_ddr_freq(999) {
+                warn!("Failed to restore DDR frequency: {}", e);
+            }
+        }
     }
 
     pub fn is_gaming_mode(&self) -> bool {
@@ -855,5 +881,388 @@ impl GPU {
             freq, closest_freq
         );
         closest_freq
+    }
+
+    // 内存频率控制相关方法
+
+    // 设置内存频率
+    pub fn set_ddr_freq(&mut self, freq: i64) -> Result<()> {
+        // 如果频率是999，表示不固定内存频率，让系统自己选择
+        if freq == 999 {
+            // 根据驱动类型设置不同的自动模式值
+            self.ddr_freq = if self.gpuv2 { DDR_AUTO_MODE_V2 } else { DDR_AUTO_MODE_V1 };
+            self.ddr_freq_fixed = false;
+            info!("DDR frequency not fixed (auto mode)");
+            return self.write_ddr_freq();
+        }
+
+        // 如果频率是DDR_HIGHEST_FREQ，表示使用最高内存频率和电压
+        if freq == DDR_HIGHEST_FREQ {
+            self.ddr_freq = freq;
+            self.ddr_freq_fixed = true;
+            info!("Setting DDR to highest frequency and voltage (OPP value: {})", DDR_HIGHEST_FREQ);
+            return self.write_ddr_freq();
+        }
+
+        // 如果频率小于0，表示不固定内存频率
+        if freq < 0 {
+            // 根据驱动类型设置不同的自动模式值
+            self.ddr_freq = if self.gpuv2 { DDR_AUTO_MODE_V2 } else { DDR_AUTO_MODE_V1 };
+            self.ddr_freq_fixed = false;
+            info!("DDR frequency not fixed");
+            return self.write_ddr_freq();
+        }
+
+        // 检查是否是使用DDR_OPP值
+        // 如果freq值小于100，则认为是直接指定的DDR_OPP值
+        // 否则，尝试从当前GPU频率对应的freq_dram表中获取DDR_OPP值
+        if freq < 100 {
+            // 直接使用DDR_OPP值
+            self.ddr_freq = freq;
+
+            // 输出DDR_OPP值的含义
+            let opp_description = match freq {
+                DDR_HIGHEST_FREQ => "最高频率和电压",
+                DDR_SECOND_FREQ => "第二档频率和电压",
+                DDR_THIRD_FREQ => "第三档频率和电压",
+                DDR_FOURTH_FREQ => "第四档频率和电压",
+                DDR_FIFTH_FREQ => "第五档频率和电压",
+                _ => "自定义档位",
+            };
+
+            info!("Using direct DDR_OPP value: {} ({})", freq, opp_description);
+        } else {
+            // 尝试找到最接近的GPU频率
+            let closest_freq = self.find_closest_gpu_freq(freq);
+            if closest_freq > 0 {
+                let ddr_opp = self.read_tab(TabType::FreqDram, closest_freq);
+                if ddr_opp > 0 || ddr_opp == DDR_HIGHEST_FREQ {
+                    self.ddr_freq = ddr_opp;
+
+                    // 输出DDR_OPP值的含义
+                    let opp_description = match ddr_opp {
+                        DDR_HIGHEST_FREQ => "最高频率和电压",
+                        DDR_SECOND_FREQ => "第二档频率和电压",
+                        DDR_THIRD_FREQ => "第三档频率和电压",
+                        DDR_FOURTH_FREQ => "第四档频率和电压",
+                        DDR_FIFTH_FREQ => "第五档频率和电压",
+                        _ => "自定义档位",
+                    };
+
+                    info!("Using DDR_OPP value {} ({}) from GPU frequency {}KHz", ddr_opp, opp_description, closest_freq);
+                } else {
+                    // 如果没有找到对应的DDR_OPP值，使用默认值DDR_HIGHEST_FREQ（最高频率）
+                    self.ddr_freq = DDR_HIGHEST_FREQ;
+                    info!("No DDR_OPP value found for GPU frequency {}KHz, using highest frequency (OPP value: {})", closest_freq, DDR_HIGHEST_FREQ);
+                }
+            } else {
+                // 如果没有找到最接近的GPU频率，使用默认值DDR_HIGHEST_FREQ（最高频率）
+                self.ddr_freq = DDR_HIGHEST_FREQ;
+                info!("No matching GPU frequency found for {}KHz, using highest frequency (OPP value: {})", freq, DDR_HIGHEST_FREQ);
+            }
+        }
+
+        self.ddr_freq_fixed = true;
+        self.write_ddr_freq()
+    }
+
+    // 查找最接近的GPU频率
+    fn find_closest_gpu_freq(&self, target_freq: i64) -> i64 {
+        if self.config_list.is_empty() {
+            return 0;
+        }
+
+        let mut closest_freq = self.config_list[0];
+        let mut min_diff = (target_freq - closest_freq).abs();
+
+        for &freq in &self.config_list {
+            let diff = (target_freq - freq).abs();
+            if diff < min_diff {
+                min_diff = diff;
+                closest_freq = freq;
+            }
+        }
+
+        closest_freq
+    }
+
+    // 获取当前内存频率
+    pub fn get_ddr_freq(&self) -> i64 {
+        self.ddr_freq
+    }
+
+    // 是否固定内存频率
+    pub fn is_ddr_freq_fixed(&self) -> bool {
+        self.ddr_freq_fixed
+    }
+
+    // 设置v2 driver支持的内存频率列表
+    pub fn set_ddr_v2_supported_freqs(&mut self, freqs: Vec<i64>) {
+        self.ddr_v2_supported_freqs = freqs;
+    }
+
+    // 获取v2 driver支持的内存频率列表
+    pub fn get_ddr_v2_supported_freqs(&self) -> Vec<i64> {
+        self.ddr_v2_supported_freqs.clone()
+    }
+
+    // 写入内存频率
+    pub fn write_ddr_freq(&self) -> Result<()> {
+        use std::path::Path;
+
+        if !self.ddr_freq_fixed {
+            // 如果不固定内存频率，根据驱动类型写入不同的自动模式值
+            if self.gpuv2 {
+                // v2 driver，使用DDR_AUTO_MODE_V2（999）表示自动模式
+                let paths = [DVFSRC_V2_PATH_1, DVFSRC_V2_PATH_2];
+
+                // 尝试写入dvfsrc_force_vcore_dvfs_opp
+                let mut path_written = false;
+                for path in &paths {
+                    if Path::new(path).exists() {
+                        let auto_mode_str = DDR_AUTO_MODE_V2.to_string();
+                        debug!("Writing {} to v2 DDR path: {}", auto_mode_str, path);
+                        if let Ok(_) = write_file_safe(path, &auto_mode_str, auto_mode_str.len()) {
+                            path_written = true;
+                            break;
+                        }
+                    }
+                }
+
+                if !path_written {
+                    warn!("Failed to write DDR_AUTO_MODE_V2 to any v2 driver path");
+                    return Err(anyhow::anyhow!("Failed to write DDR_AUTO_MODE_V2 to any v2 driver path"));
+                }
+            } else {
+                // v1 driver，使用DDR_AUTO_MODE_V1（-1）表示自动模式
+                if Path::new(DVFSRC_V1_PATH).exists() {
+                    let auto_mode_str = DDR_AUTO_MODE_V1.to_string();
+                    debug!("Writing {} to v1 DDR path: {}", auto_mode_str, DVFSRC_V1_PATH);
+                    write_file_safe(DVFSRC_V1_PATH, &auto_mode_str, auto_mode_str.len())?;
+                } else {
+                    warn!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH);
+                    return Err(anyhow::anyhow!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH));
+                }
+            }
+
+            return Ok(());
+        }
+
+        // 如果固定内存频率，需要获取对应的DDR_OPP值
+        let ddr_opp = if self.cur_freq > 0 && self.ddr_freq >= 100 {
+            // 从当前GPU频率对应的freq_dram表中获取DDR_OPP值
+            self.read_tab(TabType::FreqDram, self.cur_freq)
+        } else {
+            // 如果没有当前频率或者是直接指定的DDR_OPP值，则使用直接指定的值
+            self.ddr_freq
+        };
+
+        let freq_str = ddr_opp.to_string();
+
+        if self.gpuv2 {
+            // v2 driver
+            let paths = [DVFSRC_V2_PATH_1, DVFSRC_V2_PATH_2];
+
+            // 尝试写入dvfsrc_force_vcore_dvfs_opp
+            let mut path_written = false;
+            for path in &paths {
+                if Path::new(path).exists() {
+                    debug!("Writing {} to v2 DDR path: {}", freq_str, path);
+                    if let Ok(_) = write_file_safe(path, &freq_str, freq_str.len()) {
+                        path_written = true;
+                        break;
+                    }
+                }
+            }
+
+            if !path_written {
+                warn!("Failed to write DDR frequency to any v2 driver path");
+                return Err(anyhow::anyhow!("Failed to write DDR frequency to any v2 driver path"));
+            }
+        } else {
+            // v1 driver
+            if Path::new(DVFSRC_V1_PATH).exists() {
+                debug!("Writing {} to v1 DDR path: {}", freq_str, DVFSRC_V1_PATH);
+                write_file_safe(DVFSRC_V1_PATH, &freq_str, freq_str.len())?;
+            } else {
+                warn!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH);
+                return Err(anyhow::anyhow!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH));
+            }
+        }
+
+        // 输出DDR_OPP值的含义
+        let opp_description = match ddr_opp {
+            DDR_HIGHEST_FREQ => "最高频率和电压",
+            DDR_SECOND_FREQ => "第二档频率和电压",
+            DDR_THIRD_FREQ => "第三档频率和电压",
+            DDR_FOURTH_FREQ => "第四档频率和电压",
+            DDR_FIFTH_FREQ => "第五档频率和电压",
+            _ => "自定义档位",
+        };
+
+        info!("Set DDR frequency with OPP value: {} ({})", ddr_opp, opp_description);
+        Ok(())
+    }
+
+    // 获取内存频率表
+    pub fn get_ddr_freq_table(&self) -> Result<Vec<(i64, String)>> {
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+        use std::path::Path;
+
+        let mut freq_table = Vec::new();
+
+        // 添加自动模式
+        if self.gpuv2 {
+            freq_table.push((DDR_AUTO_MODE_V2, "自动模式".to_string()));
+        } else {
+            freq_table.push((DDR_AUTO_MODE_V1, "自动模式".to_string()));
+        }
+
+        // 添加预设的DDR_OPP值
+        freq_table.push((DDR_HIGHEST_FREQ, "最高频率和电压".to_string()));
+        freq_table.push((DDR_SECOND_FREQ, "第二档频率和电压".to_string()));
+        freq_table.push((DDR_THIRD_FREQ, "第三档频率和电压".to_string()));
+        freq_table.push((DDR_FOURTH_FREQ, "第四档频率和电压".to_string()));
+        freq_table.push((DDR_FIFTH_FREQ, "第五档频率和电压".to_string()));
+
+        // 尝试读取系统内存频率表
+        if self.gpuv2 {
+            // v2 driver
+            let opp_tables = [DVFSRC_V2_OPP_TABLE_1, DVFSRC_V2_OPP_TABLE_2];
+
+            for opp_table in &opp_tables {
+                if Path::new(opp_table).exists() {
+                    debug!("Reading v2 DDR OPP table: {}", opp_table);
+
+                    match File::open(opp_table) {
+                        Ok(file) => {
+                            let reader = BufReader::new(file);
+
+                            for line in reader.lines() {
+                                if let Ok(line) = line {
+                                    if line.contains("[OPP") {
+                                        // 解析OPP行，格式类似于：[OPP00] vcore: 0.8V, ddr: 3733000KHz
+                                        let parts: Vec<&str> = line.split(',').collect();
+                                        if parts.len() >= 2 {
+                                            let opp_part = parts[0].trim();
+                                            let ddr_part = parts[1].trim();
+
+                                            if opp_part.starts_with("[OPP") && opp_part.len() >= 6 && ddr_part.starts_with("ddr:") {
+                                                if let Ok(opp) = opp_part[4..6].parse::<i64>() {
+                                                    let ddr_desc = ddr_part.trim_start_matches("ddr:").trim();
+                                                    freq_table.push((opp, format!("OPP{:02}: {}", opp, ddr_desc)));
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            break;
+                        }
+                        Err(e) => {
+                            warn!("Failed to open v2 DDR OPP table: {}: {}", opp_table, e);
+                        }
+                    }
+                }
+            }
+        } else {
+            // v1 driver
+            if Path::new(DVFSRC_V1_OPP_TABLE).exists() {
+                debug!("Reading v1 DDR OPP table: {}", DVFSRC_V1_OPP_TABLE);
+
+                match File::open(DVFSRC_V1_OPP_TABLE) {
+                    Ok(file) => {
+                        let reader = BufReader::new(file);
+
+                        for line in reader.lines() {
+                            if let Ok(line) = line {
+                                if line.contains("[OPP") {
+                                    // 解析OPP行，格式类似于：[OPP00] vcore: 0.8V, ddr: 3733000KHz
+                                    let parts: Vec<&str> = line.split(',').collect();
+                                    if parts.len() >= 2 {
+                                        let opp_part = parts[0].trim();
+                                        let ddr_part = parts[1].trim();
+
+                                        if opp_part.starts_with("[OPP") && opp_part.len() >= 6 && ddr_part.starts_with("ddr:") {
+                                            if let Ok(opp) = opp_part[4..6].parse::<i64>() {
+                                                let ddr_desc = ddr_part.trim_start_matches("ddr:").trim();
+                                                freq_table.push((opp, format!("OPP{:02}: {}", opp, ddr_desc)));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Failed to open v1 DDR OPP table: {}: {}", DVFSRC_V1_OPP_TABLE, e);
+                    }
+                }
+            }
+        }
+
+        Ok(freq_table)
+    }
+
+    // 读取v2 driver设备的内存频率表
+    pub fn read_ddr_v2_freq_table(&self) -> Result<Vec<i64>> {
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+
+        let mut freq_list = Vec::new();
+
+        // 检查v2 driver的内存频率表文件
+        let paths = [DVFSRC_V2_OPP_TABLE_1, DVFSRC_V2_OPP_TABLE_2];
+        let mut found_path = None;
+
+        for path in &paths {
+            if Path::new(path).exists() {
+                found_path = Some(*path);
+                break;
+            }
+        }
+
+        if let Some(path) = found_path {
+            // 打开并读取频率表文件
+            let file = File::open(path).with_context(|| {
+                format!(
+                    "Failed to open V2 driver DDR frequency table file: {}",
+                    path
+                )
+            })?;
+
+            let reader = BufReader::new(file);
+
+            // 解析每一行，提取OPP值
+            for line in reader.lines() {
+                let line = line?;
+
+                if line.contains("[OPP") {
+                    // 解析OPP行，格式类似于：[OPP00] vcore: 0.8V, ddr: 3733000KHz
+                    let parts: Vec<&str> = line.split(',').collect();
+                    if parts.len() >= 2 {
+                        let opp_part = parts[0].trim();
+
+                        if opp_part.starts_with("[OPP") && opp_part.len() >= 6 {
+                            if let Ok(opp) = opp_part[4..6].parse::<i64>() {
+                                freq_list.push(opp);
+                                debug!("Found V2 driver DDR OPP value: {}", opp);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 按升序排序（从低到高）
+            freq_list.sort();
+
+            info!("Read {} DDR OPP values from V2 driver table", freq_list.len());
+        } else {
+            warn!("No V2 driver DDR OPP table file found");
+        }
+
+        Ok(freq_list)
     }
 }
