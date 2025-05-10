@@ -30,7 +30,7 @@ pub const GPUFREQ_VOLT: &str = "/proc/gpufreq/gpufreq_fixed_freq_volt";
 pub const GPUFREQV2_VOLT: &str = "/proc/gpufreqv2/fix_custom_freq_volt";
 pub const CONFIG_FILE_TR: &str = "/data/gpu_freq_table.conf";
 pub const LOG_PATH: &str = "/data/adb/gpu_governor/log/gpu_gov.log";
-pub const LOG_LEVEL_PATH: &str = "/data/adb/gpu_governor/log_level";
+pub const LOG_LEVEL_PATH: &str = "/data/adb/gpu_governor/log/log_level";
 pub const GPU_POWER_POLICY: &str = "/sys/class/misc/mali0/device/power_policy";
 pub const GAMES_CONF_PATH: &str = "/data/adb/gpu_governor/games.conf";
 
