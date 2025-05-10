@@ -8,7 +8,7 @@ pub const GED_LOCKER: &str = "GedLocker";
 pub const FOREGROUND_APP_THREAD: &str = "ForegroundAppWatcher";
 
 // File paths
-pub const GPU_GOVERNOR_GAME_MODE_PATH: &str = "/data/adb/gpu_governor/game_mode";
+pub const GPU_GOVERNOR_GAME_MODE_PATH: &str = "/data/adb/gpu_governor/game/game_mode";
 pub const MODULE_LOAD: &str = "/sys/module/ged/parameters/gpu_loading";
 pub const MODULE_IDLE: &str = "/sys/module/ged/parameters/gpu_idle";
 pub const KERNEL_LOAD: &str = "/sys/kernel/ged/hal/gpu_utilization";
@@ -32,7 +32,7 @@ pub const CONFIG_FILE_TR: &str = "/data/gpu_freq_table.conf";
 pub const LOG_PATH: &str = "/data/adb/gpu_governor/log/gpu_gov.log";
 pub const LOG_LEVEL_PATH: &str = "/data/adb/gpu_governor/log/log_level";
 pub const GPU_POWER_POLICY: &str = "/sys/class/misc/mali0/device/power_policy";
-pub const GAMES_CONF_PATH: &str = "/data/adb/gpu_governor/games.conf";
+pub const GAMES_CONF_PATH: &str = "/data/adb/gpu_governor/game/games.conf";
 
 // 内存频率相关路径 - v1 driver
 pub const DVFSRC_V1_PATH: &str = "/sys/devices/platform/10012000.dvfsrc/helio-dvfsrc/dvfsrc_force_vcore_dvfs_opp";
