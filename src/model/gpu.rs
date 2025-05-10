@@ -450,14 +450,21 @@ impl GPU {
                         }
                     },
                     4 => {
-                        // 极高负载区域 - 策略二：目标式跳转（激进升频）
-                        debug!("Very high load zone ({}%) detected, applying aggressive upscaling", util);
+                        // 极高负载区域 - 改为步进式升频（每次提高两个档位）
+                        debug!("Very high load zone ({}%) detected, applying step-wise upscaling (two steps)", util);
 
-                        // 直接跳转到最高频率或次高频率
-                        final_freq = self.get_max_freq();
-                        final_freq_index = self.read_freq_index(final_freq);
+                        // 步进式升频：升高两个档位
+                        let next_higher_idx = self.cur_freq_idx + 2; // 注意：频率表是从低到高排序的，所以升频需要增加索引
+                        // 确保索引不会超出范围
+                        let next_higher_idx = if next_higher_idx >= self.config_list.len() as i64 {
+                            (self.config_list.len() - 1) as i64
+                        } else {
+                            next_higher_idx
+                        };
+                        final_freq = self.gen_cur_freq(next_higher_idx);
+                        final_freq_index = next_higher_idx;
 
-                        debug!("Aggressive up: jumping to max freq: {}KHz", final_freq);
+                        debug!("Stepping up two levels to: {}KHz (index: {})", final_freq, final_freq_index);
 
                         // 应用升频延迟
                         if self.up_rate_delay > 0 {
