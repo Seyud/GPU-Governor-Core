@@ -1269,6 +1269,7 @@ impl GPU {
     pub fn read_ddr_v2_freq_table(&self) -> Result<Vec<i64>> {
         use std::fs::File;
         use std::io::{BufRead, BufReader};
+        use std::process::Command;
 
         let mut freq_list = Vec::new();
 
@@ -1279,24 +1280,65 @@ impl GPU {
         for path in &paths {
             if Path::new(path).exists() {
                 found_path = Some(*path);
+                debug!("Found V2 driver DDR OPP table file: {}", path);
                 break;
             }
         }
 
         if let Some(path) = found_path {
             // 打开并读取频率表文件
-            let file = File::open(path).with_context(|| {
-                format!(
-                    "Failed to open V2 driver DDR frequency table file: {}",
-                    path
-                )
-            })?;
+            let file = match File::open(path) {
+                Ok(f) => f,
+                Err(e) => {
+                    warn!("Failed to open V2 driver DDR frequency table file: {}: {}", path, e);
+
+                    // 尝试使用命令行读取文件内容作为备选方案
+                    debug!("Trying to read OPP table using command line");
+                    if let Ok(output) = Command::new("cat").arg(path).output() {
+                        if output.status.success() {
+                            let content = String::from_utf8_lossy(&output.stdout);
+                            for line in content.lines() {
+                                if line.contains("[OPP") {
+                                    let parts: Vec<&str> = line.split(',').collect();
+                                    if parts.len() >= 2 {
+                                        let opp_part = parts[0].trim();
+                                        if opp_part.starts_with("[OPP") && opp_part.len() >= 6 {
+                                            if let Ok(opp) = opp_part[4..6].parse::<i64>() {
+                                                freq_list.push(opp);
+                                                debug!("Found V2 driver DDR OPP value via command: {}", opp);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if !freq_list.is_empty() {
+                                freq_list.sort();
+                                info!("Read {} DDR OPP values from V2 driver table via command", freq_list.len());
+                                return Ok(freq_list);
+                            }
+                        }
+                    }
+
+                    // 如果命令行方法也失败，返回空列表
+                    warn!("Failed to read DDR OPP table via command line");
+                    return Ok(freq_list);
+                }
+            };
 
             let reader = BufReader::new(file);
 
             // 解析每一行，提取OPP值
             for line in reader.lines() {
-                let line = line?;
+                let line = match line {
+                    Ok(l) => l,
+                    Err(e) => {
+                        warn!("Error reading line from OPP table: {}", e);
+                        continue;
+                    }
+                };
+
+                debug!("Processing OPP table line: {}", line);
 
                 if line.contains("[OPP") {
                     // 解析OPP行，格式类似于：[OPP00] vcore: 0.8V, ddr: 3733000KHz
@@ -1308,6 +1350,33 @@ impl GPU {
                             if let Ok(opp) = opp_part[4..6].parse::<i64>() {
                                 freq_list.push(opp);
                                 debug!("Found V2 driver DDR OPP value: {}", opp);
+                            } else {
+                                debug!("Failed to parse OPP value from: {}", opp_part);
+                            }
+                        }
+                    } else {
+                        debug!("Line doesn't have enough parts: {}", line);
+                    }
+                }
+            }
+
+            // 如果没有找到任何OPP值，尝试使用备选解析方法
+            if freq_list.is_empty() {
+                debug!("No OPP values found with primary method, trying alternative parsing");
+
+                // 重新打开文件
+                let file = File::open(path)?;
+                let reader = BufReader::new(file);
+
+                // 尝试使用mtk_v2.sh中的解析方法
+                for line in reader.lines() {
+                    if let Ok(line) = line {
+                        if line.contains("[OPP") {
+                            // 直接提取OPP部分的数字
+                            let opp_str = line.get(4..6).unwrap_or("00");
+                            if let Ok(opp) = opp_str.parse::<i64>() {
+                                freq_list.push(opp);
+                                debug!("Found V2 driver DDR OPP value (alt method): {}", opp);
                             }
                         }
                     }
