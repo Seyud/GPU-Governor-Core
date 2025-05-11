@@ -14,6 +14,7 @@ pub const MODULE_IDLE: &str = "/sys/module/ged/parameters/gpu_idle";
 pub const KERNEL_LOAD: &str = "/sys/kernel/ged/hal/gpu_utilization";
 pub const KERNEL_DEBUG_LOAD: &str = "/sys/kernel/d/ged/hal/gpu_utilization";
 pub const GPU_CURRENT_FREQ_PATH: &str = "/sys/kernel/ged/hal/current_freqency";
+pub const GPU_DEBUG_CURRENT_FREQ_PATH: &str = "/sys/kernel/debug/ged/hal/current_freqency";
 pub const KERNEL_D_LOAD: &str = "/sys/kernel/debug/ged/hal/gpu_utilization";
 pub const GPU_FREQ_LOAD_PATH: &str = "/proc/gpufreq/gpufreq_var_dump";
 pub const PROC_MALI_LOAD: &str = "/proc/mali/utilization";
