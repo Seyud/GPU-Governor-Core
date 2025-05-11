@@ -64,8 +64,10 @@ fn get_foreground_app_window() -> Result<String> {
     };
 
     // 记录输出预览用于调试
-    debug!("Dumpsys window output preview: {}",
-        output.chars().take(100).collect::<String>());
+    debug!(
+        "Dumpsys window output preview: {}",
+        output.chars().take(100).collect::<String>()
+    );
 
     // 逐行分析输出
     for line in output.lines() {
@@ -95,7 +97,9 @@ fn get_foreground_app_window() -> Result<String> {
     }
 
     debug!("Failed to find foreground app using dumpsys window method");
-    Err(anyhow!("Failed to find foreground app in dumpsys window output"))
+    Err(anyhow!(
+        "Failed to find foreground app in dumpsys window output"
+    ))
 }
 
 // 使用dumpsys activity lru命令获取前台应用包名
@@ -143,7 +147,8 @@ fn get_foreground_app_activity() -> Result<String> {
             debug!("Trying regex on line: {}", line);
 
             // 使用正则表达式提取包名部分
-            let re = Regex::new(r"(\d+):([a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)/").unwrap();
+            let re =
+                Regex::new(r"(\d+):([a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)/").unwrap();
             if let Some(caps) = re.captures(line) {
                 let package_name = caps[2].to_string();
                 debug!("Extracted package name with regex: {}", package_name);
@@ -162,7 +167,9 @@ fn get_foreground_app_activity() -> Result<String> {
     for line in output.lines().filter(|l| l.contains("TOP")) {
         debug!("Line with TOP: {}", line);
     }
-    Err(anyhow!("Failed to find foreground app in dumpsys activity lru output"))
+    Err(anyhow!(
+        "Failed to find foreground app in dumpsys activity lru output"
+    ))
 }
 
 // 使用dumpsys activity activities命令获取前台应用包名
@@ -185,8 +192,10 @@ fn get_foreground_app_activities() -> Result<String> {
     };
 
     // 记录输出预览用于调试
-    debug!("Dumpsys activity activities output preview: {}",
-        output.chars().take(100).collect::<String>());
+    debug!(
+        "Dumpsys activity activities output preview: {}",
+        output.chars().take(100).collect::<String>()
+    );
 
     // 查找包含ResumedActivity或topResumedActivity的行
     for line in output.lines() {
@@ -208,7 +217,9 @@ fn get_foreground_app_activities() -> Result<String> {
     }
 
     debug!("Failed to find foreground app using dumpsys activity activities method");
-    Err(anyhow!("Failed to find foreground app in dumpsys activity activities output"))
+    Err(anyhow!(
+        "Failed to find foreground app in dumpsys activity activities output"
+    ))
 }
 
 // 获取前台应用包名（组合方法）
@@ -216,18 +227,27 @@ fn get_foreground_app() -> Result<String> {
     // 首先尝试使用activity activities方法
     match get_foreground_app_activities() {
         Ok(package_name) => {
-            debug!("Successfully got foreground app using activity activities method: {}", package_name);
+            debug!(
+                "Successfully got foreground app using activity activities method: {}",
+                package_name
+            );
             return Ok(package_name);
         }
         Err(e) => {
-            debug!("Activity activities method failed: {}, trying window method", e);
+            debug!(
+                "Activity activities method failed: {}, trying window method",
+                e
+            );
         }
     }
 
     // 如果activity activities方法失败，尝试使用window方法
     match get_foreground_app_window() {
         Ok(package_name) => {
-            debug!("Successfully got foreground app using window method: {}", package_name);
+            debug!(
+                "Successfully got foreground app using window method: {}",
+                package_name
+            );
             return Ok(package_name);
         }
         Err(e) => {
@@ -238,7 +258,10 @@ fn get_foreground_app() -> Result<String> {
     // 如果前两种方法都失败，尝试使用activity lru方法
     match get_foreground_app_activity() {
         Ok(package_name) => {
-            debug!("Successfully got foreground app using activity lru method: {}", package_name);
+            debug!(
+                "Successfully got foreground app using activity lru method: {}",
+                package_name
+            );
             return Ok(package_name);
         }
         Err(e) => {
@@ -247,7 +270,9 @@ fn get_foreground_app() -> Result<String> {
     }
 
     // 如果所有方法都失败，返回错误
-    Err(anyhow!("Failed to get foreground app using all available methods"))
+    Err(anyhow!(
+        "Failed to get foreground app using all available methods"
+    ))
 }
 
 // 读取游戏列表
@@ -294,6 +319,9 @@ pub fn monitor_foreground_app() -> Result<()> {
     // 设置文件监控
     let mut inotify = InotifyWatcher::new()?;
 
+    // 设置game
+    let mut games_clone = HashSet::new();
+
     // 如果游戏列表文件存在，监控它的变化
     if check_read_simple(GAMES_CONF_PATH) {
         inotify.add(GAMES_CONF_PATH, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
@@ -304,18 +332,13 @@ pub fn monitor_foreground_app() -> Result<()> {
 
     // 主循环
     loop {
-        // 检查游戏列表文件是否有变化
-        if let Ok(_) = inotify.wait_and_handle() {
-            // 重新读取游戏列表
-            match read_games_list(GAMES_CONF_PATH) {
-                Ok(new_games) => {
-                    info!("Games list updated, now contains {} games", new_games.len());
-                    games = new_games;
-                }
-                Err(e) => {
-                    warn!("Failed to read updated games list: {}", e);
-                }
-            }
+        if games_clone.is_empty() {
+            games_clone = games.clone();
+        }
+        games = read_games_list(GAMES_CONF_PATH)?;
+        if games_clone != games {
+            games_clone = games.clone();
+            info!("The game configuration file has changed.");
         }
 
         // 获取前台应用
