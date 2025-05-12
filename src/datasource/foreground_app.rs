@@ -224,38 +224,7 @@ fn get_foreground_app_activities() -> Result<String> {
 
 // 获取前台应用包名（组合方法）
 fn get_foreground_app() -> Result<String> {
-    // 首先尝试使用activity activities方法
-    match get_foreground_app_activities() {
-        Ok(package_name) => {
-            debug!(
-                "Successfully got foreground app using activity activities method: {}",
-                package_name
-            );
-            return Ok(package_name);
-        }
-        Err(e) => {
-            debug!(
-                "Activity activities method failed: {}, trying window method",
-                e
-            );
-        }
-    }
-
-    // 如果activity activities方法失败，尝试使用window方法
-    match get_foreground_app_window() {
-        Ok(package_name) => {
-            debug!(
-                "Successfully got foreground app using window method: {}",
-                package_name
-            );
-            return Ok(package_name);
-        }
-        Err(e) => {
-            debug!("Window method failed: {}, trying activity lru method", e);
-        }
-    }
-
-    // 如果前两种方法都失败，尝试使用activity lru方法
+    // 首先尝试使用activity lru方法（优先使用）
     match get_foreground_app_activity() {
         Ok(package_name) => {
             debug!(
@@ -265,7 +234,38 @@ fn get_foreground_app() -> Result<String> {
             return Ok(package_name);
         }
         Err(e) => {
-            debug!("Activity lru method also failed: {}", e);
+            debug!(
+                "Activity lru method failed: {}, trying activity activities method",
+                e
+            );
+        }
+    }
+
+    // 如果activity lru方法失败，尝试使用activity activities方法
+    match get_foreground_app_activities() {
+        Ok(package_name) => {
+            debug!(
+                "Successfully got foreground app using activity activities method: {}",
+                package_name
+            );
+            return Ok(package_name);
+        }
+        Err(e) => {
+            debug!("Activity activities method failed: {}, trying window method", e);
+        }
+    }
+
+    // 如果前两种方法都失败，尝试使用window方法
+    match get_foreground_app_window() {
+        Ok(package_name) => {
+            debug!(
+                "Successfully got foreground app using window method: {}",
+                package_name
+            );
+            return Ok(package_name);
+        }
+        Err(e) => {
+            debug!("Window method also failed: {}", e);
         }
     }
 
