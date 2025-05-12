@@ -34,32 +34,29 @@ fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 {
-        let mut i = 1;
-        while i < args.len() {
-            match args[i].as_str() {
-                "-h" => {
-                    println!("{}", NOTES);
-                    println!("{}", AUTHOR);
-                    println!("{}", SPECIAL);
-                    println!("Usage:");
-                    println!("\t-v show version");
-                    println!("\t-h show help");
-                    return Ok(());
-                }
-                "-v" => {
-                    println!("{}", NOTES);
-                    println!("{}", AUTHOR);
-                    println!("{}", SPECIAL);
-                    println!("{}", VERSION);
-                    return Ok(());
-                }
-                _ => {
-                    println!("Unknown argument: {}", args[i]);
-                    println!("Use -h for help");
-                    return Ok(());
-                }
+        let i = 1;
+        match args[i].as_str() {
+            "-h" => {
+                println!("{}", NOTES);
+                println!("{}", AUTHOR);
+                println!("{}", SPECIAL);
+                println!("Usage:");
+                println!("\t-v show version");
+                println!("\t-h show help");
+                return Ok(());
             }
-            i += 1;
+            "-v" => {
+                println!("{}", NOTES);
+                println!("{}", AUTHOR);
+                println!("{}", SPECIAL);
+                println!("{}", VERSION);
+                return Ok(());
+            }
+            _ => {
+                println!("Unknown argument: {}", args[i]);
+                println!("Use -h for help");
+                return Ok(());
+            }
         }
     }
 
@@ -163,7 +160,7 @@ fn main() -> Result<()> {
         gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
         gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
         gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
-        info!("Normal mode detected: Using power-saving governor settings");
+        debug!("Normal mode detected: Using power-saving governor settings");
     }
 
     // 设置采样间隔

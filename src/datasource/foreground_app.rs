@@ -345,12 +345,29 @@ pub fn monitor_foreground_app() -> Result<()> {
         if app_cache.is_expired(cache_ttl) {
             match get_foreground_app() {
                 Ok(package_name) => {
-                    // 只有当包名变化时才记录日志
+                    // 只有当包名变化时才处理
                     if package_name != app_cache.package_name {
-                        info!("Foreground app changed: {}", package_name);
+                        // 将前台应用变化的日志改为debug级别
+                        debug!("Foreground app changed: {}", package_name);
 
                         // 检查是否是游戏
                         let is_game = games.contains(&package_name);
+
+                        // 检查前一个应用是否是游戏
+                        let prev_is_game = !app_cache.package_name.is_empty() &&
+                                          games.contains(&app_cache.package_name);
+
+                        // 只有在游戏模式状态变化时才记录info级别日志
+                        if is_game {
+                            if !prev_is_game {
+                                info!("Game mode enabled: {}", package_name);
+                            } else {
+                                // 游戏切换到另一个游戏时也记录
+                                info!("Game changed: {}", package_name);
+                            }
+                        } else if prev_is_game {
+                            info!("Game mode disabled: switching from game to normal app");
+                        }
 
                         // 写入游戏模式文件
                         if let Err(e) = write_file(
@@ -364,10 +381,6 @@ pub fn monitor_foreground_app() -> Result<()> {
                                 "Wrote game mode {} to file",
                                 if is_game { "1" } else { "0" }
                             );
-                        }
-
-                        if is_game {
-                            info!("Game detected: {}", package_name);
                         }
                     }
 

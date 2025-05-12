@@ -74,7 +74,7 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                 gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
                 gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
                 gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
-                info!("Initial game mode disabled: Using power-saving governor settings");
+                debug!("Initial game mode disabled: Using power-saving governor settings");
             }
 
             info!("Initial game mode value: {}", value);
@@ -90,7 +90,7 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
             gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
             gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
             gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
-            info!("Default mode: Using power-saving governor settings");
+            debug!("Default mode: Using power-saving governor settings");
         }
     }
 
@@ -149,7 +149,7 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                     gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
                     gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
                     gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
-                    info!("Game mode disabled: Using power-saving governor settings");
+                    debug!("Game mode disabled: Using power-saving governor settings");
                 }
 
                 debug!("Game mode changed: {}", is_gaming);

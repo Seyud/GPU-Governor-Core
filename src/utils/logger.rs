@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use chrono::Local;
-use log::{Level, LevelFilter, Metadata, Record};
+use log::{LevelFilter, Metadata, Record};
 use once_cell::sync::Lazy;
 
 use crate::datasource::file_path::LOG_LEVEL_PATH;
@@ -11,7 +11,7 @@ use crate::datasource::file_path::LOG_LEVEL_PATH;
 struct CustomLogger;
 
 impl log::Log for CustomLogger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
         // 这个方法只检查日志级别是否被启用
         // 实际的过滤由log库根据设置的max_level完成
         true

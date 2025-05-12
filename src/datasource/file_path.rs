@@ -35,6 +35,9 @@ pub const LOG_LEVEL_PATH: &str = "/data/adb/gpu_governor/log/log_level";
 pub const GPU_POWER_POLICY: &str = "/sys/class/misc/mali0/device/power_policy";
 pub const GAMES_CONF_PATH: &str = "/data/adb/gpu_governor/game/games.conf";
 
+// Mali GPU DVFS控制相关路径
+pub const MALI_DVFS_ENABLE: &str = "/proc/mali/dvfs_enable";
+
 // 内存频率相关路径 - v1 driver
 pub const DVFSRC_V1_PATH: &str = "/sys/devices/platform/10012000.dvfsrc/helio-dvfsrc/dvfsrc_force_vcore_dvfs_opp";
 pub const DVFSRC_V1_OPP_TABLE: &str = "/sys/devices/platform/10012000.dvfsrc/helio-dvfsrc/dvfsrc_opp_table";

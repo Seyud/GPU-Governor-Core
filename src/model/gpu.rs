@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path, thread, time::Duration};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use log::{debug, info, warn};
 
 use crate::{
@@ -96,6 +96,7 @@ pub struct GPU {
     ddr_v2_supported_freqs: Vec<i64>, // v2 driver支持的内存频率列表
 }
 
+#[allow(dead_code)]
 impl GPU {
     pub fn new() -> Self {
         Self {
@@ -595,6 +596,7 @@ impl GPU {
         // 检查文件是否存在
         let volt_path_exists = std::path::Path::new(volt_path).exists();
         let opp_path_exists = std::path::Path::new(opp_path).exists();
+        let mali_dvfs_path_exists = std::path::Path::new(MALI_DVFS_ENABLE).exists();
 
         if !volt_path_exists || !opp_path_exists {
             // 记录警告但不中断程序
@@ -620,10 +622,11 @@ impl GPU {
         match opt {
             WriterOpt::Idle => {
                 debug!("is idle");
-                write_file_safe(volt_path, volt_reset, volt_reset.len())?;
 
-                // 对于v2 driver设备，先尝试写入"-1"，再尝试写入"0"
                 if self.gpuv2 {
+                    // v2 driver空闲模式处理
+                    write_file_safe(volt_path, volt_reset, volt_reset.len())?;
+
                     // 先尝试写入"-1"
                     let result = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
                     if result.is_err() || result.unwrap() == 0 {
@@ -632,7 +635,19 @@ impl GPU {
                         write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
                     }
                 } else {
+                    // v1 driver空闲模式处理 - 恢复动态调频
+                    debug!("v1 driver idle mode: restoring dynamic frequency scaling");
+
+                    // 清除固定频率设置
                     write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len())?;
+                    write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len())?;
+                    write_file_safe(volt_path, volt_reset, volt_reset.len())?;
+
+                    // 重新启用动态调频
+                    if mali_dvfs_path_exists {
+                        debug!("Enabling Mali DVFS");
+                        write_file_safe(MALI_DVFS_ENABLE, "1", 1)?;
+                    }
                 }
             }
             WriterOpt::NoVolt => {
@@ -642,10 +657,10 @@ impl GPU {
                 write_file_safe(opp_path, &content, content.len())?;
             }
             WriterOpt::Normal => {
-                debug!("write {} to volt {}", volt_content, opp_path);
-
-                // 对于v2 driver设备，先尝试写入"-1"，再尝试写入"0"
                 if self.gpuv2 {
+                    // v2 driver正常模式处理
+                    debug!("write {} to volt {}", volt_content, opp_path);
+
                     // 先尝试写入"-1"
                     let result = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
                     if result.is_err() || result.unwrap() == 0 {
@@ -653,12 +668,26 @@ impl GPU {
                         // 如果写入"-1"失败，尝试写入"0"
                         write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
                     }
-                } else {
-                    write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len())?;
-                }
 
-                debug!("write {} to volt {}", volt_content, volt_path);
-                write_file_safe(volt_path, &volt_content, volt_content.len())?;
+                    debug!("write {} to volt {}", volt_content, volt_path);
+                    write_file_safe(volt_path, &volt_content, volt_content.len())?;
+                } else {
+                    // v1 driver正常模式处理 - 关闭动态调频调压，设置固定频率和电压
+                    debug!("v1 driver normal mode: setting fixed frequency and voltage");
+
+                    // 关闭动态调频
+                    if mali_dvfs_path_exists {
+                        debug!("Disabling Mali DVFS");
+                        write_file_safe(MALI_DVFS_ENABLE, "0", 1)?;
+                    }
+
+                    // 先清除之前的设置
+                    write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len())?;
+
+                    // 设置固定频率和电压
+                    debug!("Setting fixed frequency and voltage: {}", volt_content);
+                    write_file_safe(volt_path, &volt_content, volt_content.len())?;
+                }
             }
         }
 

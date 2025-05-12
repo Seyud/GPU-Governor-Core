@@ -1,6 +1,6 @@
 use anyhow::Result;
 use inotify::WatchMask;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 
 use crate::{
     datasource::file_path::LOG_LEVEL_PATH,
