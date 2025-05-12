@@ -742,7 +742,7 @@ impl GPU {
 
             // 根据DDR_OPP值设置内存频率
             let mode_desc = if ddr_opp == 999 { "auto mode" } else { "value" };
-            info!("Game mode: using DDR_OPP {} {} {}",
+            debug!("Game mode: using DDR_OPP {} {} {}",
                   mode_desc,
                   ddr_opp,
                   if ddr_opp == 999 { "(default)" } else { "from config table" });
@@ -788,7 +788,7 @@ impl GPU {
     // 设置升频延迟值
     pub fn set_up_rate_delay(&mut self, delay: u64) {
         self.up_rate_delay = delay;
-        info!("Set GPU up rate delay to: {}ms", delay);
+        debug!("Set GPU up rate delay to: {}ms", delay);
     }
 
     // 获取当前降频阈值
@@ -799,7 +799,7 @@ impl GPU {
     // 设置降频阈值
     pub fn set_down_threshold(&mut self, threshold: i64) {
         self.down_threshold = threshold;
-        info!("Set GPU down threshold to: {}", threshold);
+        debug!("Set GPU down threshold to: {}", threshold);
     }
 
     #[allow(dead_code)]
@@ -817,26 +817,26 @@ impl GPU {
         self.low_load_threshold = low;
         self.high_load_threshold = high;
         self.very_high_load_threshold = very_high;
-        info!("Set GPU load thresholds: very_low={}%, low={}%, high={}%, very_high={}%",
+        debug!("Set GPU load thresholds: very_low={}%, low={}%, high={}%, very_high={}%",
               very_low, low, high, very_high);
     }
 
     // 设置负载稳定性阈值
     pub fn set_load_stability_threshold(&mut self, threshold: i32) {
         self.load_stability_threshold = threshold;
-        info!("Set GPU load stability threshold: {} consecutive samples", threshold);
+        debug!("Set GPU load stability threshold: {} consecutive samples", threshold);
     }
 
     // 设置采样间隔
     pub fn set_sampling_interval(&mut self, interval: u64) {
         self.sampling_interval = interval;
-        info!("Set GPU sampling interval: {}ms", interval);
+        debug!("Set GPU sampling interval: {}ms", interval);
     }
 
     // 设置激进降频模式
     pub fn set_aggressive_down(&mut self, aggressive: bool) {
         self.aggressive_down = aggressive;
-        info!("Set GPU aggressive downscaling: {}", if aggressive { "enabled" } else { "disabled" });
+        debug!("Set GPU aggressive downscaling: {}", if aggressive { "enabled" } else { "disabled" });
     }
 
     // 确定当前负载所属区域
@@ -951,7 +951,7 @@ impl GPU {
             // 根据驱动类型设置不同的自动模式值
             self.ddr_freq = if self.gpuv2 { DDR_AUTO_MODE_V2 } else { DDR_AUTO_MODE_V1 };
             self.ddr_freq_fixed = false;
-            info!("DDR frequency not fixed (auto mode)");
+            debug!("DDR frequency not fixed (auto mode)");
             return self.write_ddr_freq();
         }
 
@@ -959,7 +959,7 @@ impl GPU {
         if freq == DDR_HIGHEST_FREQ {
             self.ddr_freq = freq;
             self.ddr_freq_fixed = true;
-            info!("Setting DDR to highest frequency and voltage (OPP value: {})", DDR_HIGHEST_FREQ);
+            debug!("Setting DDR to highest frequency and voltage (OPP value: {})", DDR_HIGHEST_FREQ);
             return self.write_ddr_freq();
         }
 
@@ -968,7 +968,7 @@ impl GPU {
             // 根据驱动类型设置不同的自动模式值
             self.ddr_freq = if self.gpuv2 { DDR_AUTO_MODE_V2 } else { DDR_AUTO_MODE_V1 };
             self.ddr_freq_fixed = false;
-            info!("DDR frequency not fixed");
+            debug!("DDR frequency not fixed");
             return self.write_ddr_freq();
         }
 
@@ -989,7 +989,7 @@ impl GPU {
                 _ => "自定义档位",
             };
 
-            info!("Using direct DDR_OPP value: {} ({})", freq, opp_description);
+            debug!("Using direct DDR_OPP value: {} ({})", freq, opp_description);
         } else {
             // 尝试找到最接近的GPU频率
             let closest_freq = self.find_closest_gpu_freq(freq);

@@ -60,10 +60,7 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
 
             gpu.set_up_rate_delay(up_rate_delay);
             gpu.set_down_threshold(down_threshold);
-            info!("Initial game mode {}, setting up rate delay to {}ms, down threshold to {}",
-                  if is_gaming { "enabled" } else { "disabled" },
-                  up_rate_delay,
-                  down_threshold);
+            info!("Initial game mode {}", if is_gaming { "enabled" } else { "disabled" });
 
             // 设置初始高级调速器参数
             if is_gaming {
@@ -138,10 +135,7 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
 
                 gpu.set_up_rate_delay(up_rate_delay);
                 gpu.set_down_threshold(down_threshold);
-                debug!("Game mode {}, setting up rate delay to {}ms, down threshold to {}",
-                      if is_gaming { "enabled" } else { "disabled" },
-                      up_rate_delay,
-                      down_threshold);
+                debug!("Game mode {}", if is_gaming { "enabled" } else { "disabled" });
 
                 // 更新高级调速器参数
                 if is_gaming {
