@@ -74,7 +74,7 @@ pub struct GPU {
     up_rate_delay: u64, // 升频延迟（毫秒）
     down_threshold: i64, // 降频阈值，达到此值时触发降频
 
-    // 新增多级负载阈值
+    // 多级负载阈值
     very_low_load_threshold: i32, // 极低负载阈值
     low_load_threshold: i32,      // 低负载阈值
     high_load_threshold: i32,     // 高负载阈值
@@ -94,6 +94,22 @@ pub struct GPU {
     ddr_freq_fixed: bool,         // 是否固定内存频率
     ddr_freq: i64,                // 当前固定的内存频率
     ddr_v2_supported_freqs: Vec<i64>, // v2 driver支持的内存频率列表
+
+    // 新增滞后与去抖动机制相关字段
+    hysteresis_up_threshold: i32, // 升频滞后阈值（百分比）
+    hysteresis_down_threshold: i32, // 降频滞后阈值（百分比）
+    debounce_time_up: u64,        // 升频去抖动时间（毫秒）
+    debounce_time_down: u64,      // 降频去抖动时间（毫秒）
+
+    // 负载趋势分析相关字段
+    load_history: Vec<i32>,       // 负载历史记录
+    load_history_size: usize,     // 负载历史记录大小
+    load_trend: i32,              // 负载趋势 (-1=下降, 0=稳定, 1=上升)
+
+    // 自适应调整相关字段
+    adaptive_sampling: bool,      // 是否启用自适应采样
+    min_sampling_interval: u64,   // 最小采样间隔（毫秒）
+    max_sampling_interval: u64,   // 最大采样间隔（毫秒）
 }
 
 #[allow(dead_code)]
@@ -114,7 +130,7 @@ impl GPU {
             dcs_enable: false,
             gaming_mode: false,
             precise: false,
-            margin: 10, // 默认余量为10%
+            margin: 5, // 默认余量为5%
             up_rate_delay: 50, // 默认升频延迟为50ms
             down_threshold: 10, // 默认降频阈值为10
 
@@ -122,7 +138,7 @@ impl GPU {
             very_low_load_threshold: 10,  // 10% 以下为极低负载
             low_load_threshold: 30,       // 30% 以下为低负载
             high_load_threshold: 70,      // 70% 以上为高负载
-            very_high_load_threshold: 90, // 90% 以上为极高负载
+            very_high_load_threshold: 85, // 85% 以上为极高负载
 
             // 负载稳定性默认值
             load_zone_counter: 0,
@@ -138,6 +154,22 @@ impl GPU {
             ddr_freq_fixed: false,        // 默认不固定内存频率
             ddr_freq: 0,                  // 默认内存频率为0（不固定）
             ddr_v2_supported_freqs: Vec::new(), // 默认v2 driver支持的内存频率列表为空
+
+            // 新增滞后与去抖动机制相关字段默认值
+            hysteresis_up_threshold: 75,  // 默认升频滞后阈值为75%
+            hysteresis_down_threshold: 30, // 默认降频滞后阈值为30%
+            debounce_time_up: 20,         // 默认升频去抖动时间为20ms
+            debounce_time_down: 50,       // 默认降频去抖动时间为50ms
+
+            // 负载趋势分析相关字段默认值
+            load_history: Vec::with_capacity(5), // 默认容量为5
+            load_history_size: 5,         // 默认历史记录大小为5
+            load_trend: 0,                // 默认负载趋势为稳定
+
+            // 自适应调整相关字段默认值
+            adaptive_sampling: true,      // 默认启用自适应采样
+            min_sampling_interval: 10,    // 最小采样间隔为10ms
+            max_sampling_interval: 100,   // 最大采样间隔为100ms
         }
     }
 
@@ -219,11 +251,18 @@ impl GPU {
         let mut margin;
         let mut new_load_zone;
         let mut current_time;
+        let mut should_adjust_freq;
+        let mut debounce_time;
+        let mut load_trend;
 
-        info!("Starting advanced GPU governor with multi-threshold strategy");
+        info!("Starting advanced GPU governor with enhanced multi-threshold strategy");
         info!("Load thresholds: very_low={}%, low={}%, high={}%, very_high={}%",
               self.very_low_load_threshold, self.low_load_threshold,
               self.high_load_threshold, self.very_high_load_threshold);
+        info!("Hysteresis thresholds: up={}%, down={}%",
+              self.hysteresis_up_threshold, self.hysteresis_down_threshold);
+        info!("Debounce times: up={}ms, down={}ms",
+              self.debounce_time_up, self.debounce_time_down);
         debug!("config:{:?}, freq:{}", self.config_list, self.cur_freq);
 
         loop {
@@ -253,11 +292,31 @@ impl GPU {
             // 读取当前GPU负载
             util = get_gpu_load()?;
 
+            // 更新负载历史记录并分析趋势
+            load_trend = self.update_load_history(util);
+
+            // 根据负载波动性调整采样间隔
+            if self.adaptive_sampling {
+                self.adjust_sampling_interval(util);
+            }
+
             // 使用自定义margin值，游戏模式时增加10%的余量
             margin = if self.gaming_mode { self.margin + 10 } else { self.margin };
+
+            // 根据负载趋势适度调整margin，避免过度调整
+            if load_trend > 0 {
+                // 负载上升趋势，适度增加margin
+                margin += 3; // 从5%减少到3%
+                debug!("Load trend rising, increasing margin to {}%", margin);
+            } else if load_trend < 0 {
+                // 负载下降趋势，适度减少margin
+                margin = if margin > 3 { margin - 3 } else { margin }; // 从5%减少到3%
+                debug!("Load trend falling, decreasing margin to {}%", margin);
+            }
+
             debug!("Current margin value: {}%, GPU load: {}%", margin, util);
 
-            // 确定当前负载区域
+            // 确定当前负载区域，考虑滞后阈值
             new_load_zone = self.determine_load_zone(util);
 
             // 负载区域稳定性检查
@@ -292,9 +351,32 @@ impl GPU {
             debug!("Current freq: {}KHz, load: {}%", now_freq, util);
 
             // 检查是否需要调整频率
-            // 只有当负载区域稳定或者处于极端负载区域时才调整频率
-            if self.load_zone_counter >= self.load_stability_threshold ||
-               self.current_load_zone == 0 || self.current_load_zone == 4 {
+            // 应用去抖动机制
+            should_adjust_freq = false;
+
+            // 确定去抖动时间
+            if new_load_zone > self.current_load_zone {
+                // 升频去抖动
+                debounce_time = self.debounce_time_up;
+            } else {
+                // 降频去抖动
+                debounce_time = self.debounce_time_down;
+            }
+
+            // 检查是否满足去抖动时间要求
+            if current_time - self.last_adjustment_time >= debounce_time {
+                // 去抖动时间已满足
+                // 只有当负载区域稳定或者处于极端负载区域时才调整频率
+                if self.load_zone_counter >= self.load_stability_threshold ||
+                   self.current_load_zone == 0 || self.current_load_zone == 4 {
+                    should_adjust_freq = true;
+                }
+            } else {
+                debug!("Debounce time not met: {}ms elapsed, need {}ms",
+                       current_time - self.last_adjustment_time, debounce_time);
+            }
+
+            if should_adjust_freq {
 
                 // 根据负载区域选择调频策略
                 match self.current_load_zone {
@@ -310,6 +392,13 @@ impl GPU {
                             // 保守降频：降低到次低频率
                             final_freq = self.get_second_lowest_freq();
                             debug!("Conservative down: stepping to second lowest freq: {}KHz", final_freq);
+                        }
+
+                        // 如果负载趋势上升，可能即将需要更高频率，选择更保守的降频策略
+                        if load_trend > 0 && self.aggressive_down {
+                            // 负载趋势上升，使用更保守的降频策略
+                            final_freq = self.get_second_lowest_freq();
+                            debug!("Load trend rising, using conservative down: {}KHz", final_freq);
                         }
 
                         final_freq_index = self.read_freq_index(final_freq);
@@ -337,10 +426,44 @@ impl GPU {
                             let next_lower_idx = self.cur_freq_idx - 1; // 注意：频率表是从低到高排序的，所以降频需要减小索引
                             // 确保索引不会小于0
                             let next_lower_idx = if next_lower_idx < 0 { 0 } else { next_lower_idx };
+
+                            // 如果负载趋势上升，可能即将需要更高频率，保持当前频率
+                            if load_trend > 0 && util > self.very_low_load_threshold + 10 {
+                                debug!("Load trend rising in low zone, maintaining current frequency");
+                                goto_gen_volt!(self, util);
+                            }
+
                             final_freq = self.gen_cur_freq(next_lower_idx);
                             final_freq_index = next_lower_idx;
 
                             debug!("Stepping down one level to: {}KHz", final_freq);
+
+                            // 应用新频率
+                            self.apply_new_frequency(final_freq, final_freq_index)?;
+
+                            // 重置负载区域计数器
+                            self.load_zone_counter = 0;
+                            self.last_adjustment_time = current_time;
+
+                            // 更新电压并写入
+                            goto_gen_volt!(self, util);
+                        } else if target_freq > now_freq * 120 / 100 && load_trend > 0 {
+                            // 如果目标频率比当前频率高20%以上且负载趋势上升，适度提升频率
+                            // 修改：不直接跳到中等负载区域，而是逐步提升
+                            let current_idx = self.cur_freq_idx;
+                            let mid_zone_idx = (self.config_list.len() as i64) / 2;
+
+                            // 计算当前位置到中间位置的距离
+                            let distance = mid_zone_idx - current_idx;
+
+                            // 只提升一小步，最多提升距离的1/3，且不超过2个档位
+                            let step = (distance / 3).max(1).min(2);
+                            let target_idx = current_idx + step;
+
+                            final_freq = self.gen_cur_freq(target_idx);
+                            final_freq_index = target_idx;
+
+                            debug!("Load trend rising with high target freq, jumping to mid-zone freq: {}KHz", final_freq);
 
                             // 应用新频率
                             self.apply_new_frequency(final_freq, final_freq_index)?;
@@ -359,6 +482,17 @@ impl GPU {
 
                         // 计算目标频率
                         target_freq = now_freq * (util as i64 + margin) / 100;
+
+                        // 根据负载趋势调整目标频率，但避免过度调整
+                        if load_trend > 0 {
+                            // 负载上升趋势，适度提高目标频率
+                            target_freq = target_freq * 105 / 100; // 从10%减少到5%
+                            debug!("Load trend rising, increasing target frequency by 5%");
+                        } else if load_trend < 0 {
+                            // 负载下降趋势，适度降低目标频率
+                            target_freq = target_freq * 97 / 100; // 从5%减少到3%
+                            debug!("Load trend falling, decreasing target frequency by 3%");
+                        }
 
                         // 根据目标频率微调
                         if target_freq > now_freq * 110 / 100 {
@@ -392,6 +526,13 @@ impl GPU {
                             goto_gen_volt!(self, util);
                         } else if target_freq < now_freq * 90 / 100 {
                             // 如果目标频率比当前频率低10%以上，降低一个档位
+
+                            // 如果负载趋势上升且接近高负载阈值，保持当前频率
+                            if load_trend > 0 && util > self.high_load_threshold - 10 {
+                                debug!("Load trend rising and close to high threshold, maintaining current frequency");
+                                goto_gen_volt!(self, util);
+                            }
+
                             let next_lower_idx = self.cur_freq_idx - 1; // 注意：频率表是从低到高排序的，所以降频需要减小索引
                             // 确保索引不会小于0
                             let next_lower_idx = if next_lower_idx < 0 { 0 } else { next_lower_idx };
@@ -409,6 +550,9 @@ impl GPU {
 
                             // 更新电压并写入
                             goto_gen_volt!(self, util);
+                        } else {
+                            // 目标频率与当前频率相近，保持当前频率
+                            debug!("Target frequency close to current frequency, maintaining current state");
                         }
                     },
                     3 => {
@@ -418,10 +562,33 @@ impl GPU {
                         // 计算目标频率
                         target_freq = now_freq * (util as i64 + margin) / 100;
 
+                        // 根据负载趋势调整目标频率
+                        if load_trend > 0 {
+                            // 负载上升趋势，更积极地提升频率
+                            target_freq = target_freq * 115 / 100;
+                            debug!("Load trend rising in high zone, increasing target frequency by 15%");
+                        }
+
                         // 如果目标频率高于当前频率，升高一个档位
                         if target_freq > now_freq {
                             // 步进式升频：升高一个档位
-                            let next_higher_idx = self.cur_freq_idx + 1; // 注意：频率表是从低到高排序的，所以升频需要增加索引
+                            let mut next_higher_idx = self.cur_freq_idx + 1; // 注意：频率表是从低到高排序的，所以升频需要增加索引
+
+                            // 修改：避免大幅度升频，即使在负载趋势上升且接近极高负载阈值时也只升高一个档位
+                            // 只有在特殊情况下才考虑更激进的升频
+                            if load_trend > 0 && util > self.very_high_load_threshold - 5 && util >= 90 {
+                                // 只有在负载非常高(90%以上)且趋势上升且接近极高负载阈值时，才考虑升高两个档位
+                                // 但还需要检查当前频率位置
+                                let freq_position = self.cur_freq_idx as f64 / (self.config_list.len() - 1) as f64;
+                                if freq_position < 0.5 {
+                                    // 只有当前频率较低时才升高两个档位
+                                    next_higher_idx += 1;
+                                    debug!("Load trend rising and close to very high threshold with low current frequency, stepping up two levels");
+                                } else {
+                                    debug!("Load trend rising and close to very high threshold, but current frequency already high, stepping up one level");
+                                }
+                            }
+
                             // 确保索引不会超出范围
                             let next_higher_idx = if next_higher_idx >= self.config_list.len() as i64 {
                                 (self.config_list.len() - 1) as i64
@@ -431,13 +598,38 @@ impl GPU {
                             final_freq = self.gen_cur_freq(next_higher_idx);
                             final_freq_index = next_higher_idx;
 
-                            debug!("Stepping up one level to: {}KHz", final_freq);
+                            debug!("Stepping up to: {}KHz (index: {})", final_freq, final_freq_index);
 
                             // 应用升频延迟
                             if self.up_rate_delay > 0 {
-                                debug!("Applying up rate delay: {}ms", self.up_rate_delay);
-                                thread::sleep(Duration::from_millis(self.up_rate_delay));
+                                // 如果负载趋势上升，减少升频延迟以更快响应
+                                let actual_delay = if load_trend > 0 {
+                                    self.up_rate_delay / 2
+                                } else {
+                                    self.up_rate_delay
+                                };
+                                debug!("Applying up rate delay: {}ms", actual_delay);
+                                thread::sleep(Duration::from_millis(actual_delay));
                             }
+
+                            // 应用新频率
+                            self.apply_new_frequency(final_freq, final_freq_index)?;
+
+                            // 重置负载区域计数器
+                            self.load_zone_counter = 0;
+                            self.last_adjustment_time = current_time;
+
+                            // 更新电压并写入
+                            goto_gen_volt!(self, util);
+                        } else if target_freq < now_freq * 85 / 100 && load_trend < 0 {
+                            // 如果目标频率比当前频率低15%以上且负载趋势下降，降低一个档位
+                            let next_lower_idx = self.cur_freq_idx - 1;
+                            // 确保索引不会小于0
+                            let next_lower_idx = if next_lower_idx < 0 { 0 } else { next_lower_idx };
+                            final_freq = self.gen_cur_freq(next_lower_idx);
+                            final_freq_index = next_lower_idx;
+
+                            debug!("Load trend falling with low target freq, stepping down to: {}KHz", final_freq);
 
                             // 应用新频率
                             self.apply_new_frequency(final_freq, final_freq_index)?;
@@ -451,11 +643,55 @@ impl GPU {
                         }
                     },
                     4 => {
-                        // 极高负载区域 - 改为步进式升频（每次提高两个档位）
-                        debug!("Very high load zone ({}%) detected, applying step-wise upscaling (two steps)", util);
+                        // 极高负载区域 - 智能升频策略
+                        debug!("Very high load zone ({}%) detected, applying intelligent upscaling", util);
 
-                        // 步进式升频：升高两个档位
-                        let next_higher_idx = self.cur_freq_idx + 2; // 注意：频率表是从低到高排序的，所以升频需要增加索引
+                        // 计算目标频率
+                        target_freq = now_freq * (util as i64 + margin) / 100;
+
+                        // 根据当前频率位置和负载趋势决定升频策略
+                        let freq_position = self.cur_freq_idx as f64 / (self.config_list.len() - 1) as f64;
+
+                        // 修改：避免直接Boost到最高频率，使用更平滑的步进策略
+                        let mut step_size = 2; // 默认步进大小
+
+                        if freq_position > 0.8 {
+                            // 已经接近最高频率，使用更保守的步进
+                            if load_trend > 0 && util >= 95 {
+                                // 只有在负载非常高(95%以上)且仍在上升时，才使用较大步进
+                                step_size = 2;
+                                debug!("Already at high frequency with very high load, using moderate step size");
+                            } else {
+                                // 负载稳定或下降，使用小步进
+                                step_size = 1;
+                                debug!("Already at high frequency, using conservative step size");
+                            }
+                        } else if freq_position < 0.3 {
+                            // 当前频率较低，使用适度的步进
+                            step_size = 2;
+                            debug!("Current frequency is low, using moderate step size");
+                        } else {
+                            // 中等频率位置，使用标准步进
+                            if load_trend > 0 && util >= 95 {
+                                // 只有在负载非常高(95%以上)且仍在上升时，才使用较大步进
+                                step_size = 2;
+                                debug!("Load trend rising with very high load, using moderate step size");
+                            } else {
+                                // 负载稳定或下降，使用标准步进
+                                step_size = 1;
+                                debug!("Using standard step size for very high load");
+                            }
+                        }
+
+                        // 确保步进大小不会导致频率跳变过大
+                        let max_allowed_step = (self.config_list.len() as i64) / 4; // 最大允许步进为频率表长度的1/4
+                        if step_size > max_allowed_step {
+                            step_size = max_allowed_step;
+                            debug!("Limiting step size to {} to prevent large frequency jumps", max_allowed_step);
+                        }
+
+                        // 步进式升频：根据计算的步进大小升高频率
+                        let next_higher_idx = self.cur_freq_idx + step_size;
                         // 确保索引不会超出范围
                         let next_higher_idx = if next_higher_idx >= self.config_list.len() as i64 {
                             (self.config_list.len() - 1) as i64
@@ -465,12 +701,13 @@ impl GPU {
                         final_freq = self.gen_cur_freq(next_higher_idx);
                         final_freq_index = next_higher_idx;
 
-                        debug!("Stepping up two levels to: {}KHz (index: {})", final_freq, final_freq_index);
+                        debug!("Stepping up by {} levels to: {}KHz (index: {})", step_size, final_freq, final_freq_index);
 
-                        // 应用升频延迟
+                        // 应用升频延迟 - 在极高负载区域使用更短的延迟
                         if self.up_rate_delay > 0 {
-                            debug!("Applying up rate delay: {}ms", self.up_rate_delay);
-                            thread::sleep(Duration::from_millis(self.up_rate_delay));
+                            let actual_delay = self.up_rate_delay / 2; // 减半延迟时间
+                            debug!("Applying reduced up rate delay: {}ms", actual_delay);
+                            thread::sleep(Duration::from_millis(actual_delay));
                         }
 
                         // 应用新频率
@@ -507,19 +744,51 @@ impl GPU {
 
             // 根据状态决定休眠时间
             if self.is_idle {
-                if self.precise {
-                    thread::sleep(Duration::from_millis(200));
+                // 空闲状态使用较长的休眠时间
+                let idle_sleep_time = if self.precise {
+                    200
                 } else {
-                    thread::sleep(Duration::from_millis(160));
-                }
+                    160
+                };
+                debug!("Idle state, sleeping for {}ms", idle_sleep_time);
+                thread::sleep(Duration::from_millis(idle_sleep_time));
                 continue;
             }
 
             self.is_idle = false;
-            if self.precise {
-                continue;
+
+            // 根据负载区域和趋势调整采样间隔
+            if self.adaptive_sampling {
+                // 已经在adjust_sampling_interval方法中根据负载波动性调整了采样间隔
+                // 这里根据负载区域进一步微调
+                let mut adjusted_interval = self.sampling_interval;
+
+                // 在高负载区域使用更短的采样间隔
+                if self.current_load_zone >= 3 {
+                    adjusted_interval = (adjusted_interval * 2) / 3; // 减少到原来的2/3
+                    debug!("High load zone, reducing sampling interval to {}ms", adjusted_interval);
+                }
+
+                // 如果负载趋势明显，使用更短的采样间隔以更快响应变化
+                if load_trend != 0 {
+                    adjusted_interval = (adjusted_interval * 3) / 4; // 减少到原来的3/4
+                    debug!("Load trend detected, reducing sampling interval to {}ms", adjusted_interval);
+                }
+
+                if self.precise {
+                    continue;
+                } else {
+                    debug!("Sleeping for {}ms (adaptive)", adjusted_interval);
+                    thread::sleep(Duration::from_millis(adjusted_interval));
+                }
             } else {
-                thread::sleep(Duration::from_millis(self.sampling_interval));
+                // 不使用自适应采样，使用固定采样间隔
+                if self.precise {
+                    continue;
+                } else {
+                    debug!("Sleeping for {}ms (fixed)", self.sampling_interval);
+                    thread::sleep(Duration::from_millis(self.sampling_interval));
+                }
             }
         }
     }
@@ -868,19 +1137,230 @@ impl GPU {
         debug!("Set GPU aggressive downscaling: {}", if aggressive { "enabled" } else { "disabled" });
     }
 
-    // 确定当前负载所属区域
+    // 确定当前负载所属区域，考虑滞后阈值
     pub fn determine_load_zone(&self, load: i32) -> i32 {
-        if load <= self.very_low_load_threshold {
-            return 0; // 极低负载区域
-        } else if load <= self.low_load_threshold {
-            return 1; // 低负载区域
-        } else if load >= self.very_high_load_threshold {
-            return 4; // 极高负载区域
-        } else if load >= self.high_load_threshold {
-            return 3; // 高负载区域
-        } else {
-            return 2; // 中等负载区域
+        // 获取当前负载区域
+        let current_zone = self.current_load_zone;
+
+        // 应用滞后阈值逻辑
+        match current_zone {
+            0 => { // 当前在极低负载区域
+                if load > self.hysteresis_up_threshold {
+                    // 如果负载超过升频滞后阈值，直接跳到相应区域
+                    if load >= self.very_high_load_threshold {
+                        return 4; // 极高负载区域
+                    } else if load >= self.high_load_threshold {
+                        return 3; // 高负载区域
+                    } else {
+                        return 2; // 中等负载区域
+                    }
+                } else if load > self.low_load_threshold {
+                    return 1; // 低负载区域
+                } else {
+                    return 0; // 保持在极低负载区域
+                }
+            },
+            1 => { // 当前在低负载区域
+                if load <= self.very_low_load_threshold {
+                    return 0; // 极低负载区域
+                } else if load >= self.hysteresis_up_threshold {
+                    // 如果负载超过升频滞后阈值，直接跳到相应区域
+                    if load >= self.very_high_load_threshold {
+                        return 4; // 极高负载区域
+                    } else if load >= self.high_load_threshold {
+                        return 3; // 高负载区域
+                    } else {
+                        return 2; // 中等负载区域
+                    }
+                } else {
+                    return 1; // 保持在低负载区域
+                }
+            },
+            2 => { // 当前在中等负载区域
+                if load <= self.hysteresis_down_threshold {
+                    // 如果负载低于降频滞后阈值，降低到相应区域
+                    if load <= self.very_low_load_threshold {
+                        return 0; // 极低负载区域
+                    } else {
+                        return 1; // 低负载区域
+                    }
+                } else if load >= self.very_high_load_threshold {
+                    return 4; // 极高负载区域
+                } else if load >= self.high_load_threshold {
+                    return 3; // 高负载区域
+                } else {
+                    return 2; // 保持在中等负载区域
+                }
+            },
+            3 => { // 当前在高负载区域
+                if load <= self.hysteresis_down_threshold {
+                    // 如果负载低于降频滞后阈值，降低到相应区域
+                    if load <= self.very_low_load_threshold {
+                        return 0; // 极低负载区域
+                    } else if load <= self.low_load_threshold {
+                        return 1; // 低负载区域
+                    } else {
+                        return 2; // 中等负载区域
+                    }
+                } else if load >= self.very_high_load_threshold {
+                    return 4; // 极高负载区域
+                } else {
+                    return 3; // 保持在高负载区域
+                }
+            },
+            4 => { // 当前在极高负载区域
+                if load <= self.hysteresis_down_threshold {
+                    // 如果负载低于降频滞后阈值，降低到相应区域
+                    if load <= self.very_low_load_threshold {
+                        return 0; // 极低负载区域
+                    } else if load <= self.low_load_threshold {
+                        return 1; // 低负载区域
+                    } else {
+                        return 2; // 中等负载区域
+                    }
+                } else if load < self.high_load_threshold {
+                    return 3; // 高负载区域
+                } else {
+                    return 4; // 保持在极高负载区域
+                }
+            },
+            _ => {
+                // 不应该到达这里，但如果发生，使用标准逻辑
+                if load <= self.very_low_load_threshold {
+                    return 0; // 极低负载区域
+                } else if load <= self.low_load_threshold {
+                    return 1; // 低负载区域
+                } else if load >= self.very_high_load_threshold {
+                    return 4; // 极高负载区域
+                } else if load >= self.high_load_threshold {
+                    return 3; // 高负载区域
+                } else {
+                    return 2; // 中等负载区域
+                }
+            }
         }
+    }
+
+    // 设置滞后阈值
+    pub fn set_hysteresis_thresholds(&mut self, up_threshold: i32, down_threshold: i32) {
+        self.hysteresis_up_threshold = up_threshold;
+        self.hysteresis_down_threshold = down_threshold;
+        debug!("Set GPU hysteresis thresholds: up={}%, down={}%", up_threshold, down_threshold);
+    }
+
+    // 设置去抖动时间
+    pub fn set_debounce_times(&mut self, up_time: u64, down_time: u64) {
+        self.debounce_time_up = up_time;
+        self.debounce_time_down = down_time;
+        debug!("Set GPU debounce times: up={}ms, down={}ms", up_time, down_time);
+    }
+
+    // 更新负载历史记录并分析趋势
+    pub fn update_load_history(&mut self, load: i32) -> i32 {
+        // 添加当前负载到历史记录
+        self.load_history.push(load);
+
+        // 如果历史记录超过指定大小，移除最旧的记录
+        while self.load_history.len() > self.load_history_size {
+            self.load_history.remove(0);
+        }
+
+        // 如果历史记录不足以分析趋势，返回稳定状态
+        if self.load_history.len() < 3 {
+            self.load_trend = 0;
+            return self.load_trend;
+        }
+
+        // 分析趋势
+        let len = self.load_history.len();
+        let recent_avg = (self.load_history[len-1] + self.load_history[len-2]) / 2;
+        let older_avg = (self.load_history[len-3] + (if len >= 4 { self.load_history[len-4] } else { self.load_history[len-3] })) / 2;
+
+        // 计算趋势
+        let diff = recent_avg - older_avg;
+
+        // 设置趋势值
+        if diff > 10 {
+            // 负载明显上升
+            self.load_trend = 1;
+        } else if diff < -10 {
+            // 负载明显下降
+            self.load_trend = -1;
+        } else {
+            // 负载相对稳定
+            self.load_trend = 0;
+        }
+
+        debug!("Load trend analysis: recent_avg={}%, older_avg={}%, trend={}",
+               recent_avg, older_avg,
+               match self.load_trend {
+                   1 => "rising",
+                   -1 => "falling",
+                   _ => "stable"
+               });
+
+        self.load_trend
+    }
+
+    // 根据负载波动性调整采样间隔
+    pub fn adjust_sampling_interval(&mut self, load: i32) -> u64 {
+        if !self.adaptive_sampling {
+            return self.sampling_interval;
+        }
+
+        // 计算负载波动性
+        if self.load_history.len() < 3 {
+            return self.sampling_interval;
+        }
+
+        let len = self.load_history.len();
+        let mut sum_diff_squared = 0;
+        let mut prev = self.load_history[0];
+
+        for i in 1..len {
+            let diff = self.load_history[i] - prev;
+            sum_diff_squared += diff * diff;
+            prev = self.load_history[i];
+        }
+
+        let volatility = (sum_diff_squared as f64 / (len - 1) as f64).sqrt();
+
+        // 根据波动性调整采样间隔
+        let new_interval = if volatility > 15.0 {
+            // 高波动性，使用较短的采样间隔
+            self.min_sampling_interval
+        } else if volatility < 5.0 {
+            // 低波动性，使用较长的采样间隔
+            self.max_sampling_interval
+        } else {
+            // 中等波动性，线性插值
+            let volatility_range = 15.0 - 5.0;
+            let interval_range = self.max_sampling_interval - self.min_sampling_interval;
+            let normalized_volatility = (15.0 - volatility) / volatility_range;
+            self.min_sampling_interval + (normalized_volatility * interval_range as f64) as u64
+        };
+
+        if new_interval != self.sampling_interval {
+            debug!("Adjusted sampling interval based on load volatility: {}ms -> {}ms (volatility: {:.2})",
+                   self.sampling_interval, new_interval, volatility);
+            self.sampling_interval = new_interval;
+        }
+
+        self.sampling_interval
+    }
+
+    // 获取当前负载趋势
+    pub fn get_load_trend(&self) -> i32 {
+        self.load_trend
+    }
+
+    // 设置自适应采样参数
+    pub fn set_adaptive_sampling(&mut self, enabled: bool, min_interval: u64, max_interval: u64) {
+        self.adaptive_sampling = enabled;
+        self.min_sampling_interval = min_interval;
+        self.max_sampling_interval = max_interval;
+        debug!("Set adaptive sampling: enabled={}, min_interval={}ms, max_interval={}ms",
+               enabled, min_interval, max_interval);
     }
 
     // 获取最高频率 - 频率表从低到高排序，所以最高频率在最后

@@ -68,13 +68,31 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                 gpu.set_load_thresholds(5, 20, 60, 85); // 更低的高负载阈值，更快进入高负载区域
                 gpu.set_load_stability_threshold(2);    // 更低的稳定性阈值，更快响应负载变化
                 gpu.set_aggressive_down(false);         // 禁用激进降频，保持性能
+
+                // 设置游戏模式的滞后阈值和去抖动时间
+                gpu.set_hysteresis_thresholds(65, 40);  // 游戏模式使用更宽松的滞后阈值，更容易升频
+                gpu.set_debounce_times(10, 30);         // 游戏模式使用更短的去抖动时间，更快响应
+
+                // 设置游戏模式的自适应采样参数
+                gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围
+
                 info!("Initial game mode enabled: Using performance-oriented governor settings");
+                info!("Game mode hysteresis: up=65%, down=40%, debounce: up=10ms, down=30ms");
             } else {
                 // 普通模式：更保守的升频，更激进的降频
                 gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
                 gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
                 gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+
+                // 设置普通模式的滞后阈值和去抖动时间
+                gpu.set_hysteresis_thresholds(75, 30);   // 普通模式使用更严格的滞后阈值，更难升频
+                gpu.set_debounce_times(20, 50);          // 普通模式使用更长的去抖动时间，更稳定
+
+                // 设置普通模式的自适应采样参数
+                gpu.set_adaptive_sampling(true, 10, 100); // 普通模式使用更宽的采样间隔范围
+
                 debug!("Initial game mode disabled: Using power-saving governor settings");
+                debug!("Normal mode hysteresis: up=75%, down=30%, debounce: up=20ms, down=50ms");
             }
 
             info!("Initial game mode value: {}", value);
@@ -90,7 +108,16 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
             gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
             gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
             gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+
+            // 设置普通模式的滞后阈值和去抖动时间
+            gpu.set_hysteresis_thresholds(75, 30);   // 普通模式使用更严格的滞后阈值，更难升频
+            gpu.set_debounce_times(20, 50);          // 普通模式使用更长的去抖动时间，更稳定
+
+            // 设置普通模式的自适应采样参数
+            gpu.set_adaptive_sampling(true, 10, 100); // 普通模式使用更宽的采样间隔范围
+
             debug!("Default mode: Using power-saving governor settings");
+            debug!("Default hysteresis: up=75%, down=30%, debounce: up=20ms, down=50ms");
         }
     }
 
@@ -143,13 +170,31 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                     gpu.set_load_thresholds(5, 20, 60, 85); // 更低的高负载阈值，更快进入高负载区域
                     gpu.set_load_stability_threshold(2);    // 更低的稳定性阈值，更快响应负载变化
                     gpu.set_aggressive_down(false);         // 禁用激进降频，保持性能
+
+                    // 设置游戏模式的滞后阈值和去抖动时间
+                    gpu.set_hysteresis_thresholds(65, 40);  // 游戏模式使用更宽松的滞后阈值，更容易升频
+                    gpu.set_debounce_times(10, 30);         // 游戏模式使用更短的去抖动时间，更快响应
+
+                    // 设置游戏模式的自适应采样参数
+                    gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围
+
                     info!("Game mode enabled: Using performance-oriented governor settings");
+                    info!("Game mode hysteresis: up=65%, down=40%, debounce: up=10ms, down=30ms");
                 } else {
                     // 普通模式：更保守的升频，更激进的降频
                     gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
                     gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
                     gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+
+                    // 设置普通模式的滞后阈值和去抖动时间
+                    gpu.set_hysteresis_thresholds(75, 30);   // 普通模式使用更严格的滞后阈值，更难升频
+                    gpu.set_debounce_times(20, 50);          // 普通模式使用更长的去抖动时间，更稳定
+
+                    // 设置普通模式的自适应采样参数
+                    gpu.set_adaptive_sampling(true, 10, 100); // 普通模式使用更宽的采样间隔范围
+
                     debug!("Game mode disabled: Using power-saving governor settings");
+                    debug!("Normal mode hysteresis: up=75%, down=30%, debounce: up=20ms, down=50ms");
                 }
 
                 debug!("Game mode changed: {}", is_gaming);
