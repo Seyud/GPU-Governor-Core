@@ -6,7 +6,7 @@ mod utils;
 use std::{env, path::Path, thread, time::Duration};
 
 use anyhow::Result;
-use log::{error, info};
+use log::{error, info, warn};
 
 use crate::{
     datasource::{
@@ -131,6 +131,9 @@ fn main() -> Result<()> {
         gpu.set_precise(true);
     }
 
+    // 设置主线程名称
+    info!("{} Start", MAIN_THREAD);
+
     // Bootstrap information
     info!("BootFreq: {}KHz", gpu.get_cur_freq());
     info!(
@@ -142,8 +145,67 @@ fn main() -> Result<()> {
         if gpu.is_precise() { "Yes" } else { "No" }
     );
 
-    // 初始升频延迟将由游戏模式监控线程设置
-    info!("Up Rate Delay will be set based on game mode");
+    // 显示频率范围信息
+    info!("Max Freq: {}KHz", gpu.get_max_freq());
+    info!("Middle Freq: {}KHz", gpu.get_middle_freq());
+    info!("Min Freq: {}KHz", gpu.get_min_freq());
+
+    // 显示当前余量值
+    info!("Current Margin: {}%", gpu.get_margin());
+
+    // 显示内存频率信息
+    if gpu.is_ddr_freq_fixed() {
+        info!("DDR Frequency: Fixed at {}", gpu.get_ddr_freq());
+    } else {
+        info!("DDR Frequency: Auto mode");
+    }
+
+    // 显示可用的内存频率选项
+    match gpu.get_ddr_freq_table() {
+        Ok(freq_table) => {
+            info!("Available DDR frequency options:");
+            for (i, (opp, desc)) in freq_table.iter().enumerate().take(3) {
+                info!("  Option {}: OPP={}, Description: {}", i+1, opp, desc);
+            }
+            if freq_table.len() > 3 {
+                info!("  ... and {} more options", freq_table.len() - 3);
+            }
+        },
+        Err(e) => {
+            warn!("Failed to get DDR frequency table: {}", e);
+        }
+    }
+
+    // 显示v2 driver支持的内存频率和GPU频率
+    if gpu.is_gpuv2() {
+        let ddr_freqs = gpu.get_ddr_v2_supported_freqs();
+        if !ddr_freqs.is_empty() {
+            info!("V2 driver supported DDR frequencies: {:?}", ddr_freqs);
+        }
+
+        let gpu_freqs = gpu.get_v2_supported_freqs();
+        if !gpu_freqs.is_empty() {
+            info!("V2 driver supported GPU frequencies: {:?}", gpu_freqs);
+        }
+    }
+
+    // 显示第二高频率，用于性能模式
+    info!("Second highest frequency: {}KHz", gpu.get_second_highest_freq());
+
+    // 显示日志文件路径
+    info!("Log level file path: {}", LOG_LEVEL_PATH);
+
+    // 显示当前升频延迟和降频阈值
+    info!("Current Up Rate Delay: {}ms", gpu.get_up_rate_delay());
+    info!("Current Down Threshold: {}", gpu.get_down_threshold());
+
+    // 显示当前负载趋势
+    let trend_desc = match gpu.get_load_trend() {
+        1 => "Rising",
+        -1 => "Falling",
+        _ => "Stable"
+    };
+    info!("Current Load Trend: {}", trend_desc);
 
     // 设置新的调速器参数
     // 游戏模式下使用更激进的升频策略，普通模式下使用更激进的降频策略
@@ -184,6 +246,54 @@ fn main() -> Result<()> {
 
     // 设置余量值为5%
     gpu.set_margin(5);
+
+    // 检查GPU频率限制文件
+    info!("Checking GPU frequency limit files:");
+    if Path::new(GEDFREQ_MAX).exists() {
+        info!("  Max frequency limit file: {} (Found)", GEDFREQ_MAX);
+    } else {
+        info!("  Max frequency limit file: {} (Not Found)", GEDFREQ_MAX);
+    }
+
+    if Path::new(GEDFREQ_MIN).exists() {
+        info!("  Min frequency limit file: {} (Found)", GEDFREQ_MIN);
+    } else {
+        info!("  Min frequency limit file: {} (Not Found)", GEDFREQ_MIN);
+    }
+
+    // 检查GPU电源策略文件
+    if Path::new(GPU_POWER_POLICY).exists() {
+        info!("GPU power policy file: {} (Found)", GPU_POWER_POLICY);
+        // 读取当前电源策略
+        if let Ok(content) = std::fs::read_to_string(GPU_POWER_POLICY) {
+            info!("Current GPU power policy: {}", content.trim());
+        }
+    } else {
+        info!("GPU power policy file: {} (Not Found)", GPU_POWER_POLICY);
+    }
+
+    // 检查FPS状态文件
+    if Path::new(FPS_STATUS).exists() {
+        info!("FPS status file: {} (Found)", FPS_STATUS);
+        if let Ok(content) = std::fs::read_to_string(FPS_STATUS) {
+            info!("Current FPS status: {}", content.trim());
+        }
+    } else {
+        info!("FPS status file: {} (Not Found)", FPS_STATUS);
+    }
+
+    // 检查前台进程ID文件
+    if Path::new(TOP_PID).exists() {
+        info!("Top process ID file: {} (Found)", TOP_PID);
+    } else {
+        info!("Top process ID file: {} (Not Found)", TOP_PID);
+    }
+
+    // 显示频率写入器线程名称
+    info!("Frequency writer thread name: {}", FW);
+
+    // 显示GED锁定器名称
+    info!("GED locker name: {}", GED_LOCKER);
 
     info!("Advanced GPU Governor Started");
 
