@@ -6,7 +6,7 @@ mod utils;
 use std::{env, path::Path, thread, time::Duration};
 
 use anyhow::Result;
-use log::{error, info, warn};
+use log::{error, info};
 
 use crate::{
     datasource::{

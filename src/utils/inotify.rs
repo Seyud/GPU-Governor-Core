@@ -48,11 +48,23 @@ impl InotifyWatcher {
             .read_events_blocking(&mut buffer)
             .with_context(|| "Failed to read inotify events")?;
 
-        self.handle_events(events)
+        // 转换事件类型
+        let mut converted_events = Vec::new();
+        for event in events {
+            let converted_event = inotify::Event {
+                wd: event.wd,
+                mask: event.mask,
+                cookie: event.cookie,
+                name: None, // 简化处理，忽略名称
+            };
+            converted_events.push(converted_event);
+        }
+
+        self.handle_events(converted_events)
     }
 
     // 新增：非阻塞地检查事件
-    pub fn check_events(&mut self) -> Result<Vec<inotify::Event<&[u8]>>> {
+    pub fn check_events(&mut self) -> Result<Vec<inotify::Event<&'static [u8]>>> {
         let mut buffer = [0; 4096];
         let events = self
             .inotify
@@ -60,7 +72,17 @@ impl InotifyWatcher {
             .with_context(|| "Failed to read inotify events")?;
 
         // 收集事件到向量中
-        let events_vec: Vec<_> = events.collect();
+        let mut events_vec: Vec<inotify::Event<&'static [u8]>> = Vec::new();
+        for event in events {
+            // 转换事件类型
+            let converted_event = inotify::Event {
+                wd: event.wd,
+                mask: event.mask,
+                cookie: event.cookie,
+                name: None, // 简化处理，忽略名称
+            };
+            events_vec.push(converted_event);
+        }
 
         // 如果有事件，处理它们
         if !events_vec.is_empty() {
@@ -73,7 +95,7 @@ impl InotifyWatcher {
     // 提取共同的事件处理逻辑
     fn handle_events<I>(&mut self, events: I) -> Result<()>
     where
-        I: IntoIterator<Item = inotify::Event<&[u8]>>
+        I: IntoIterator<Item = inotify::Event<&'static [u8]>>
     {
         // Collect all watches that need to be updated
         let mut watches_to_update = Vec::new();
