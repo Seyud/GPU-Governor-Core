@@ -4,7 +4,7 @@ use log::{debug, error, info, warn};
 
 use crate::{
     datasource::{
-        config_parser::{config_read, gen_default_freq_table},
+        config_parser::config_read,
         file_path::*,
     },
     model::gpu::GPU,
@@ -218,9 +218,7 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
     // 检查配置文件是否存在
     if !check_read_simple(&config_file) {
         error!("CONFIG NOT FOUND: {}", std::io::Error::last_os_error());
-        warn!("Using default freq table");
-        gen_default_freq_table(&mut gpu)?;
-        return Ok(());
+        return Err(anyhow::anyhow!("Config file not found: {}", config_file));
     };
 
     info!("Using Config: {}", config_file);

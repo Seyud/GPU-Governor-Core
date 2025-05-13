@@ -10,7 +10,7 @@ use log::{error, info, warn};
 
 use crate::{
     datasource::{
-        config_parser::{config_read, gen_default_freq_table},
+        config_parser::config_read,
         file_path::*,
         foreground_app::monitor_foreground_app,
         freq_table::gpufreq_table_init,
@@ -79,14 +79,12 @@ fn main() -> Result<()> {
     if Path::new(&config_file).exists() {
         info!("Reading config file: {}", config_file);
         if let Err(e) = config_read(&config_file, &mut gpu) {
-            warn!("Failed to read config file: {}", e);
-            // 如果配置文件读取失败，生成默认配置
-            gen_default_freq_table(&mut gpu)?;
+            error!("Failed to read config file: {}", e);
+            return Err(anyhow::anyhow!("Failed to read config file: {}", e));
         }
     } else {
-        warn!("Config file not found: {}", config_file);
-        // 如果配置文件不存在，生成默认配置
-        gen_default_freq_table(&mut gpu)?;
+        error!("Config file not found: {}", config_file);
+        return Err(anyhow::anyhow!("Config file not found: {}", config_file));
     }
 
     // 然后初始化GPU频率表（只检测驱动类型，不读取系统支持的频率）

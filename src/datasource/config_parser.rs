@@ -13,27 +13,7 @@ fn volt_is_valid(v: i64) -> bool {
     v != 0 && v % 625 == 0
 }
 
-pub fn gen_default_freq_table(gpu: &mut GPU) -> Result<()> {
-    // 使用一个简单的默认配置
-    warn!("Using minimal default config");
 
-    let mut new_config_list = Vec::new();
-    let mut new_fvtab = HashMap::new();
-    let mut new_fdtab = HashMap::new();
-
-    // 只添加一个默认频率
-    new_config_list.push(500000); // 500MHz作为默认值
-    new_fvtab.insert(500000, 50000); // 默认电压
-    new_fdtab.insert(500000, 0); // 默认DRAM设置
-
-    gpu.set_config_list(new_config_list);
-    gpu.replace_tab(TabType::FreqVolt, new_fvtab);
-    gpu.replace_tab(TabType::FreqDram, new_fdtab);
-
-    info!("Generated minimal default frequency table");
-
-    Ok(())
-}
 
 pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     let file = File::open(config_file)
@@ -104,11 +84,10 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
         }
     }
 
-    // If no valid entries were found, generate default table
+    // If no valid entries were found, return error
     if new_config_list.is_empty() {
-        error!("Reload config FAILED, generating default config");
-        gen_default_freq_table(gpu)?;
-        return Ok(());
+        error!("No valid frequency entries found in config file");
+        return Err(anyhow::anyhow!("No valid frequency entries found in config file: {}", config_file));
     }
 
     // 直接使用配置文件中的频率，不进行任何系统支持检查
