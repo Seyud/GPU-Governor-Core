@@ -43,7 +43,6 @@ macro_rules! goto_gen_volt {
 pub enum TabType {
     FreqVolt,
     FreqDram,
-    #[allow(dead_code)]
     DefVolt,
 }
 
@@ -112,7 +111,6 @@ pub struct GPU {
     max_sampling_interval: u64,   // 最大采样间隔（毫秒）
 }
 
-#[allow(dead_code)]
 impl GPU {
     pub fn new() -> Self {
         Self {
@@ -646,52 +644,50 @@ impl GPU {
                         // 极高负载区域 - 智能升频策略
                         debug!("Very high load zone ({}%) detected, applying intelligent upscaling", util);
 
-                        // 计算目标频率
-                        target_freq = now_freq * (util as i64 + margin) / 100;
-
                         // 根据当前频率位置和负载趋势决定升频策略
                         let freq_position = self.cur_freq_idx as f64 / (self.config_list.len() - 1) as f64;
 
                         // 修改：避免直接Boost到最高频率，使用更平滑的步进策略
-                        let mut step_size = 2; // 默认步进大小
-
-                        if freq_position > 0.8 {
+                        // 计算适当的频率步进大小
+                        let freq_step_size = if freq_position > 0.8 {
                             // 已经接近最高频率，使用更保守的步进
                             if load_trend > 0 && util >= 95 {
                                 // 只有在负载非常高(95%以上)且仍在上升时，才使用较大步进
-                                step_size = 2;
                                 debug!("Already at high frequency with very high load, using moderate step size");
+                                2
                             } else {
                                 // 负载稳定或下降，使用小步进
-                                step_size = 1;
                                 debug!("Already at high frequency, using conservative step size");
+                                1
                             }
                         } else if freq_position < 0.3 {
                             // 当前频率较低，使用适度的步进
-                            step_size = 2;
                             debug!("Current frequency is low, using moderate step size");
+                            2
                         } else {
                             // 中等频率位置，使用标准步进
                             if load_trend > 0 && util >= 95 {
                                 // 只有在负载非常高(95%以上)且仍在上升时，才使用较大步进
-                                step_size = 2;
                                 debug!("Load trend rising with very high load, using moderate step size");
+                                2
                             } else {
                                 // 负载稳定或下降，使用标准步进
-                                step_size = 1;
                                 debug!("Using standard step size for very high load");
+                                1
                             }
-                        }
+                        };
 
                         // 确保步进大小不会导致频率跳变过大
                         let max_allowed_step = (self.config_list.len() as i64) / 4; // 最大允许步进为频率表长度的1/4
-                        if step_size > max_allowed_step {
-                            step_size = max_allowed_step;
+                        let final_step_size = if freq_step_size > max_allowed_step {
                             debug!("Limiting step size to {} to prevent large frequency jumps", max_allowed_step);
-                        }
+                            max_allowed_step
+                        } else {
+                            freq_step_size
+                        };
 
                         // 步进式升频：根据计算的步进大小升高频率
-                        let next_higher_idx = self.cur_freq_idx + step_size;
+                        let next_higher_idx = self.cur_freq_idx + final_step_size;
                         // 确保索引不会超出范围
                         let next_higher_idx = if next_higher_idx >= self.config_list.len() as i64 {
                             (self.config_list.len() - 1) as i64
@@ -701,7 +697,7 @@ impl GPU {
                         final_freq = self.gen_cur_freq(next_higher_idx);
                         final_freq_index = next_higher_idx;
 
-                        debug!("Stepping up by {} levels to: {}KHz (index: {})", step_size, final_freq, final_freq_index);
+                        debug!("Stepping up by {} levels to: {}KHz (index: {})", final_step_size, final_freq, final_freq_index);
 
                         // 应用升频延迟 - 在极高负载区域使用更短的延迟
                         if self.up_rate_delay > 0 {
@@ -757,29 +753,15 @@ impl GPU {
 
             self.is_idle = false;
 
-            // 根据负载区域和趋势调整采样间隔
+            // 使用采样间隔进行休眠
             if self.adaptive_sampling {
-                // 已经在adjust_sampling_interval方法中根据负载波动性调整了采样间隔
-                // 这里根据负载区域进一步微调
-                let mut adjusted_interval = self.sampling_interval;
-
-                // 在高负载区域使用更短的采样间隔
-                if self.current_load_zone >= 3 {
-                    adjusted_interval = (adjusted_interval * 2) / 3; // 减少到原来的2/3
-                    debug!("High load zone, reducing sampling interval to {}ms", adjusted_interval);
-                }
-
-                // 如果负载趋势明显，使用更短的采样间隔以更快响应变化
-                if load_trend != 0 {
-                    adjusted_interval = (adjusted_interval * 3) / 4; // 减少到原来的3/4
-                    debug!("Load trend detected, reducing sampling interval to {}ms", adjusted_interval);
-                }
-
+                // 使用adjust_sampling_interval方法已经调整过的采样间隔
+                // 该方法已经考虑了负载值、波动性和游戏模式等因素
                 if self.precise {
                     continue;
                 } else {
-                    debug!("Sleeping for {}ms (adaptive)", adjusted_interval);
-                    thread::sleep(Duration::from_millis(adjusted_interval));
+                    debug!("Sleeping for {}ms (adaptive)", self.sampling_interval);
+                    thread::sleep(Duration::from_millis(self.sampling_interval));
                 }
             } else {
                 // 不使用自适应采样，使用固定采样间隔
@@ -1066,7 +1048,18 @@ impl GPU {
         // 对于v2 driver设备，获取支持的最接近频率
         let freq_to_use = self.get_closest_v2_supported_freq(self.cur_freq);
 
+        // 获取电压值，优先使用频率-电压表，如果没有则尝试使用默认电压表
         self.cur_volt = self.get_volt(freq_to_use);
+
+        // 如果电压为0，尝试从默认电压表获取
+        if self.cur_volt == 0 {
+            let def_volt = self.read_tab(TabType::DefVolt, freq_to_use);
+            if def_volt > 0 {
+                debug!("Using default voltage {} for frequency {}", def_volt, freq_to_use);
+                self.cur_volt = def_volt;
+            }
+        }
+
         self.cur_volt
     }
 
@@ -1100,7 +1093,6 @@ impl GPU {
         debug!("Set GPU down threshold to: {}", threshold);
     }
 
-    #[allow(dead_code)]
     pub fn get_v2_supported_freqs(&self) -> Vec<i64> {
         self.v2_supported_freqs.clone()
     }
@@ -1302,7 +1294,7 @@ impl GPU {
         self.load_trend
     }
 
-    // 根据负载波动性调整采样间隔
+    // 根据负载波动性和当前负载调整采样间隔
     pub fn adjust_sampling_interval(&mut self, load: i32) -> u64 {
         if !self.adaptive_sampling {
             return self.sampling_interval;
@@ -1326,7 +1318,7 @@ impl GPU {
         let volatility = (sum_diff_squared as f64 / (len - 1) as f64).sqrt();
 
         // 根据波动性调整采样间隔
-        let new_interval = if volatility > 15.0 {
+        let mut new_interval = if volatility > 15.0 {
             // 高波动性，使用较短的采样间隔
             self.min_sampling_interval
         } else if volatility < 5.0 {
@@ -1340,9 +1332,27 @@ impl GPU {
             self.min_sampling_interval + (normalized_volatility * interval_range as f64) as u64
         };
 
+        // 根据当前负载进一步调整采样间隔
+        // 高负载或极低负载时使用更短的采样间隔
+        if load > 80 || load < 5 {
+            // 在极端负载情况下使用更短的采样间隔
+            new_interval = (new_interval * 2) / 3; // 减少到原来的2/3
+            debug!("High/very low load ({}%), reducing sampling interval further", load);
+        } else if load > 60 {
+            // 在较高负载下也适当减少采样间隔
+            new_interval = (new_interval * 3) / 4; // 减少到原来的3/4
+            debug!("Moderately high load ({}%), slightly reducing sampling interval", load);
+        }
+
+        // 游戏模式下进一步减少采样间隔以提高响应性
+        if self.gaming_mode && new_interval > self.min_sampling_interval * 2 {
+            new_interval = (new_interval * 4) / 5; // 游戏模式下额外减少到原来的4/5
+            debug!("Game mode active, further reducing sampling interval for better responsiveness");
+        }
+
         if new_interval != self.sampling_interval {
-            debug!("Adjusted sampling interval based on load volatility: {}ms -> {}ms (volatility: {:.2})",
-                   self.sampling_interval, new_interval, volatility);
+            debug!("Adjusted sampling interval based on load volatility: {}ms -> {}ms (volatility: {:.2}, load: {}%)",
+                   self.sampling_interval, new_interval, volatility, load);
             self.sampling_interval = new_interval;
         }
 
