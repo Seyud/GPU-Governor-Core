@@ -1,5 +1,4 @@
 // Thread names
-#![allow(dead_code)]
 pub const MAIN_THREAD: &str = "LoadMonitor";
 pub const GAME_THREAD: &str = "GameModeWatcher";
 pub const CONF_THREAD: &str = "ConfigWatcher";
