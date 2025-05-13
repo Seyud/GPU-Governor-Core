@@ -223,6 +223,22 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
 
     info!("Using Config: {}", config_file);
 
+    // 使用read_freq_ge和read_freq_le方法获取频率范围
+    let min_freq = gpu.get_min_freq();
+    let max_freq = gpu.get_max_freq();
+
+    // 使用read_freq_ge方法获取大于等于特定频率的最小频率
+    let target_freq = 600000; // 600MHz
+    let ge_freq = gpu.read_freq_ge(target_freq);
+
+    // 使用read_freq_le方法获取小于等于特定频率的最大频率
+    let target_freq2 = 800000; // 800MHz
+    let le_freq = gpu.read_freq_le(target_freq2);
+
+    info!("Frequency range: {}KHz - {}KHz", min_freq, max_freq);
+    info!("Frequency >= {}KHz: {}KHz", target_freq, ge_freq);
+    info!("Frequency <= {}KHz: {}KHz", target_freq2, le_freq);
+
     let mut inotify = InotifyWatcher::new()?;
     inotify.add(&config_file, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
 
