@@ -177,9 +177,6 @@ pub fn monitor_foreground_app() -> Result<()> {
     // 设置文件监控
     let mut inotify = InotifyWatcher::new()?;
 
-    // 设置game
-    let mut games_clone = HashSet::new();
-
     // 如果游戏列表文件存在，监控它的变化
     if check_read_simple(GAMES_CONF_PATH) {
         inotify.add(GAMES_CONF_PATH, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
@@ -190,13 +187,13 @@ pub fn monitor_foreground_app() -> Result<()> {
 
     // 主循环
     loop {
-        if games_clone.is_empty() {
-            games_clone = games.clone();
-        }
-        games = read_games_list(GAMES_CONF_PATH)?;
-        if games_clone != games {
-            games_clone = games.clone();
-            info!("The game configuration file has changed.");
+        // 检查inotify事件，只在游戏列表文件变化时才重新读取
+        if let Ok(events) = inotify.check_events() {
+            if !events.is_empty() {
+                debug!("Detected changes in games list file");
+                games = read_games_list(GAMES_CONF_PATH)?;
+                info!("The game configuration file has changed. Loaded {} games.", games.len());
+            }
         }
 
         // 获取前台应用
