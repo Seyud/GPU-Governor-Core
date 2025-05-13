@@ -76,8 +76,8 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                 // 设置游戏模式的自适应采样参数
                 gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围
 
-                info!("Initial game mode enabled: Using performance-oriented governor settings");
-                info!("Game mode hysteresis: up=65%, down=40%, debounce: up=10ms, down=30ms");
+                debug!("Initial game mode enabled: Using performance-oriented governor settings");
+                debug!("Game mode hysteresis: up=65%, down=40%, debounce: up=10ms, down=30ms");
             } else {
                 // 普通模式：更保守的升频，更激进的降频
                 gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值

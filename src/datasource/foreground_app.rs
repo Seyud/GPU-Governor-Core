@@ -63,27 +63,7 @@ fn get_foreground_app_activity() -> Result<String> {
         }
     };
 
-    // 方法1：使用Android 10+的方式查找前台应用
-    // 查找包含" TOP"关键字的行，但不包含"BTOP"的行
-    for line in output.lines() {
-        if line.contains(" TOP") && !line.contains("BTOP") && line.contains("fg") {
-            debug!("Found matching line: {}", line);
-
-            // 查找":"字符后的包名
-            if let Some(colon_pos) = line.find(':') {
-                let after_colon = &line[colon_pos + 1..];
-
-                // 查找"/"字符前的包名
-                if let Some(slash_pos) = after_colon.find('/') {
-                    let package_name = &after_colon[..slash_pos];
-                    debug!("Extracted package name: {}", package_name);
-                    return Ok(package_name.to_string());
-                }
-            }
-        }
-    }
-
-    // 方法2：使用正则表达式作为备选方法
+    // 使用正则表达式提取前台应用包名
     for line in output.lines() {
         if line.contains("fg") && line.contains("TOP") && !line.contains("BTOP") {
             debug!("Trying regex on line: {}", line);
@@ -221,7 +201,7 @@ pub fn monitor_foreground_app() -> Result<()> {
                                 info!("Game changed: {}", package_name);
                             }
                         } else if prev_is_game {
-                            info!("Game mode disabled: switching from game to normal app");
+                            info!("Game mode disabled: switching from game to normal app: {}", package_name);
                         }
 
                         // 写入游戏模式文件
