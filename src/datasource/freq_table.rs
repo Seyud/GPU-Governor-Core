@@ -126,17 +126,6 @@ fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
     Ok(freq_list)
 }
 
-// 验证频率是否在v2 driver支持的范围内
-#[allow(dead_code)]
-pub fn validate_freq_for_v2_driver(freq: i64, supported_freqs: &[i64]) -> bool {
-    if supported_freqs.is_empty() {
-        // 如果没有读取到支持的频率，则不进行验证
-        return true;
-    }
-
-    // 检查频率是否在支持的范围内
-    supported_freqs.contains(&freq)
-}
 
 // 检测内存频率控制文件
 fn detect_ddr_freq_paths() -> Result<()> {
@@ -179,11 +168,17 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
     // 检测内存频率控制文件
     detect_ddr_freq_paths()?;
 
-    // 如果是v2 driver，读取系统支持的频率表
+    // 读取系统支持的频率表
     let v2_supported_freqs = if gpu.is_gpuv2() {
         info!("Reading V2 driver frequency table");
         read_v2_driver_freq_table()?
     } else {
+        // 对于v1 driver，尝试从GPUFREQ_TABLE读取频率表
+        info!("Checking V1 driver frequency table: {}", GPUFREQ_TABLE);
+        if Path::new(GPUFREQ_TABLE).exists() && check_read_simple(GPUFREQ_TABLE) {
+            info!("V1 driver frequency table file found, but not implemented yet");
+            // 这里可以实现读取v1驱动频率表的逻辑
+        }
         Vec::new()
     };
 
