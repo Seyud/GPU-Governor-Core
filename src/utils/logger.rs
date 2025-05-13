@@ -5,7 +5,7 @@ use chrono::Local;
 use log::{LevelFilter, Metadata, Record};
 use once_cell::sync::Lazy;
 
-use crate::datasource::file_path::LOG_LEVEL_PATH;
+use crate::datasource::file_path::{LOG_LEVEL_PATH, LOG_PATH};
 
 // Custom logger implementation - 只输出到控制台
 struct CustomLogger;
@@ -48,6 +48,8 @@ pub fn init_logger() -> Result<()> {
     // 记录当前使用的日志等级
     log::info!("Logger initialized with level: {}", log_level);
     log::info!("Console output only mode");
+    log::info!("Log file path (not used): {}", LOG_PATH);
+    log::info!("Log level config path: {}", LOG_LEVEL_PATH);
 
     // 在debug级别记录一条消息，说明某些错误只会在debug级别显示
     log::debug!("Some error messages (like writing to /proc/gpufreqv2/fix_target_opp_index) will only be shown at debug level");
