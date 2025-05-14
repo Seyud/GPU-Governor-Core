@@ -822,9 +822,36 @@ impl GPU {
     }
 
     pub fn write_freq(&self) -> Result<()> {
-        // 对于v2 driver设备，获取支持的最接近频率
-        let freq_to_use = self.get_closest_v2_supported_freq(self.cur_freq);
+        // 根据驱动类型获取要使用的频率
+        let freq_to_use = if self.gpuv2 {
+            // 对于v2 driver设备，获取支持的最接近频率
+            self.get_closest_v2_supported_freq(self.cur_freq)
+        } else {
+            // 对于v1 driver设备，直接使用当前频率
+            self.cur_freq
+        };
 
+        // 检查当前系统频率是否与准备写入的频率相同
+        match get_gpu_current_freq() {
+            Ok(current_system_freq) => {
+                if current_system_freq > 0 && current_system_freq == freq_to_use {
+                    // 当前系统频率与准备写入的频率相同，跳过写入操作
+                    debug!("Current system frequency ({}) is the same as target frequency, skipping write operation", current_system_freq);
+                    return Ok(());
+                }
+                // 如果频率不同，继续执行写入操作
+                if current_system_freq > 0 {
+                    debug!("Current system frequency ({}) differs from target frequency ({}), proceeding with write operation",
+                           current_system_freq, freq_to_use);
+                }
+            },
+            Err(e) => {
+                // 如果无法读取当前频率，记录错误但继续执行写入操作
+                debug!("Failed to read current system frequency: {}, proceeding with write operation", e);
+            }
+        }
+
+        // 准备写入内容
         let content = freq_to_use.to_string();
         let volt_content = format!("{} {}", freq_to_use, self.cur_volt);
         let volt_reset = "0 0";
