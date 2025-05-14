@@ -107,8 +107,13 @@ fn main() -> Result<()> {
         }
     });
 
-    // 启动前台应用监控线程
+    // 启动前台应用监控线程（延迟一分钟启动）
     thread::spawn(move || {
+        // 延迟一分钟后再启动前台应用监控
+        info!("Foreground app monitor will start in 60 seconds");
+        thread::sleep(Duration::from_secs(60));
+        info!("Starting foreground app monitor now");
+
         if let Err(e) = monitor_foreground_app() {
             error!("Foreground app monitor error: {}", e);
         }
