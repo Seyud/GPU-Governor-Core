@@ -1564,12 +1564,12 @@ impl GPU {
 
             // 输出DDR_OPP值的含义
             let opp_description = match freq {
-                DDR_HIGHEST_FREQ => "最高频率和电压",
-                DDR_SECOND_FREQ => "第二档频率和电压",
-                DDR_THIRD_FREQ => "第三档频率和电压",
-                DDR_FOURTH_FREQ => "第四档频率和电压",
-                DDR_FIFTH_FREQ => "第五档频率和电压",
-                _ => "自定义档位",
+                DDR_HIGHEST_FREQ => "Highest Frequency and Voltage",
+                DDR_SECOND_FREQ => "Second Level Frequency and Voltage",
+                DDR_THIRD_FREQ => "Third Level Frequency and Voltage",
+                DDR_FOURTH_FREQ => "Fourth Level Frequency and Voltage",
+                DDR_FIFTH_FREQ => "Fifth Level Frequency and Voltage",
+                _ => "Custom Level",
             };
 
             debug!("Using direct DDR_OPP value: {} ({})", freq, opp_description);
@@ -1583,12 +1583,12 @@ impl GPU {
 
                     // 输出DDR_OPP值的含义
                     let opp_description = match ddr_opp {
-                        DDR_HIGHEST_FREQ => "最高频率和电压",
-                        DDR_SECOND_FREQ => "第二档频率和电压",
-                        DDR_THIRD_FREQ => "第三档频率和电压",
-                        DDR_FOURTH_FREQ => "第四档频率和电压",
-                        DDR_FIFTH_FREQ => "第五档频率和电压",
-                        _ => "自定义档位",
+                        DDR_HIGHEST_FREQ => "Highest Frequency and Voltage",
+                        DDR_SECOND_FREQ => "Second Level Frequency and Voltage",
+                        DDR_THIRD_FREQ => "Third Level Frequency and Voltage",
+                        DDR_FOURTH_FREQ => "Fourth Level Frequency and Voltage",
+                        DDR_FIFTH_FREQ => "Fifth Level Frequency and Voltage",
+                        _ => "Custom Level",
                     };
 
                     info!("Using DDR_OPP value {} ({}) from GPU frequency {}KHz", ddr_opp, opp_description, closest_freq);
@@ -1734,12 +1734,12 @@ impl GPU {
 
         // 输出DDR_OPP值的含义
         let opp_description = match ddr_opp {
-            DDR_HIGHEST_FREQ => "最高频率和电压",
-            DDR_SECOND_FREQ => "第二档频率和电压",
-            DDR_THIRD_FREQ => "第三档频率和电压",
-            DDR_FOURTH_FREQ => "第四档频率和电压",
-            DDR_FIFTH_FREQ => "第五档频率和电压",
-            _ => "自定义档位",
+            DDR_HIGHEST_FREQ => "Highest Frequency and Voltage",
+            DDR_SECOND_FREQ => "Second Level Frequency and Voltage",
+            DDR_THIRD_FREQ => "Third Level Frequency and Voltage",
+            DDR_FOURTH_FREQ => "Fourth Level Frequency and Voltage",
+            DDR_FIFTH_FREQ => "Fifth Level Frequency and Voltage",
+            _ => "Custom Level",
         };
 
         info!("Set DDR frequency with OPP value: {} ({})", ddr_opp, opp_description);
@@ -1756,17 +1756,17 @@ impl GPU {
 
         // 添加自动模式
         if self.gpuv2 {
-            freq_table.push((DDR_AUTO_MODE_V2, "自动模式".to_string()));
+            freq_table.push((DDR_AUTO_MODE_V2, "Auto Mode".to_string()));
         } else {
-            freq_table.push((DDR_AUTO_MODE_V1, "自动模式".to_string()));
+            freq_table.push((DDR_AUTO_MODE_V1, "Auto Mode".to_string()));
         }
 
         // 添加预设的DDR_OPP值
-        freq_table.push((DDR_HIGHEST_FREQ, "最高频率和电压".to_string()));
-        freq_table.push((DDR_SECOND_FREQ, "第二档频率和电压".to_string()));
-        freq_table.push((DDR_THIRD_FREQ, "第三档频率和电压".to_string()));
-        freq_table.push((DDR_FOURTH_FREQ, "第四档频率和电压".to_string()));
-        freq_table.push((DDR_FIFTH_FREQ, "第五档频率和电压".to_string()));
+        freq_table.push((DDR_HIGHEST_FREQ, "Highest Frequency and Voltage".to_string()));
+        freq_table.push((DDR_SECOND_FREQ, "Second Level Frequency and Voltage".to_string()));
+        freq_table.push((DDR_THIRD_FREQ, "Third Level Frequency and Voltage".to_string()));
+        freq_table.push((DDR_FOURTH_FREQ, "Fourth Level Frequency and Voltage".to_string()));
+        freq_table.push((DDR_FIFTH_FREQ, "Fifth Level Frequency and Voltage".to_string()));
 
         // 尝试读取系统内存频率表
         if self.gpuv2 {
