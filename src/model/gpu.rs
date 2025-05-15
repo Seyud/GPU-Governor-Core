@@ -67,6 +67,7 @@ pub struct GPU {
     is_idle: bool,
     gpuv2: bool,
     dcs_enable: bool,
+    need_dcs: bool,
     gaming_mode: bool,
     precise: bool,
     margin: i64, // 频率计算的余量百分比
@@ -126,6 +127,7 @@ impl GPU {
             is_idle: false,
             gpuv2: false,
             dcs_enable: false,
+            need_dcs: false,
             gaming_mode: false,
             precise: false,
             margin: 5, // 默认余量为5%
@@ -777,6 +779,24 @@ impl GPU {
 
     // 辅助方法：应用新频率
     fn apply_new_frequency(&mut self, new_freq: i64, freq_index: i64) -> Result<()> {
+        // 重置DCS标志
+        self.need_dcs = false;
+
+        // 检查DCS条件：当dcs_enable为true，计算出的目标频率低于最低可用频率，且设备使用的是gpufreqv2驱动
+        if self.dcs_enable && self.gpuv2 {
+            let min_freq = self.get_freq_by_index(0);
+            if new_freq < min_freq {
+                debug!(
+                    "DCS triggered: target freq {}KHz is lower than min freq {}KHz",
+                    new_freq, min_freq
+                );
+                self.need_dcs = true;
+                // 设置为最低频率
+                new_freq = min_freq;
+                freq_index = 0;
+            }
+        }
+
         // 对于v2 driver设备，验证频率是否在系统支持范围内
         if self.gpuv2 && !self.is_freq_supported_by_v2_driver(new_freq) {
             debug!(
@@ -793,6 +813,10 @@ impl GPU {
         }
 
         debug!("Applied new frequency: {}KHz (index: {})", self.cur_freq, self.cur_freq_idx);
+
+        if self.need_dcs {
+            debug!("DCS is active: will use IDLE mode for frequency writing");
+        }
 
         // 如果在游戏模式下，根据新的GPU频率更新内存频率
         if self.gaming_mode {
@@ -888,11 +912,19 @@ impl GPU {
             return Ok(());
         }
 
+        // 确定写入模式
         let opt = if self.is_idle {
+            // 空闲状态使用IDLE模式
+            WriterOpt::Idle
+        } else if self.gpuv2 && self.need_dcs && self.cur_freq_idx == 0 {
+            // DCS触发条件：gpuv2 && need_dcs && curFreqIdx == 0
+            debug!("DCS active: using IDLE mode for frequency writing");
             WriterOpt::Idle
         } else if self.cur_volt == 0 {
+            // 无电压值使用NoVolt模式
             WriterOpt::NoVolt
         } else {
+            // 正常模式
             WriterOpt::Normal
         };
 
@@ -1018,6 +1050,15 @@ impl GPU {
 
     pub fn set_dcs_enable(&mut self, dcs_enable: bool) {
         self.dcs_enable = dcs_enable;
+        debug!("DCS {} for GPU frequency control", if dcs_enable { "enabled" } else { "disabled" });
+    }
+
+    pub fn is_dcs_enabled(&self) -> bool {
+        self.dcs_enable
+    }
+
+    pub fn get_need_dcs(&self) -> bool {
+        self.need_dcs
     }
 
     pub fn set_gaming_mode(&mut self, gaming_mode: bool) {

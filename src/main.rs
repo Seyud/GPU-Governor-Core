@@ -158,6 +158,11 @@ fn main() -> Result<()> {
     // 显示当前余量值
     info!("Current Margin: {}%", gpu.get_margin());
 
+    // 显示DCS状态
+    if gpu.is_gpuv2() {
+        info!("DCS: {}", if gpu.is_dcs_enabled() { "Enabled" } else { "Disabled" });
+    }
+
     // 显示内存频率信息
     if gpu.is_ddr_freq_fixed() {
         info!("DDR Frequency: Fixed at {}", gpu.get_ddr_freq());
