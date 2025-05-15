@@ -778,7 +778,7 @@ impl GPU {
     }
 
     // 辅助方法：应用新频率
-    fn apply_new_frequency(&mut self, new_freq: i64, freq_index: i64) -> Result<()> {
+    fn apply_new_frequency(&mut self, mut new_freq: i64, mut freq_index: i64) -> Result<()> {
         // 重置DCS标志
         self.need_dcs = false;
 
@@ -1055,10 +1055,6 @@ impl GPU {
 
     pub fn is_dcs_enabled(&self) -> bool {
         self.dcs_enable
-    }
-
-    pub fn get_need_dcs(&self) -> bool {
-        self.need_dcs
     }
 
     pub fn set_gaming_mode(&mut self, gaming_mode: bool) {
