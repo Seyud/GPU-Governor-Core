@@ -381,27 +381,63 @@ impl GPU {
                 // 根据负载区域选择调频策略
                 match self.current_load_zone {
                     0 => {
-                        // 极低负载区域 - 策略二：目标式跳转（激进降频）
-                        debug!("Very low load zone ({}%) detected, applying aggressive downscaling", util);
+                        // 极低负载区域 - 游戏模式下采用步进式降频，普通模式下采用目标式跳转
+                        if self.gaming_mode {
+                            debug!("Very low load zone ({}%) detected in game mode, applying stepped downscaling", util);
 
-                        if self.aggressive_down {
-                            // 直接跳转到最低频率（Race to Idle）
-                            final_freq = self.get_min_freq();
-                            debug!("Aggressive down: jumping to min freq: {}KHz", final_freq);
+                            // 游戏模式下采用步进式降频策略
+                            // 获取当前频率索引和频率表长度
+                            let current_idx = self.cur_freq_idx;
+                            let freq_table_len = self.config_list.len() as i64;
+
+                            // 计算当前频率在频率表中的相对位置（0.0-1.0）
+                            let freq_position = current_idx as f64 / (freq_table_len - 1) as f64;
+
+                            // 根据当前频率位置决定降低的步数
+                            let step_size = if freq_position > 0.8 {
+                                // 当前频率接近最高频率，降低三个档位
+                                3
+                            } else if freq_position > 0.5 {
+                                // 当前频率在中高位置，降低两个档位
+                                2
+                            } else if freq_position > 0.2 {
+                                // 当前频率在中低位置，降低一个档位
+                                1
+                            } else {
+                                // 当前频率已经很低，保持在次低频率
+                                0
+                            };
+
+                            // 计算目标索引，确保不会小于1（次低频率）
+                            let target_idx = (current_idx - step_size).max(1);
+                            final_freq = self.gen_cur_freq(target_idx);
+                            final_freq_index = target_idx;
+
+                            debug!("Game mode stepped down by {} levels to: {}KHz (index: {})",
+                                   step_size, final_freq, final_freq_index);
                         } else {
-                            // 保守降频：降低到次低频率
-                            final_freq = self.get_second_lowest_freq();
-                            debug!("Conservative down: stepping to second lowest freq: {}KHz", final_freq);
-                        }
+                            // 普通模式下的降频策略
+                            debug!("Very low load zone ({}%) detected in normal mode, applying aggressive downscaling", util);
 
-                        // 如果负载趋势上升，可能即将需要更高频率，选择更保守的降频策略
-                        if load_trend > 0 && self.aggressive_down {
-                            // 负载趋势上升，使用更保守的降频策略
-                            final_freq = self.get_second_lowest_freq();
-                            debug!("Load trend rising, using conservative down: {}KHz", final_freq);
-                        }
+                            if self.aggressive_down {
+                                // 直接跳转到最低频率（Race to Idle）
+                                final_freq = self.get_min_freq();
+                                debug!("Aggressive down: jumping to min freq: {}KHz", final_freq);
+                            } else {
+                                // 保守降频：降低到次低频率
+                                final_freq = self.get_second_lowest_freq();
+                                debug!("Conservative down: stepping to second lowest freq: {}KHz", final_freq);
+                            }
 
-                        final_freq_index = self.read_freq_index(final_freq);
+                            // 如果负载趋势上升，可能即将需要更高频率，选择更保守的降频策略
+                            if load_trend > 0 && self.aggressive_down {
+                                // 负载趋势上升，使用更保守的降频策略
+                                final_freq = self.get_second_lowest_freq();
+                                debug!("Load trend rising, using conservative down: {}KHz", final_freq);
+                            }
+
+                            final_freq_index = self.read_freq_index(final_freq);
+                        }
 
                         // 应用新频率
                         self.apply_new_frequency(final_freq, final_freq_index)?;
