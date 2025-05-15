@@ -44,6 +44,32 @@ impl ForegroundAppCache {
     }
 }
 
+// 警告日志限流器，避免频繁显示相同的警告
+struct WarningThrottler {
+    last_warning_time: Instant,
+    throttle_duration: Duration,
+}
+
+impl WarningThrottler {
+    fn new(throttle_seconds: u64) -> Self {
+        Self {
+            last_warning_time: Instant::now().checked_sub(Duration::from_secs(throttle_seconds)).unwrap_or(Instant::now()),
+            throttle_duration: Duration::from_secs(throttle_seconds),
+        }
+    }
+
+    // 检查是否应该显示警告
+    fn should_warn(&mut self) -> bool {
+        let elapsed = self.last_warning_time.elapsed();
+        if elapsed >= self.throttle_duration {
+            self.last_warning_time = Instant::now();
+            true
+        } else {
+            false
+        }
+    }
+}
+
 // 使用dumpsys activity lru命令获取前台应用包名
 fn get_foreground_app_activity() -> Result<String> {
     debug!("Trying to get foreground app using dumpsys activity lru method");
@@ -150,6 +176,9 @@ pub fn monitor_foreground_app() -> Result<()> {
     let mut app_cache = ForegroundAppCache::new();
     let cache_ttl = Duration::from_millis(1000); // 缓存有效期1秒
 
+    // 初始化警告限流器，设置30秒的限流时间
+    let mut warning_throttler = WarningThrottler::new(30);
+
     // 读取游戏列表
     let mut games = read_games_list(GAMES_CONF_PATH)?;
     info!("Loaded {} games from {}", games.len(), GAMES_CONF_PATH);
@@ -223,7 +252,13 @@ pub fn monitor_foreground_app() -> Result<()> {
                     app_cache.update(package_name);
                 }
                 Err(e) => {
-                    warn!("Failed to get foreground app: {}", e);
+                    // 使用警告限流器检查是否应该显示警告
+                    if warning_throttler.should_warn() {
+                        warn!("Failed to get foreground app: {}", e);
+                    } else {
+                        // 如果不应该显示警告，则降级为debug日志
+                        debug!("Failed to get foreground app (throttled warning): {}", e);
+                    }
                 }
             }
         }
