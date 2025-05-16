@@ -4,6 +4,7 @@
 !src/
 !Cargo.toml
 !Cargo.lock
+!module/
 
 # 忽略Rust编译产物
 target/
