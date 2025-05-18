@@ -23,7 +23,7 @@ fn module_ged_load() -> Result<i32> {
     let load = buf
         .trim()
         .parse::<i32>()
-        .with_context(|| format!("Failed to parse GPU load from {}", MODULE_LOAD))?;
+        .with_context(|| format!("Failed to parse GPU load from {MODULE_LOAD}"))?;
 
     Ok(load)
 }
@@ -37,9 +37,10 @@ fn module_ged_idle() -> Result<i32> {
     let idle = buf
         .trim()
         .parse::<i32>()
-        .with_context(|| format!("Failed to parse GPU idle from {}", MODULE_IDLE))?;
+        .with_context(|| format!("Failed to parse GPU idle from {MODULE_IDLE}"))?;
 
-    debug!("module {}", 100 - idle);
+    let load = 100 - idle;
+    debug!("module {load}");
     Ok(100 - idle)
 }
 
@@ -53,7 +54,8 @@ fn kernel_ged_load() -> Result<i32> {
 
     if parts.len() >= 3 {
         if let Ok(idle) = parts[2].parse::<i32>() {
-            debug!("gedload {}", 100 - idle);
+            let load = 100 - idle;
+            debug!("gedload {load}");
             return Ok(if 100 - idle == 0 {
                 module_ged_load()?
             } else {
@@ -75,7 +77,8 @@ fn kernel_debug_ged_load() -> Result<i32> {
 
     if parts.len() >= 3 {
         if let Ok(idle) = parts[2].parse::<i32>() {
-            debug!("dbggedload {}", 100 - idle);
+            let load = 100 - idle;
+            debug!("dbggedload {load}");
             return Ok(if 100 - idle == 0 {
                 kernel_ged_load()?
             } else {
@@ -97,7 +100,8 @@ fn kernel_d_ged_load() -> Result<i32> {
 
     if parts.len() >= 3 {
         if let Ok(idle) = parts[2].parse::<i32>() {
-            debug!("dgedload {}", 100 - idle);
+            let load = 100 - idle;
+            debug!("dgedload {load}");
             return Ok(if 100 - idle == 0 {
                 kernel_debug_ged_load()?
             } else {
@@ -119,7 +123,7 @@ fn mali_load() -> Result<i32> {
     // Parse "gpu/cljs0/cljs1=XX" format
     if let Some(pos) = buf.find('=') {
         if let Ok(load) = buf[pos + 1..].trim().parse::<i32>() {
-            debug!("mali {}", load);
+            debug!("mali {load}");
             return Ok(if load == 0 {
                 kernel_d_ged_load()?
             } else {
@@ -141,7 +145,7 @@ fn mtk_load() -> Result<i32> {
     // Parse "ACTIVE=XX" format
     if let Some(pos) = buf.find("ACTIVE=") {
         if let Ok(load) = buf[pos + 7..].trim().parse::<i32>() {
-            debug!("mtk_mali {}", load);
+            debug!("mtk_mali {load}");
             return Ok(if load == 0 { mali_load()? } else { load });
         }
     }
@@ -170,7 +174,7 @@ fn gpufreq_load() -> Result<i32> {
         // Parse "gpu_loading = XX" format
         if let Some(pos) = line.find("gpu_loading = ") {
             if let Ok(load) = line[pos + 14..].trim().parse::<i32>() {
-                debug!("gpufreq {}", load);
+                debug!("gpufreq {load}");
                 return Ok(if load == 0 { mtk_load()? } else { load });
             }
         }
@@ -231,10 +235,7 @@ fn debug_dvfs_load_func() -> Result<i32> {
                 let load = ((diff_busy + diff_protm) * 100 / total) as i32;
                 let load = if load < 0 { 0 } else { load };
 
-                debug!(
-                    "debugutil: {} {} {} {}",
-                    load, diff_busy, diff_idle, diff_protm
-                );
+                debug!("debugutil: {load} {diff_busy} {diff_idle} {diff_protm}");
                 return Ok(if load == 0 { mtk_load()? } else { load });
             }
         }
@@ -253,7 +254,7 @@ pub fn get_gpu_current_freq() -> Result<i64> {
         let buf = match read_file(GPU_CURRENT_FREQ_PATH, 64) {
             Ok(content) => content,
             Err(e) => {
-                debug!("Failed to read GPU_CURRENT_FREQ_PATH: {}", e);
+                debug!("Failed to read GPU_CURRENT_FREQ_PATH: {e}");
                 write_status(GPU_CURRENT_FREQ_PATH, false);
                 // 不立即返回，继续尝试其他路径
                 String::new()
@@ -266,7 +267,7 @@ pub fn get_gpu_current_freq() -> Result<i64> {
             // 读取第二个整数作为当前频率
             if parts.len() >= 2 {
                 if let Ok(freq) = parts[1].parse::<i64>() {
-                    debug!("Current GPU frequency from {}: {}", GPU_CURRENT_FREQ_PATH, freq);
+                    debug!("Current GPU frequency from {GPU_CURRENT_FREQ_PATH}: {freq}");
                     return Ok(freq);
                 } else {
                     debug!("Failed to parse second value as frequency from: {}", buf);
@@ -276,10 +277,7 @@ pub fn get_gpu_current_freq() -> Result<i64> {
             }
         }
     } else {
-        debug!(
-            "GPU current frequency path not available: {}",
-            GPU_CURRENT_FREQ_PATH
-        );
+        debug!("GPU current frequency path not available: {GPU_CURRENT_FREQ_PATH}");
     }
 
     // 如果无法从GPU_CURRENT_FREQ_PATH读取，尝试从GPU_DEBUG_CURRENT_FREQ_PATH读取
@@ -287,7 +285,7 @@ pub fn get_gpu_current_freq() -> Result<i64> {
         let buf = match read_file(GPU_DEBUG_CURRENT_FREQ_PATH, 64) {
             Ok(content) => content,
             Err(e) => {
-                debug!("Failed to read GPU_DEBUG_CURRENT_FREQ_PATH: {}", e);
+                debug!("Failed to read GPU_DEBUG_CURRENT_FREQ_PATH: {e}");
                 write_status(GPU_DEBUG_CURRENT_FREQ_PATH, false);
                 // 不立即返回，继续尝试其他路径
                 String::new()
@@ -300,7 +298,7 @@ pub fn get_gpu_current_freq() -> Result<i64> {
             // 读取第二个整数作为当前频率
             if parts.len() >= 2 {
                 if let Ok(freq) = parts[1].parse::<i64>() {
-                    debug!("Current GPU frequency from {}: {}", GPU_DEBUG_CURRENT_FREQ_PATH, freq);
+                    debug!("Current GPU frequency from {GPU_DEBUG_CURRENT_FREQ_PATH}: {freq}");
                     return Ok(freq);
                 } else {
                     debug!("Failed to parse second value as frequency from: {}", buf);
@@ -310,20 +308,17 @@ pub fn get_gpu_current_freq() -> Result<i64> {
             }
         }
     } else {
-        debug!(
-            "GPU debug current frequency path not available: {}",
-            GPU_DEBUG_CURRENT_FREQ_PATH
-        );
+        debug!("GPU debug current frequency path not available: {GPU_DEBUG_CURRENT_FREQ_PATH}");
     }
 
     // 如果无法从前两个路径读取，尝试从GPU_FREQ_LOAD_PATH读取
     if get_status(GPU_FREQ_LOAD_PATH) {
-        debug!("Trying to read frequency from {}", GPU_FREQ_LOAD_PATH);
+        debug!("Trying to read frequency from {GPU_FREQ_LOAD_PATH}");
 
         let file = match File::open(GPU_FREQ_LOAD_PATH) {
             Ok(file) => file,
             Err(e) => {
-                debug!("Failed to open GPU_FREQ_LOAD_PATH: {}", e);
+                debug!("Failed to open GPU_FREQ_LOAD_PATH: {e}");
                 write_status(GPU_FREQ_LOAD_PATH, false);
                 // 如果所有路径都不可用，抛出异常
                 return Err(anyhow!("Cannot read GPU frequency: all frequency paths are unavailable"));
@@ -336,7 +331,7 @@ pub fn get_gpu_current_freq() -> Result<i64> {
             let line = match line {
                 Ok(l) => l,
                 Err(e) => {
-                    debug!("Error reading line from GPU_FREQ_LOAD_PATH: {}", e);
+                    debug!("Error reading line from GPU_FREQ_LOAD_PATH: {e}");
                     continue;
                 }
             };
@@ -344,16 +339,13 @@ pub fn get_gpu_current_freq() -> Result<i64> {
             // 尝试解析"cur_freq = XX"格式
             if let Some(pos) = line.find("cur_freq = ") {
                 if let Ok(freq) = line[pos + 11..].trim().parse::<i64>() {
-                    debug!("Current GPU frequency from {}: {}", GPU_FREQ_LOAD_PATH, freq);
+                    debug!("Current GPU frequency from {GPU_FREQ_LOAD_PATH}: {freq}");
                     return Ok(freq);
                 }
             }
         }
     } else {
-        debug!(
-            "GPU frequency load path not available: {}",
-            GPU_FREQ_LOAD_PATH
-        );
+        debug!("GPU frequency load path not available: {GPU_FREQ_LOAD_PATH}");
     }
 
     // 如果所有路径都不可用，抛出异常
@@ -367,62 +359,47 @@ pub fn utilization_init() -> Result<()> {
     info!("Testing GED...");
 
     // Method 1: Read From /sys/module/ged
-    info!("{}: {}", MODULE_LOAD, check_read(MODULE_LOAD, &mut is_good));
-    info!("{}: {}", MODULE_IDLE, check_read(MODULE_IDLE, &mut is_good));
+    let module_load_status = check_read(MODULE_LOAD, &mut is_good);
+    info!("{MODULE_LOAD}: {module_load_status}");
+    let module_idle_status = check_read(MODULE_IDLE, &mut is_good);
+    info!("{MODULE_IDLE}: {module_idle_status}");
 
     // Method 2: Read From /sys/kernel/ged
-    info!("{}: {}", KERNEL_LOAD, check_read(KERNEL_LOAD, &mut is_good));
+    let kernel_load_status = check_read(KERNEL_LOAD, &mut is_good);
+    info!("{KERNEL_LOAD}: {kernel_load_status}");
 
     // Method 3: Read From /sys/kernel/debug/ged
-    info!(
-        "{}: {}",
-        KERNEL_DEBUG_LOAD,
-        check_read(KERNEL_DEBUG_LOAD, &mut is_good)
-    );
-    info!(
-        "{}: {}",
-        KERNEL_D_LOAD,
-        check_read(KERNEL_D_LOAD, &mut is_good)
-    );
+    let kernel_debug_load_status = check_read(KERNEL_DEBUG_LOAD, &mut is_good);
+    info!("{KERNEL_DEBUG_LOAD}: {kernel_debug_load_status}");
+    let kernel_d_load_status = check_read(KERNEL_D_LOAD, &mut is_good);
+    info!("{KERNEL_D_LOAD}: {kernel_d_load_status}");
 
     // 检查GPU频率路径
     info!("Testing GPU frequency paths...");
     let current_freq_status = check_read(GPU_CURRENT_FREQ_PATH, &mut freq_path_available);
-    info!("{}: {}", GPU_CURRENT_FREQ_PATH, current_freq_status);
+    info!("{GPU_CURRENT_FREQ_PATH}: {current_freq_status}");
 
     // 检查GPU debug频率路径
     let debug_current_freq_status = check_read(GPU_DEBUG_CURRENT_FREQ_PATH, &mut freq_path_available);
-    info!("{}: {}", GPU_DEBUG_CURRENT_FREQ_PATH, debug_current_freq_status);
+    info!("{GPU_DEBUG_CURRENT_FREQ_PATH}: {debug_current_freq_status}");
 
     // Method 4: Read From /proc/gpufreq
     info!("Testing gpufreq Driver...");
     let freq_load_status = check_read(GPU_FREQ_LOAD_PATH, &mut freq_path_available);
-    info!("{}: {}", GPU_FREQ_LOAD_PATH, freq_load_status);
+    info!("{GPU_FREQ_LOAD_PATH}: {freq_load_status}");
 
     // Method 5: Read From Mali Driver
     info!("Testing mali driver ...");
-    info!(
-        "{}: {}",
-        PROC_MTK_LOAD,
-        check_read(PROC_MTK_LOAD, &mut is_good)
-    );
-    info!(
-        "{}: {}",
-        PROC_MALI_LOAD,
-        check_read(PROC_MALI_LOAD, &mut is_good)
-    );
+    let proc_mtk_load_status = check_read(PROC_MTK_LOAD, &mut is_good);
+    info!("{PROC_MTK_LOAD}: {proc_mtk_load_status}");
+    let proc_mali_load_status = check_read(PROC_MALI_LOAD, &mut is_good);
+    info!("{PROC_MALI_LOAD}: {proc_mali_load_status}");
 
     // Method 6: Read precise load from Mali Driver
-    info!(
-        "{}: {}",
-        DEBUG_DVFS_LOAD,
-        check_read(DEBUG_DVFS_LOAD, &mut is_good)
-    );
-    info!(
-        "{}: {}",
-        DEBUG_DVFS_LOAD_OLD,
-        check_read(DEBUG_DVFS_LOAD_OLD, &mut is_good)
-    );
+    let debug_dvfs_load_status = check_read(DEBUG_DVFS_LOAD, &mut is_good);
+    info!("{DEBUG_DVFS_LOAD}: {debug_dvfs_load_status}");
+    let debug_dvfs_load_old_status = check_read(DEBUG_DVFS_LOAD_OLD, &mut is_good);
+    info!("{DEBUG_DVFS_LOAD_OLD}: {debug_dvfs_load_old_status}");
 
     // 检查是否可以监控GPU负载
     if !is_good {
@@ -432,8 +409,7 @@ pub fn utilization_init() -> Result<()> {
 
     // 检查是否可以读取GPU频率
     if !freq_path_available {
-        error!("Can't read GPU frequency: all paths ({}, {}, {}) are unavailable!",
-               GPU_CURRENT_FREQ_PATH, GPU_DEBUG_CURRENT_FREQ_PATH, GPU_FREQ_LOAD_PATH);
+        error!("Can't read GPU frequency: all paths ({GPU_CURRENT_FREQ_PATH}, {GPU_DEBUG_CURRENT_FREQ_PATH}, {GPU_FREQ_LOAD_PATH}) are unavailable!");
         return Err(anyhow!("Can't read GPU frequency: no valid frequency path available"));
     }
 

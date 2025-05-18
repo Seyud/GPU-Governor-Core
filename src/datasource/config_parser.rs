@@ -17,7 +17,7 @@ fn volt_is_valid(v: i64) -> bool {
 
 pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     let file = File::open(config_file)
-        .with_context(|| format!("Failed to open config file: {}", config_file))?;
+        .with_context(|| format!("Failed to open config file: {config_file}"))?;
 
     let reader = BufReader::new(file);
     let mut new_config_list = Vec::new();
@@ -39,10 +39,10 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
         if trimmed.starts_with("Margin=") && !trimmed.starts_with("#") {
             let margin_str = trimmed.trim_start_matches("Margin=");
             if let Ok(margin) = margin_str.parse::<i64>() {
-                info!("Read Margin value from config file: {}%", margin);
+                info!("Read Margin value from config file: {margin}%");
                 gpu.set_margin(margin);
             } else {
-                warn!("Invalid Margin value: {}", margin_str);
+                warn!("Invalid Margin value: {margin_str}");
             }
             continue;
         }
@@ -52,7 +52,7 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
             continue;
         }
 
-        debug!("{}", trimmed);
+        debug!("{trimmed}");
 
         // Parse frequency, voltage, and dram values
         let parts: Vec<&str> = trimmed.split_whitespace().collect();
@@ -64,15 +64,14 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
             ) {
                 // 验证电压是否有效
                 if !volt_is_valid(volt) {
-                    error!("{} is invalid: volt {} is not valid", trimmed, volt);
+                    error!("{trimmed} is invalid: volt {volt} is not valid");
                     continue;
                 }
 
                 // 对于v2 driver设备，验证频率是否在系统支持范围内
                 if gpu.is_gpuv2() && !gpu.is_freq_supported_by_v2_driver(freq) {
                     warn!(
-                        "{} is not supported by V2 driver: freq {} is not in supported range",
-                        trimmed, freq
+                        "{trimmed} is not supported by V2 driver: freq {freq} is not in supported range"
                     );
                     // 不跳过，仍然添加到配置中，但会发出警告
                 }
@@ -87,7 +86,7 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     // If no valid entries were found, return error
     if new_config_list.is_empty() {
         error!("No valid frequency entries found in config file");
-        return Err(anyhow::anyhow!("No valid frequency entries found in config file: {}", config_file));
+        return Err(anyhow::anyhow!("No valid frequency entries found in config file: {config_file}"));
     }
 
     // 直接使用配置文件中的频率，不进行任何系统支持检查
@@ -108,11 +107,10 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
 
     // Log the configuration
     for &freq in &gpu.get_config_list() {
+        let volt = gpu.read_tab(TabType::FreqVolt, freq);
+        let dram = gpu.read_tab(TabType::FreqDram, freq);
         info!(
-            "Freq={}, Volt={}, Dram={}",
-            freq,
-            gpu.read_tab(TabType::FreqVolt, freq),
-            gpu.read_tab(TabType::FreqDram, freq)
+            "Freq={freq}, Volt={volt}, Dram={dram}"
         );
     }
 

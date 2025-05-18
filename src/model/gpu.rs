@@ -54,6 +54,7 @@ pub enum WriterOpt {
 }
 
 #[derive(Clone)]
+#[allow(clippy::upper_case_acronyms)]
 pub struct GPU {
     config_list: Vec<i64>,
     freq_volt: HashMap<i64, i64>,
@@ -181,7 +182,7 @@ impl GPU {
     // 设置余量值
     pub fn set_margin(&mut self, margin: i64) {
         self.margin = margin;
-        info!("Set GPU frequency calculation margin to: {}%", margin);
+        info!("Set GPU frequency calculation margin to: {margin}%");
     }
 
     fn unify_id(&self, id: i64) -> i64 {
@@ -195,7 +196,7 @@ impl GPU {
     }
 
     pub fn read_freq_ge(&self, freq: i64) -> i64 {
-        debug!("readFreqGe={}", freq);
+        debug!("readFreqGe={freq}");
         if freq <= 0 {
             return *self.config_list.last().unwrap_or(&0);
         }
@@ -208,7 +209,7 @@ impl GPU {
     }
 
     pub fn read_freq_le(&self, freq: i64) -> i64 {
-        debug!("readFreqLe={}", freq);
+        debug!("readFreqLe={freq}");
         if freq <= 0 {
             return *self.config_list.first().unwrap_or(&0);
         }
@@ -259,8 +260,7 @@ impl GPU {
         info!("Load thresholds: very_low={}%, low={}%, high={}%, very_high={}%",
               self.very_low_load_threshold, self.low_load_threshold,
               self.high_load_threshold, self.very_high_load_threshold);
-        info!("Hysteresis thresholds: up={}%, down={}%",
-              self.hysteresis_up_threshold, self.hysteresis_down_threshold);
+        info!("Hysteresis thresholds: up={}%, down={}%", self.hysteresis_up_threshold, self.hysteresis_down_threshold);
         info!("Debounce times: up={}ms, down={}ms",
               self.debounce_time_up, self.debounce_time_down);
         debug!("config:{:?}, freq:{}", self.config_list, self.cur_freq);
@@ -280,7 +280,7 @@ impl GPU {
                         self.cur_freq = current_freq;
                         // 更新频率索引
                         self.cur_freq_idx = self.read_freq_index(self.cur_freq);
-                        debug!("Updated current GPU frequency from file: {}", current_freq);
+                        debug!("Updated current GPU frequency from file: {current_freq}");
                     }
                 },
                 Err(e) => {
@@ -307,14 +307,14 @@ impl GPU {
             if load_trend > 0 {
                 // 负载上升趋势，适度增加margin
                 margin += 3; // 从5%减少到3%
-                debug!("Load trend rising, increasing margin to {}%", margin);
+                debug!("Load trend rising, increasing margin to {margin}%");
             } else if load_trend < 0 {
                 // 负载下降趋势，适度减少margin
                 margin = if margin > 3 { margin - 3 } else { margin }; // 从5%减少到3%
-                debug!("Load trend falling, decreasing margin to {}%", margin);
+                debug!("Load trend falling, decreasing margin to {margin}%");
             }
 
-            debug!("Current margin value: {}%, GPU load: {}%", margin, util);
+            debug!("Current margin value: {margin}%, GPU load: {util}%");
 
             // 确定当前负载区域，考虑滞后阈值
             new_load_zone = self.determine_load_zone(util);
@@ -348,7 +348,7 @@ impl GPU {
             }
 
             let now_freq = self.cur_freq;
-            debug!("Current freq: {}KHz, load: {}%", now_freq, util);
+            debug!("Current freq: {now_freq}KHz, load: {util}%");
 
             // 检查是否需要调整频率
             // 应用去抖动机制
@@ -372,8 +372,8 @@ impl GPU {
                     should_adjust_freq = true;
                 }
             } else {
-                debug!("Debounce time not met: {}ms elapsed, need {}ms",
-                       current_time - self.last_adjustment_time, debounce_time);
+                let elapsed = current_time - self.last_adjustment_time;
+                debug!("Debounce time not met: {elapsed}ms elapsed, need {debounce_time}ms");
             }
 
             if should_adjust_freq {
@@ -383,7 +383,7 @@ impl GPU {
                     0 => {
                         // 极低负载区域 - 游戏模式下采用步进式降频，普通模式下采用目标式跳转
                         if self.gaming_mode {
-                            debug!("Very low load zone ({}%) detected in game mode, applying stepped downscaling", util);
+                            debug!("Very low load zone ({util}%) detected in game mode, applying stepped downscaling");
 
                             // 游戏模式下采用步进式降频策略
                             // 获取当前频率索引和频率表长度
@@ -413,27 +413,26 @@ impl GPU {
                             final_freq = self.gen_cur_freq(target_idx);
                             final_freq_index = target_idx;
 
-                            debug!("Game mode stepped down by {} levels to: {}KHz (index: {})",
-                                   step_size, final_freq, final_freq_index);
+                            debug!("Game mode stepped down by {step_size} levels to: {final_freq}KHz (index: {final_freq_index})");
                         } else {
                             // 普通模式下的降频策略
-                            debug!("Very low load zone ({}%) detected in normal mode, applying aggressive downscaling", util);
+                            debug!("Very low load zone ({util}%) detected in normal mode, applying aggressive downscaling");
 
                             if self.aggressive_down {
                                 // 直接跳转到最低频率（Race to Idle）
                                 final_freq = self.get_min_freq();
-                                debug!("Aggressive down: jumping to min freq: {}KHz", final_freq);
+                                debug!("Aggressive down: jumping to min freq: {final_freq}KHz");
                             } else {
                                 // 保守降频：降低到次低频率
                                 final_freq = self.get_second_lowest_freq();
-                                debug!("Conservative down: stepping to second lowest freq: {}KHz", final_freq);
+                                debug!("Conservative down: stepping to second lowest freq: {final_freq}KHz");
                             }
 
                             // 如果负载趋势上升，可能即将需要更高频率，选择更保守的降频策略
                             if load_trend > 0 && self.aggressive_down {
                                 // 负载趋势上升，使用更保守的降频策略
                                 final_freq = self.get_second_lowest_freq();
-                                debug!("Load trend rising, using conservative down: {}KHz", final_freq);
+                                debug!("Load trend rising, using conservative down: {final_freq}KHz");
                             }
 
                             final_freq_index = self.read_freq_index(final_freq);
@@ -451,7 +450,7 @@ impl GPU {
                     },
                     1 => {
                         // 低负载区域 - 策略一：步进式调整（保守降频）
-                        debug!("Low load zone ({}%) detected, applying conservative downscaling", util);
+                        debug!("Low load zone ({util}%) detected, applying conservative downscaling");
 
                         // 计算目标频率
                         target_freq = now_freq * (util as i64 + margin) / 100;
@@ -472,7 +471,7 @@ impl GPU {
                             final_freq = self.gen_cur_freq(next_lower_idx);
                             final_freq_index = next_lower_idx;
 
-                            debug!("Stepping down one level to: {}KHz", final_freq);
+                            debug!("Stepping down one level to: {final_freq}KHz");
 
                             // 应用新频率
                             self.apply_new_frequency(final_freq, final_freq_index)?;
@@ -493,13 +492,13 @@ impl GPU {
                             let distance = mid_zone_idx - current_idx;
 
                             // 只提升一小步，最多提升距离的1/3，且不超过2个档位
-                            let step = (distance / 3).max(1).min(2);
+                            let step = (distance / 3).clamp(1, 2);
                             let target_idx = current_idx + step;
 
                             final_freq = self.gen_cur_freq(target_idx);
                             final_freq_index = target_idx;
 
-                            debug!("Load trend rising with high target freq, jumping to mid-zone freq: {}KHz", final_freq);
+                            debug!("Load trend rising with high target freq, jumping to mid-zone freq: {final_freq}KHz");
 
                             // 应用新频率
                             self.apply_new_frequency(final_freq, final_freq_index)?;
@@ -514,7 +513,7 @@ impl GPU {
                     },
                     2 => {
                         // 中等负载区域 - 保持当前频率或微调
-                        debug!("Medium load zone ({}%) detected, fine-tuning frequency", util);
+                        debug!("Medium load zone ({util}%) detected, fine-tuning frequency");
 
                         // 计算目标频率
                         target_freq = now_freq * (util as i64 + margin) / 100;
@@ -543,7 +542,7 @@ impl GPU {
                             final_freq = self.gen_cur_freq(next_higher_idx);
                             final_freq_index = next_higher_idx;
 
-                            debug!("Fine-tuning: stepping up one level to: {}KHz", final_freq);
+                            debug!("Fine-tuning: stepping up one level to: {final_freq}KHz");
 
                             // 应用升频延迟
                             if self.up_rate_delay > 0 {
@@ -575,7 +574,7 @@ impl GPU {
                             final_freq = self.gen_cur_freq(next_lower_idx);
                             final_freq_index = next_lower_idx;
 
-                            debug!("Fine-tuning: stepping down one level to: {}KHz", final_freq);
+                            debug!("Fine-tuning: stepping down one level to: {final_freq}KHz");
 
                             // 应用新频率
                             self.apply_new_frequency(final_freq, final_freq_index)?;
@@ -593,7 +592,7 @@ impl GPU {
                     },
                     3 => {
                         // 高负载区域 - 策略一：步进式调整（保守升频）
-                        debug!("High load zone ({}%) detected, applying conservative upscaling", util);
+                        debug!("High load zone ({util}%) detected, applying conservative upscaling");
 
                         // 计算目标频率
                         target_freq = now_freq * (util as i64 + margin) / 100;
@@ -634,7 +633,7 @@ impl GPU {
                             final_freq = self.gen_cur_freq(next_higher_idx);
                             final_freq_index = next_higher_idx;
 
-                            debug!("Stepping up to: {}KHz (index: {})", final_freq, final_freq_index);
+                            debug!("Stepping up to: {final_freq}KHz (index: {final_freq_index})");
 
                             // 应用升频延迟
                             if self.up_rate_delay > 0 {
@@ -644,7 +643,7 @@ impl GPU {
                                 } else {
                                     self.up_rate_delay
                                 };
-                                debug!("Applying up rate delay: {}ms", actual_delay);
+                                debug!("Applying up rate delay: {actual_delay}ms");
                                 thread::sleep(Duration::from_millis(actual_delay));
                             }
 
@@ -665,7 +664,7 @@ impl GPU {
                             final_freq = self.gen_cur_freq(next_lower_idx);
                             final_freq_index = next_lower_idx;
 
-                            debug!("Load trend falling with low target freq, stepping down to: {}KHz", final_freq);
+                            debug!("Load trend falling with low target freq, stepping down to: {final_freq}KHz");
 
                             // 应用新频率
                             self.apply_new_frequency(final_freq, final_freq_index)?;
@@ -680,7 +679,7 @@ impl GPU {
                     },
                     4 => {
                         // 极高负载区域 - 智能升频策略
-                        debug!("Very high load zone ({}%) detected, applying intelligent upscaling", util);
+                        debug!("Very high load zone ({util}%) detected, applying intelligent upscaling");
 
                         // 根据当前频率位置和负载趋势决定升频策略
                         let freq_position = self.cur_freq_idx as f64 / (self.config_list.len() - 1) as f64;
@@ -718,7 +717,7 @@ impl GPU {
                         // 确保步进大小不会导致频率跳变过大
                         let max_allowed_step = (self.config_list.len() as i64) / 4; // 最大允许步进为频率表长度的1/4
                         let final_step_size = if freq_step_size > max_allowed_step {
-                            debug!("Limiting step size to {} to prevent large frequency jumps", max_allowed_step);
+                            debug!("Limiting step size to {max_allowed_step} to prevent large frequency jumps");
                             max_allowed_step
                         } else {
                             freq_step_size
@@ -735,12 +734,12 @@ impl GPU {
                         final_freq = self.gen_cur_freq(next_higher_idx);
                         final_freq_index = next_higher_idx;
 
-                        debug!("Stepping up by {} levels to: {}KHz (index: {})", final_step_size, final_freq, final_freq_index);
+                        debug!("Stepping up by {final_step_size} levels to: {final_freq}KHz (index: {final_freq_index})");
 
                         // 应用升频延迟 - 在极高负载区域使用更短的延迟
                         if self.up_rate_delay > 0 {
                             let actual_delay = self.up_rate_delay / 2; // 减半延迟时间
-                            debug!("Applying reduced up rate delay: {}ms", actual_delay);
+                            debug!("Applying reduced up rate delay: {actual_delay}ms");
                             thread::sleep(Duration::from_millis(actual_delay));
                         }
 
@@ -760,8 +759,7 @@ impl GPU {
                     }
                 }
             } else {
-                debug!("Load zone {} not stable yet (counter: {}/{}), maintaining current frequency",
-                       self.current_load_zone, self.load_zone_counter, self.load_stability_threshold);
+                debug!("Load zone {} not stable yet (counter: {}/{}, maintaining current frequency", self.current_load_zone, self.load_zone_counter, self.load_stability_threshold);
             }
 
             // 处理空闲状态
@@ -784,7 +782,7 @@ impl GPU {
                 } else {
                     160
                 };
-                debug!("Idle state, sleeping for {}ms", idle_sleep_time);
+                debug!("Idle state, sleeping for {idle_sleep_time}ms");
                 thread::sleep(Duration::from_millis(idle_sleep_time));
                 continue;
             }
@@ -823,8 +821,7 @@ impl GPU {
             let min_freq = self.get_freq_by_index(0);
             if new_freq < min_freq {
                 debug!(
-                    "DCS triggered: target freq {}KHz is lower than min freq {}KHz",
-                    new_freq, min_freq
+                    "DCS triggered: target freq {new_freq}KHz is lower than min freq {min_freq}KHz"
                 );
                 self.need_dcs = true;
                 // 设置为最低频率
@@ -836,8 +833,7 @@ impl GPU {
         // 对于v2 driver设备，验证频率是否在系统支持范围内
         if self.gpuv2 && !self.is_freq_supported_by_v2_driver(new_freq) {
             debug!(
-                "Freq {} not supported by V2 driver, finding closest supported freq",
-                new_freq
+                "Freq {new_freq} not supported by V2 driver, finding closest supported freq"
             );
             // 如果新频率不在v2 driver支持的范围内，找到最接近的支持频率
             self.cur_freq = self.get_closest_v2_supported_freq(new_freq);
@@ -869,12 +865,10 @@ impl GPU {
 
             // 根据DDR_OPP值设置内存频率
             let mode_desc = if ddr_opp == 999 { "auto mode" } else { "value" };
-            debug!("Game mode: updating DDR to {} {} based on new GPU frequency",
-                   mode_desc,
-                   ddr_opp);
+            debug!("Game mode: updating DDR to {mode_desc} {ddr_opp} based on new GPU frequency");
 
             if let Err(e) = self.set_ddr_freq(ddr_opp) {
-                warn!("Failed to update DDR frequency: {}", e);
+                warn!("Failed to update DDR frequency: {e}");
             }
         }
 
@@ -896,18 +890,17 @@ impl GPU {
             Ok(current_system_freq) => {
                 if current_system_freq > 0 && current_system_freq == freq_to_use {
                     // 当前系统频率与准备写入的频率相同，跳过写入操作
-                    debug!("Current system frequency ({}) is the same as target frequency, skipping write operation", current_system_freq);
+                    debug!("Current system frequency ({current_system_freq}) is the same as target frequency, skipping write operation");
                     return Ok(());
                 }
                 // 如果频率不同，继续执行写入操作
                 if current_system_freq > 0 {
-                    debug!("Current system frequency ({}) differs from target frequency ({}), proceeding with write operation",
-                           current_system_freq, freq_to_use);
+                    debug!("Current system frequency ({current_system_freq}) differs from target frequency ({freq_to_use}), proceeding with write operation");
                 }
             },
             Err(e) => {
                 // 如果无法读取当前频率，记录错误但继续执行写入操作
-                debug!("Failed to read current system frequency: {}, proceeding with write operation", e);
+                debug!("Failed to read current system frequency: {e}, proceeding with write operation");
             }
         }
 
@@ -1360,8 +1353,8 @@ impl GPU {
         // 如果历史记录不足以分析趋势，返回稳定状态
         if self.load_history.len() < 3 {
             self.load_trend = 0;
-            return self.load_trend;
-        }
+            self.load_trend
+        } else {
 
         // 分析趋势
         let len = self.load_history.len();
@@ -1391,19 +1384,15 @@ impl GPU {
                    _ => "stable"
                });
 
-        self.load_trend
+            self.load_trend
+        }
     }
 
     // 根据负载波动性和当前负载调整采样间隔
     pub fn adjust_sampling_interval(&mut self, load: i32) -> u64 {
-        if !self.adaptive_sampling {
-            return self.sampling_interval;
-        }
-
-        // 计算负载波动性
-        if self.load_history.len() < 3 {
-            return self.sampling_interval;
-        }
+        if !self.adaptive_sampling || self.load_history.len() < 3 {
+            self.sampling_interval
+        } else {
 
         let len = self.load_history.len();
         let mut sum_diff_squared = 0;
@@ -1434,7 +1423,7 @@ impl GPU {
 
         // 根据当前负载进一步调整采样间隔
         // 高负载或极低负载时使用更短的采样间隔
-        if load > 80 || load < 5 {
+        if !(5..=80).contains(&load) {
             // 在极端负载情况下使用更短的采样间隔
             new_interval = (new_interval * 2) / 3; // 减少到原来的2/3
             debug!("High/very low load ({}%), reducing sampling interval further", load);
@@ -1456,7 +1445,8 @@ impl GPU {
             self.sampling_interval = new_interval;
         }
 
-        self.sampling_interval
+            self.sampling_interval
+        }
     }
 
     // 获取当前负载趋势
@@ -1476,60 +1466,62 @@ impl GPU {
     // 获取最高频率 - 频率表从低到高排序，所以最高频率在最后
     pub fn get_max_freq(&self) -> i64 {
         if self.config_list.is_empty() {
-            return 0;
+            0
+        } else {
+            // 频率表从低到高排序，最后一个元素是最高频率
+            *self.config_list.last().unwrap_or(&0)
         }
-        // 频率表从低到高排序，最后一个元素是最高频率
-        *self.config_list.last().unwrap_or(&0)
     }
 
     // 获取最低频率 - 频率表从低到高排序，所以最低频率在最前
     pub fn get_min_freq(&self) -> i64 {
         if self.config_list.is_empty() {
-            return 0;
+            0
+        } else {
+            // 频率表从低到高排序，第一个元素是最低频率
+            *self.config_list.first().unwrap_or(&0)
         }
-        // 频率表从低到高排序，第一个元素是最低频率
-        *self.config_list.first().unwrap_or(&0)
     }
 
     // 获取次高频率 - 频率表从低到高排序，所以次高频率是倒数第二个
     pub fn get_second_highest_freq(&self) -> i64 {
         if self.config_list.len() < 2 {
-            return self.get_max_freq();
+            self.get_max_freq()
+        } else {
+            // 频率表从低到高排序，倒数第二个元素是次高频率
+            self.config_list[self.config_list.len() - 2]
         }
-
-        // 频率表从低到高排序，倒数第二个元素是次高频率
-        self.config_list[self.config_list.len() - 2]
     }
 
     // 获取次低频率 - 频率表从低到高排序，所以次低频率是第二个
     pub fn get_second_lowest_freq(&self) -> i64 {
         if self.config_list.len() < 2 {
-            return self.get_min_freq();
+            self.get_min_freq()
+        } else {
+            // 频率表从低到高排序，第二个元素是次低频率
+            self.config_list[1]
         }
-
-        // 频率表从低到高排序，第二个元素是次低频率
-        self.config_list[1]
     }
 
     // 获取中间频率
     pub fn get_middle_freq(&self) -> i64 {
         if self.config_list.is_empty() {
-            return 0;
+            0
+        } else {
+            // 频率表已经是从低到高排序的，直接取中间值
+            let mid_idx = self.config_list.len() / 2;
+            self.config_list[mid_idx]
         }
-
-        // 频率表已经是从低到高排序的，直接取中间值
-        let mid_idx = self.config_list.len() / 2;
-        self.config_list[mid_idx]
     }
 
     pub fn is_freq_supported_by_v2_driver(&self, freq: i64) -> bool {
         if !self.gpuv2 || self.v2_supported_freqs.is_empty() {
             // 如果不是v2 driver或者没有读取到支持的频率，则不进行验证
-            return true;
+            true
+        } else {
+            // 检查频率是否在支持的范围内
+            self.v2_supported_freqs.contains(&freq)
         }
-
-        // 检查频率是否在支持的范围内
-        self.v2_supported_freqs.contains(&freq)
     }
 
     // 获取v2 driver支持的最接近频率
@@ -1539,26 +1531,26 @@ impl GPU {
             || self.is_freq_supported_by_v2_driver(freq)
         {
             // 如果不是v2 driver或者没有读取到支持的频率，或者频率已经在支持范围内，则直接返回原频率
-            return freq;
-        }
+            freq
+        } else {
+            // 找到最接近的支持频率
+            let mut closest_freq = self.v2_supported_freqs[0];
+            let mut min_diff = (freq - closest_freq).abs();
 
-        // 找到最接近的支持频率
-        let mut closest_freq = self.v2_supported_freqs[0];
-        let mut min_diff = (freq - closest_freq).abs();
-
-        for &supported_freq in &self.v2_supported_freqs {
-            let diff = (freq - supported_freq).abs();
-            if diff < min_diff {
-                min_diff = diff;
-                closest_freq = supported_freq;
+            for &supported_freq in &self.v2_supported_freqs {
+                let diff = (freq - supported_freq).abs();
+                if diff < min_diff {
+                    min_diff = diff;
+                    closest_freq = supported_freq;
+                }
             }
-        }
 
-        debug!(
-            "Freq {} not supported by V2 driver, using closest supported freq: {}",
-            freq, closest_freq
-        );
-        closest_freq
+            debug!(
+                "Freq {} not supported by V2 driver, using closest supported freq: {}",
+                freq, closest_freq
+            );
+            closest_freq
+        }
     }
 
     // 内存频率控制相关方法
@@ -1647,21 +1639,21 @@ impl GPU {
     // 查找最接近的GPU频率
     fn find_closest_gpu_freq(&self, target_freq: i64) -> i64 {
         if self.config_list.is_empty() {
-            return 0;
-        }
+            0
+        } else {
+            let mut closest_freq = self.config_list[0];
+            let mut min_diff = (target_freq - closest_freq).abs();
 
-        let mut closest_freq = self.config_list[0];
-        let mut min_diff = (target_freq - closest_freq).abs();
-
-        for &freq in &self.config_list {
-            let diff = (target_freq - freq).abs();
-            if diff < min_diff {
-                min_diff = diff;
-                closest_freq = freq;
+            for &freq in &self.config_list {
+                let diff = (target_freq - freq).abs();
+                if diff < min_diff {
+                    min_diff = diff;
+                    closest_freq = freq;
+                }
             }
-        }
 
-        closest_freq
+            closest_freq
+        }
     }
 
     // 获取当前内存频率
@@ -1700,7 +1692,7 @@ impl GPU {
                     if Path::new(path).exists() {
                         let auto_mode_str = DDR_AUTO_MODE_V2.to_string();
                         debug!("Writing {} to v2 DDR path: {}", auto_mode_str, path);
-                        if let Ok(_) = write_file_safe(path, &auto_mode_str, auto_mode_str.len()) {
+                        if write_file_safe(path, &auto_mode_str, auto_mode_str.len()).is_ok() {
                             path_written = true;
                             break;
                         }
@@ -1746,7 +1738,7 @@ impl GPU {
             for path in &paths {
                 if Path::new(path).exists() {
                     debug!("Writing {} to v2 DDR path: {}", freq_str, path);
-                    if let Ok(_) = write_file_safe(path, &freq_str, freq_str.len()) {
+                    if write_file_safe(path, &freq_str, freq_str.len()).is_ok() {
                         path_written = true;
                         break;
                     }

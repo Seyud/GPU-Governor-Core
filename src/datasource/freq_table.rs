@@ -21,22 +21,14 @@ fn detect_gpu_driver_type(gpu: &mut GPU) -> Result<()> {
 
     // 记录检测到的文件
     info!("GPU Driver Files Detection:");
-    info!(
-        "  V1 Voltage File: {}",
-        if v1_volt_exists { "Found" } else { "Not Found" }
-    );
-    info!(
-        "  V1 Frequency File: {}",
-        if v1_opp_exists { "Found" } else { "Not Found" }
-    );
-    info!(
-        "  V2 Voltage File: {}",
-        if v2_volt_exists { "Found" } else { "Not Found" }
-    );
-    info!(
-        "  V2 Frequency File: {}",
-        if v2_opp_exists { "Found" } else { "Not Found" }
-    );
+    let v1_volt_status = if v1_volt_exists { "Found" } else { "Not Found" };
+    info!("  V1 Voltage File: {v1_volt_status}");
+    let v1_opp_status = if v1_opp_exists { "Found" } else { "Not Found" };
+    info!("  V1 Frequency File: {v1_opp_status}");
+    let v2_volt_status = if v2_volt_exists { "Found" } else { "Not Found" };
+    info!("  V2 Voltage File: {v2_volt_status}");
+    let v2_opp_status = if v2_opp_exists { "Found" } else { "Not Found" };
+    info!("  V2 Frequency File: {v2_opp_status}");
 
     // 检查v1驱动
     if v1_volt_exists || v1_opp_exists {
@@ -46,10 +38,10 @@ fn detect_gpu_driver_type(gpu: &mut GPU) -> Result<()> {
 
         // 警告如果某些文件不存在
         if !v1_volt_exists {
-            warn!("V1 voltage control file not found: {}", GPUFREQ_VOLT);
+            warn!("V1 voltage control file not found: {GPUFREQ_VOLT}");
         }
         if !v1_opp_exists {
-            warn!("V1 frequency control file not found: {}", GPUFREQ_OPP);
+            warn!("V1 frequency control file not found: {GPUFREQ_OPP}");
         }
 
         return Ok(());
@@ -63,10 +55,10 @@ fn detect_gpu_driver_type(gpu: &mut GPU) -> Result<()> {
 
         // 警告如果某些文件不存在
         if !v2_volt_exists {
-            warn!("V2 voltage control file not found: {}", GPUFREQV2_VOLT);
+            warn!("V2 voltage control file not found: {GPUFREQV2_VOLT}");
         }
         if !v2_opp_exists {
-            warn!("V2 frequency control file not found: {}", GPUFREQV2_OPP);
+            warn!("V2 frequency control file not found: {GPUFREQV2_OPP}");
         }
 
         return Ok(());
@@ -87,20 +79,13 @@ fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
 
     // 检查频率表文件是否存在
     if !Path::new(GPUFREQV2_TABLE).exists() || !check_read_simple(GPUFREQV2_TABLE) {
-        warn!(
-            "V2 driver frequency table file not found: {}",
-            GPUFREQV2_TABLE
-        );
+        warn!("V2 driver frequency table file not found: {GPUFREQV2_TABLE}");
         return Ok(freq_list);
     }
 
     // 打开并读取频率表文件
-    let file = File::open(GPUFREQV2_TABLE).with_context(|| {
-        format!(
-            "Failed to open V2 driver frequency table file: {}",
-            GPUFREQV2_TABLE
-        )
-    })?;
+    let file = File::open(GPUFREQV2_TABLE)
+        .with_context(|| format!("Failed to open V2 driver frequency table file: {GPUFREQV2_TABLE}"))?;
 
     let reader = BufReader::new(file);
 
@@ -113,7 +98,7 @@ fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
             let freq_str = line[freq_pos + 6..].split(',').next().unwrap_or("0");
             if let Ok(freq) = freq_str.trim().parse::<i64>() {
                 freq_list.push(freq);
-                debug!("Found V2 driver frequency: {}", freq);
+                debug!("Found V2 driver frequency: {freq}");
             }
         }
     }
@@ -138,18 +123,12 @@ fn detect_ddr_freq_paths() -> Result<()> {
 
     // 记录检测到的文件
     info!("DDR Frequency Control Files Detection:");
-    info!(
-        "  V1 DDR Path: {}",
-        if v1_path_exists { "Found" } else { "Not Found" }
-    );
-    info!(
-        "  V2 DDR Path 1: {}",
-        if v2_path1_exists { "Found" } else { "Not Found" }
-    );
-    info!(
-        "  V2 DDR Path 2: {}",
-        if v2_path2_exists { "Found" } else { "Not Found" }
-    );
+    let v1_path_status = if v1_path_exists { "Found" } else { "Not Found" };
+    info!("  V1 DDR Path: {v1_path_status}");
+    let v2_path1_status = if v2_path1_exists { "Found" } else { "Not Found" };
+    info!("  V2 DDR Path 1: {v2_path1_status}");
+    let v2_path2_status = if v2_path2_exists { "Found" } else { "Not Found" };
+    info!("  V2 DDR Path 2: {v2_path2_status}");
 
     // 检查是否至少有一个可用的内存频率控制文件
     if v1_path_exists || v2_path1_exists || v2_path2_exists {
@@ -174,7 +153,7 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
         read_v2_driver_freq_table()?
     } else {
         // 对于v1 driver，尝试从GPUFREQ_TABLE读取频率表
-        info!("Checking V1 driver frequency table: {}", GPUFREQ_TABLE);
+        info!("Checking V1 driver frequency table: {GPUFREQ_TABLE}");
         if Path::new(GPUFREQ_TABLE).exists() && check_read_simple(GPUFREQ_TABLE) {
             info!("V1 driver frequency table file found, but not implemented yet");
             // 这里可以实现读取v1驱动频率表的逻辑
@@ -188,17 +167,15 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
         gpu.set_v2_supported_freqs(v2_supported_freqs.clone());
 
         if let Some(&max_freq) = v2_supported_freqs.first() {
-            info!("V2 Driver Max Supported Freq: {}", max_freq);
+            info!("V2 Driver Max Supported Freq: {max_freq}");
         }
 
         if let Some(&min_freq) = v2_supported_freqs.last() {
-            info!("V2 Driver Min Supported Freq: {}", min_freq);
+            info!("V2 Driver Min Supported Freq: {min_freq}");
         }
 
-        info!(
-            "V2 Driver Supported Frequencies Total: {}",
-            v2_supported_freqs.len()
-        );
+        let freq_count = v2_supported_freqs.len();
+        info!("V2 Driver Supported Frequencies Total: {freq_count}");
 
         // 如果是v2 driver，也读取内存频率表
         info!("Reading V2 driver DDR frequency table");
@@ -209,17 +186,15 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
             gpu.set_ddr_v2_supported_freqs(ddr_v2_supported_freqs.clone());
 
             if let Some(&min_freq) = ddr_v2_supported_freqs.first() {
-                info!("V2 Driver Min Supported DDR Freq: {}", min_freq);
+                info!("V2 Driver Min Supported DDR Freq: {min_freq}");
             }
 
             if let Some(&max_freq) = ddr_v2_supported_freqs.last() {
-                info!("V2 Driver Max Supported DDR Freq: {}", max_freq);
+                info!("V2 Driver Max Supported DDR Freq: {max_freq}");
             }
 
-            info!(
-                "V2 Driver Supported DDR Frequencies Total: {}",
-                ddr_v2_supported_freqs.len()
-            );
+            let ddr_freq_count = ddr_v2_supported_freqs.len();
+            info!("V2 Driver Supported DDR Frequencies Total: {ddr_freq_count}");
         } else {
             warn!("No DDR frequencies found in V2 driver table");
         }
@@ -237,9 +212,10 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
         let max_freq = *config_list.iter().max().unwrap_or(&0);
         let min_freq = *config_list.iter().min().unwrap_or(&0);
 
-        info!("Config Max Freq: {}", max_freq);
-        info!("Config Min Freq: {}", min_freq);
-        info!("Config Frequencies Total: {}", config_list.len());
+        info!("Config Max Freq: {max_freq}");
+        info!("Config Min Freq: {min_freq}");
+        let config_count = config_list.len();
+        info!("Config Frequencies Total: {config_count}");
     } else {
         warn!("No frequencies in config list yet");
     }
