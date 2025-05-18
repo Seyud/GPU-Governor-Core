@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Context, Result};
+use dumpsys_rs::Dumpsys;
 use inotify::WatchMask;
 use log::{debug, info, warn};
 use regex::Regex;
@@ -53,7 +54,9 @@ struct WarningThrottler {
 impl WarningThrottler {
     fn new(throttle_seconds: u64) -> Self {
         Self {
-            last_warning_time: Instant::now().checked_sub(Duration::from_secs(throttle_seconds)).unwrap_or(Instant::now()),
+            last_warning_time: Instant::now()
+                .checked_sub(Duration::from_secs(throttle_seconds))
+                .unwrap_or(Instant::now()),
             throttle_duration: Duration::from_secs(throttle_seconds),
         }
     }
@@ -74,19 +77,20 @@ impl WarningThrottler {
 fn get_foreground_app_activity() -> Result<String> {
     debug!("Trying to get foreground app using dumpsys activity lru method");
 
+    let dumper = loop {
+        match Dumpsys::new("activity") {
+            Some(s) => break s,
+            None => std::thread::sleep(std::time::Duration::from_secs(1)),
+        };
+    };
     let output = loop {
-        match Command::new("/system/bin/dumpsys")
-            .args(["activity", "lru"])
-            .output()
-        {
-            Ok(o) => {
-                break String::from_utf8_lossy(&o.stdout).to_string();
-            }
+        match dumper.dump(&["lur"]) {
+            Ok(d) => break d,
             Err(e) => {
                 log::error!("Unable to get foreground application: {e}");
                 std::thread::sleep(Duration::from_secs(1));
             }
-        }
+        };
     };
 
     // 使用正则表达式提取前台应用包名
@@ -201,7 +205,10 @@ pub fn monitor_foreground_app() -> Result<()> {
             if !events.is_empty() {
                 debug!("Detected changes in games list file");
                 games = read_games_list(GAMES_CONF_PATH)?;
-                info!("The game configuration file has changed. Loaded {} games.", games.len());
+                info!(
+                    "The game configuration file has changed. Loaded {} games.",
+                    games.len()
+                );
             }
         }
 
@@ -218,8 +225,8 @@ pub fn monitor_foreground_app() -> Result<()> {
                         let is_game = games.contains(&package_name);
 
                         // 检查前一个应用是否是游戏
-                        let prev_is_game = !app_cache.package_name.is_empty() &&
-                                          games.contains(&app_cache.package_name);
+                        let prev_is_game = !app_cache.package_name.is_empty()
+                            && games.contains(&app_cache.package_name);
 
                         // 只有在游戏模式状态变化时才记录info级别日志
                         if is_game {
@@ -230,7 +237,10 @@ pub fn monitor_foreground_app() -> Result<()> {
                                 info!("Game changed: {}", package_name);
                             }
                         } else if prev_is_game {
-                            info!("Game mode disabled: switching from game to normal app: {}", package_name);
+                            info!(
+                                "Game mode disabled: switching from game to normal app: {}",
+                                package_name
+                            );
                         }
 
                         // 写入游戏模式文件
