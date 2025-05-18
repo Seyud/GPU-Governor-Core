@@ -2,7 +2,6 @@ use std::{
     collections::HashSet,
     fs::File,
     io::{BufRead, BufReader},
-    process::Command,
     thread,
     time::{Duration, Instant},
 };
