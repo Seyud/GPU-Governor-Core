@@ -83,7 +83,7 @@ fn get_foreground_app_activity() -> Result<String> {
         };
     };
     let output = loop {
-        match dumper.dump(&["lur"]) {
+        match dumper.dump(&["lru"]) {
             Ok(d) => break d,
             Err(e) => {
                 log::error!("Unable to get foreground application: {e}");
