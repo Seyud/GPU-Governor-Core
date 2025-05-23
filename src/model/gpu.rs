@@ -888,11 +888,65 @@ impl GPU {
         // 检查当前系统频率是否与准备写入的频率相同
         match get_gpu_current_freq() {
             Ok(current_system_freq) => {
-                if current_system_freq > 0 && current_system_freq == freq_to_use {
-                    // 当前系统频率与准备写入的频率相同，跳过写入操作
-                    debug!("Current system frequency ({current_system_freq}) is the same as target frequency, skipping write operation");
-                    return Ok(());
+                // 检查当前频率锁定计数(次数和持续时长)
+                static mut SAME_FREQ_COUNT: u32 = 0;
+                static mut LAST_FREQ: i64 = 0;
+                static mut LAST_CHECK_TIME: u64 = 0;
+                
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                    
+                unsafe {
+                    // 如果和上次频率相同，增加计数器
+                    if current_system_freq == LAST_FREQ {
+                        SAME_FREQ_COUNT += 1;
+                    } else {
+                        // 频率变化，重置计数器
+                        SAME_FREQ_COUNT = 0;
+                        LAST_FREQ = current_system_freq;
+                        LAST_CHECK_TIME = current_time;
+                    }
+                    
+                    // 如果频率连续相同超过3秒或10次，强制写入新频率以解锁
+                    let elapsed_time = current_time - LAST_CHECK_TIME;
+                    let same_freq_count = SAME_FREQ_COUNT;
+                    if same_freq_count > 10 || elapsed_time > 3 {
+                        debug!("Frequency locked at {current_system_freq} for {same_freq_count} checks or {elapsed_time}s, forcing frequency update");
+                        
+                        // 检测频率锁定时，先尝试强制重置驱动
+                        debug!("Attempting to reset driver OPP and voltage settings");
+                        
+                        // 准备重置所需的值
+                        let volt_path = if self.gpuv2 { GPUFREQV2_VOLT } else { GPUFREQ_VOLT };
+                        let opp_path = if self.gpuv2 { GPUFREQV2_OPP } else { GPUFREQ_OPP };
+                        let opp_reset_minus_one = "-1";
+                        let opp_reset_zero = "0";
+                        let volt_reset = "0 0";
+                        
+                        // 尝试两种不同的重置顺序，强制重置驱动状态
+                        // 方法A: volt=0,0 -> opp=-1 -> opp=0
+                        debug!("Reset method A: volt=0,0 -> opp=-1 -> opp=0");
+                        let _ = write_file_safe(volt_path, volt_reset, volt_reset.len());
+                        let _ = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
+                        let _ = write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len());
+                        
+                        // 方法B: opp=0 -> opp=-1 -> volt=0,0
+                        debug!("Reset method B: opp=0 -> opp=-1 -> volt=0,0");
+                        let _ = write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len());
+                        let _ = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
+                        let _ = write_file_safe(volt_path, volt_reset, volt_reset.len());
+                        
+                        // 强制跳过正常的跳过选项，确保写入新频率
+                        SAME_FREQ_COUNT = 0; // 重置计数
+                    } else if current_system_freq > 0 && current_system_freq == freq_to_use {
+                        // 当前系统频率与准备写入的频率相同，跳过写入操作
+                        debug!("Current system frequency ({current_system_freq}) is the same as target frequency, skipping write operation");
+                        return Ok(());
+                    }
                 }
+                
                 // 如果频率不同，继续执行写入操作
                 if current_system_freq > 0 {
                     debug!("Current system frequency ({current_system_freq}) differs from target frequency ({freq_to_use}), proceeding with write operation");
@@ -1000,6 +1054,12 @@ impl GPU {
                     // v2 driver正常模式处理
                     debug!("write {} to volt {}", volt_content, opp_path);
 
+                    // 重置操作，先执行完整的重置序列
+                    debug!("Performing full reset sequence before setting new frequency");
+                    
+                    // 方法A: volt=0,0 -> opp=-1 -> opp=0
+                    let _ = write_file_safe(volt_path, volt_reset, volt_reset.len());
+                    
                     // 先尝试写入"-1"
                     let result = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
                     if result.is_err() || result.unwrap() == 0 {
@@ -1007,9 +1067,31 @@ impl GPU {
                         // 如果写入"-1"失败，尝试写入"0"
                         write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
                     }
+                    
+                    // 短暂停以确保重置生效
+                    std::thread::sleep(std::time::Duration::from_millis(10));
 
-                    debug!("write {} to volt {}", volt_content, volt_path);
+                    // 写入新的频率和电压
+                    debug!("Writing new frequency and voltage: {} to {}", volt_content, volt_path);
                     write_file_safe(volt_path, &volt_content, volt_content.len())?;
+                    
+                    // 检查写入新频率后的实际频率
+                    std::thread::sleep(std::time::Duration::from_millis(20)); // 等待频率切换完成
+                    
+                    if let Ok(current_freq) = get_gpu_current_freq() {
+                        if current_freq == self.cur_freq && current_freq != freq_to_use { // 如果频率未能成功更改，再次尝试强制重置
+                            debug!("Frequency still locked at {}KHz (target: {}KHz), attempting more aggressive reset", current_freq, freq_to_use);
+                            
+                            // 更激进的重置序列
+                            let _ = write_file_safe(volt_path, volt_reset, volt_reset.len());
+                            let _ = write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len());
+                            let _ = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
+                            std::thread::sleep(std::time::Duration::from_millis(30));
+                            write_file_safe(volt_path, &volt_content, volt_content.len())?;
+                        } else {
+                            debug!("Successfully set new frequency: {}", current_freq);
+                        }
+                    }
                 } else {
                     // v1 driver正常模式处理 - 关闭动态调频调压，设置固定频率和电压
                     debug!("v1 driver normal mode: setting fixed frequency and voltage");
@@ -1020,12 +1102,33 @@ impl GPU {
                         write_file_safe(MALI_DVFS_ENABLE, "0", 1)?;
                     }
 
-                    // 先清除之前的设置
+                    // 执行完整的重置序列
+                    debug!("Performing full reset sequence for v1 driver");
+                    write_file_safe(volt_path, volt_reset, volt_reset.len())?;
                     write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len())?;
+                    write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len())?;
+                    std::thread::sleep(std::time::Duration::from_millis(10));
 
                     // 设置固定频率和电压
                     debug!("Setting fixed frequency and voltage: {}", volt_content);
                     write_file_safe(volt_path, &volt_content, volt_content.len())?;
+                    
+                    // 添加频率锁定检测
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                    if let Ok(current_freq) = get_gpu_current_freq() {
+                        if current_freq == self.cur_freq && current_freq != freq_to_use {
+                            debug!("V1 driver: Frequency still locked at {}KHz (target: {}KHz), attempting more aggressive reset", current_freq, freq_to_use);
+                            
+                            // 更激进的重置序列
+                            let _ = write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len());
+                            let _ = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
+                            let _ = write_file_safe(volt_path, volt_reset, volt_reset.len());
+                            std::thread::sleep(std::time::Duration::from_millis(30));
+                            write_file_safe(volt_path, &volt_content, volt_content.len())?;
+                        } else {
+                            debug!("V1 driver: Successfully set new frequency: {}", current_freq);
+                        }
+                    }
                 }
             }
         }
