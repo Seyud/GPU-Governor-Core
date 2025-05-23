@@ -7,9 +7,9 @@ description = "Mediatek Mali GPU Load-Based Frequency Adjustment"
 
 [dependencies]
 log = "0.4"
-env_logger = "0.10"
+env_logger = "0.11"
 chrono = "0.4"
-inotify = "0.10"
+inotify = "0.11"
 nix = "0.30"
 libc = "0.2"
 anyhow = "1.0"
