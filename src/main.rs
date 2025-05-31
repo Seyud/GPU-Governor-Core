@@ -161,6 +161,7 @@ fn main() -> Result<()> {
     // 显示DCS状态
     if gpu.is_gpuv2() {
         info!("DCS: {}", if gpu.is_dcs_enabled() { "Enabled" } else { "Disabled" });
+        info!("V2 Driver Force Write Threshold: {} times", gpu.get_force_write_threshold());
     }
 
     // 显示内存频率信息

@@ -111,6 +111,10 @@ pub struct GPU {
     adaptive_sampling: bool,      // 是否启用自适应采样
     min_sampling_interval: u64,   // 最小采样间隔（毫秒）
     max_sampling_interval: u64,   // 最大采样间隔（毫秒）
+
+    // v2 driver强制写入相关字段
+    same_freq_counter: i32,       // 连续相同频率的计数器
+    force_write_threshold: i32,   // 强制写入的阈值（v2 driver设备专用）
 }
 
 impl GPU {
@@ -171,6 +175,10 @@ impl GPU {
             adaptive_sampling: true,      // 默认启用自适应采样
             min_sampling_interval: 10,    // 最小采样间隔为10ms
             max_sampling_interval: 100,   // 最大采样间隔为100ms
+
+            // v2 driver强制写入相关字段默认值
+            same_freq_counter: 0,         // 默认计数器为0
+            force_write_threshold: 5,     // 默认强制写入阈值为5次
         }
     }
 
@@ -875,7 +883,7 @@ impl GPU {
         Ok(())
     }
 
-    pub fn write_freq(&self) -> Result<()> {
+    pub fn write_freq(&mut self) -> Result<()> {
         // 根据驱动类型获取要使用的频率
         let freq_to_use = if self.gpuv2 {
             // 对于v2 driver设备，获取支持的最接近频率
@@ -889,17 +897,43 @@ impl GPU {
         match get_gpu_current_freq() {
             Ok(current_system_freq) => {
                 if current_system_freq > 0 && current_system_freq == freq_to_use {
-                    // 当前系统频率与准备写入的频率相同，跳过写入操作
-                    debug!("Current system frequency ({current_system_freq}) is the same as target frequency, skipping write operation");
-                    return Ok(());
-                }
-                // 如果频率不同，继续执行写入操作
-                if current_system_freq > 0 {
-                    debug!("Current system frequency ({current_system_freq}) differs from target frequency ({freq_to_use}), proceeding with write operation");
+                    // 当前系统频率与准备写入的频率相同
+                    if self.gpuv2 {
+                        // 对于v2 driver设备，增加相同频率计数器
+                        self.same_freq_counter += 1;
+                        debug!("V2 driver: same frequency detected, counter: {}/{}", self.same_freq_counter, self.force_write_threshold);
+
+                        // 检查是否达到强制写入阈值
+                        if self.same_freq_counter >= self.force_write_threshold {
+                            debug!("V2 driver: force write threshold reached, forcing frequency write");
+                            self.same_freq_counter = 0; // 重置计数器
+                            // 继续执行写入操作
+                        } else {
+                            // 未达到阈值，跳过写入操作
+                            debug!("Current system frequency ({current_system_freq}) is the same as target frequency, skipping write operation");
+                            return Ok(());
+                        }
+                    } else {
+                        // 对于v1 driver设备，直接跳过写入操作
+                        debug!("Current system frequency ({current_system_freq}) is the same as target frequency, skipping write operation");
+                        return Ok(());
+                    }
+                } else {
+                    // 频率不同，重置v2 driver的计数器
+                    if self.gpuv2 {
+                        self.same_freq_counter = 0;
+                    }
+                    // 如果频率不同，继续执行写入操作
+                    if current_system_freq > 0 {
+                        debug!("Current system frequency ({current_system_freq}) differs from target frequency ({freq_to_use}), proceeding with write operation");
+                    }
                 }
             },
             Err(e) => {
-                // 如果无法读取当前频率，记录错误但继续执行写入操作
+                // 如果无法读取当前频率，重置v2 driver的计数器并继续执行写入操作
+                if self.gpuv2 {
+                    self.same_freq_counter = 0;
+                }
                 debug!("Failed to read current system frequency: {e}, proceeding with write operation");
             }
         }
@@ -1084,6 +1118,29 @@ impl GPU {
 
     pub fn is_dcs_enabled(&self) -> bool {
         self.dcs_enable
+    }
+
+    // v2 driver强制写入相关方法
+    pub fn get_force_write_threshold(&self) -> i32 {
+        self.force_write_threshold
+    }
+
+    pub fn set_force_write_threshold(&mut self, threshold: i32) {
+        if threshold > 0 {
+            self.force_write_threshold = threshold;
+            debug!("Set V2 driver force write threshold to: {threshold}");
+        } else {
+            warn!("Invalid force write threshold: {threshold}, must be greater than 0");
+        }
+    }
+
+    pub fn get_same_freq_counter(&self) -> i32 {
+        self.same_freq_counter
+    }
+
+    pub fn reset_same_freq_counter(&mut self) {
+        self.same_freq_counter = 0;
+        debug!("Reset V2 driver same frequency counter");
     }
 
     pub fn set_gaming_mode(&mut self, gaming_mode: bool) {
