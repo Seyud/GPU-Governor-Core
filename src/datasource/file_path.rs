@@ -57,7 +57,6 @@ pub const DDR_FOURTH_FREQ: i64 = 3;     // 第四档内存频率和电压
 pub const DDR_FIFTH_FREQ: i64 = 4;      // 第五档内存频率和电压
 
 pub const FW: &str = "FreqWriter";
-pub const FPS_STATUS: &str = "/sys/kernel/fpsgo/fstb/fpsgo_status";
 pub const TOP_PID: &str = "/sys/kernel/gbe/gbe2_fg_pid";
 
 // Constants

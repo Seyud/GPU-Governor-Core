@@ -283,16 +283,6 @@ fn main() -> Result<()> {
         info!("GPU power policy file: {} (Not Found)", GPU_POWER_POLICY);
     }
 
-    // 检查FPS状态文件
-    if Path::new(FPS_STATUS).exists() {
-        info!("FPS status file: {} (Found)", FPS_STATUS);
-        if let Ok(content) = std::fs::read_to_string(FPS_STATUS) {
-            info!("Current FPS status: {}", content.trim());
-        }
-    } else {
-        info!("FPS status file: {} (Not Found)", FPS_STATUS);
-    }
-
     // 检查前台进程ID文件
     if Path::new(TOP_PID).exists() {
         info!("Top process ID file: {} (Found)", TOP_PID);
