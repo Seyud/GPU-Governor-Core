@@ -235,9 +235,13 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
     let target_freq2 = 800000; // 800MHz
     let le_freq = gpu.read_freq_le(target_freq2);
 
-    info!("Frequency range: {}KHz - {}KHz", min_freq, max_freq);
-    info!("Frequency >= {}KHz: {}KHz", target_freq, ge_freq);
-    info!("Frequency <= {}KHz: {}KHz", target_freq2, le_freq);
+    let margin_str = config.get_value("Margin");
+    let margin = margin_str.parse::<f64>().unwrap_or(0.0);
+
+    info!(
+        "Config values: min_freq={}KHz, max_freq={}KHz, margin={:.1}%",
+        min_freq, max_freq, margin * 100.0
+    );
 
     let mut inotify = InotifyWatcher::new()?;
     inotify.add(&config_file, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
