@@ -229,18 +229,16 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
 
     // 使用read_freq_ge方法获取大于等于特定频率的最小频率
     let target_freq = 600000; // 600MHz
-    let ge_freq = gpu.read_freq_ge(target_freq);
-
-    // 使用read_freq_le方法获取小于等于特定频率的最大频率
+    let ge_freq = gpu.read_freq_ge(target_freq);    // 使用read_freq_le方法获取小于等于特定频率的最大频率
     let target_freq2 = 800000; // 800MHz
     let le_freq = gpu.read_freq_le(target_freq2);
 
-    let margin_str = config.get_value("Margin");
-    let margin = margin_str.parse::<f64>().unwrap_or(0.0);
+    // 从GPU对象获取margin值
+    let margin = gpu.get_margin();
 
     info!(
-        "Config values: min_freq={}KHz, max_freq={}KHz, margin={:.1}%",
-        min_freq, max_freq, margin * 100.0
+        "Config values: min_freq={}KHz, max_freq={}KHz, margin={}%",
+        min_freq, max_freq, margin
     );
 
     let mut inotify = InotifyWatcher::new()?;
