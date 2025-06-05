@@ -156,12 +156,10 @@ fn main() -> Result<()> {
     info!("Min Freq: {}KHz", gpu.get_min_freq());
 
     // 显示当前余量值
-    info!("Current Margin: {}%", gpu.get_margin());
-
-    // 显示DCS状态
+    info!("Current Margin: {}%", gpu.get_margin());    // 显示DCS状态
     if gpu.is_gpuv2() {
         info!("DCS: {}", if gpu.is_dcs_enabled() { "Enabled" } else { "Disabled" });
-        info!("V2 Driver Force Write Threshold: {} times", gpu.get_force_write_threshold());
+        info!("V2 Driver Down Threshold: {} times", gpu.get_down_threshold());
     }
 
     // 显示内存频率信息
