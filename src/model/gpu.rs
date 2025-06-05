@@ -111,10 +111,6 @@ pub struct GPU {
     adaptive_sampling: bool,      // 是否启用自适应采样
     min_sampling_interval: u64,   // 最小采样间隔（毫秒）
     max_sampling_interval: u64,   // 最大采样间隔（毫秒）
-
-    // v2 driver强制写入相关字段
-    same_freq_counter: i32,       // 连续相同频率的计数器
-    force_write_threshold: i32,   // 强制写入的阈值（v2 driver设备专用）
 }
 
 impl GPU {
@@ -175,10 +171,6 @@ impl GPU {
             adaptive_sampling: true,      // 默认启用自适应采样
             min_sampling_interval: 10,    // 最小采样间隔为10ms
             max_sampling_interval: 100,   // 最大采样间隔为100ms
-
-            // v2 driver强制写入相关字段默认值
-            same_freq_counter: 0,         // 默认计数器为0
-            force_write_threshold: 5,     // 默认强制写入阈值为5次
         }
     }
 
@@ -883,7 +875,7 @@ impl GPU {
         Ok(())
     }
 
-    pub fn write_freq(&mut self) -> Result<()> {
+    pub fn write_freq(&self) -> Result<()> {
         // 根据驱动类型获取要使用的频率
         let freq_to_use = if self.gpuv2 {
             // 对于v2 driver设备，获取支持的最接近频率
@@ -896,44 +888,72 @@ impl GPU {
         // 检查当前系统频率是否与准备写入的频率相同
         match get_gpu_current_freq() {
             Ok(current_system_freq) => {
-                if current_system_freq > 0 && current_system_freq == freq_to_use {
-                    // 当前系统频率与准备写入的频率相同
-                    if self.gpuv2 {
-                        // 对于v2 driver设备，增加相同频率计数器
-                        self.same_freq_counter += 1;
-                        debug!("V2 driver: same frequency detected, counter: {}/{}", self.same_freq_counter, self.force_write_threshold);
-
-                        // 检查是否达到强制写入阈值
-                        if self.same_freq_counter >= self.force_write_threshold {
-                            debug!("V2 driver: force write threshold reached, forcing frequency write");
-                            self.same_freq_counter = 0; // 重置计数器
-                            // 继续执行写入操作
-                        } else {
-                            // 未达到阈值，跳过写入操作
-                            debug!("Current system frequency ({current_system_freq}) is the same as target frequency, skipping write operation");
-                            return Ok(());
-                        }
+                // 检查当前频率锁定计数(次数和持续时长)
+                static mut SAME_FREQ_COUNT: u32 = 0;
+                static mut LAST_FREQ: i64 = 0;
+                static mut LAST_CHECK_TIME: u64 = 0;
+                
+                let current_time = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                    
+                unsafe {
+                    // 如果和上次频率相同，增加计数器
+                    if current_system_freq == LAST_FREQ {
+                        SAME_FREQ_COUNT += 1;
                     } else {
-                        // 对于v1 driver设备，直接跳过写入操作
+                        // 频率变化，重置计数器
+                        SAME_FREQ_COUNT = 0;
+                        LAST_FREQ = current_system_freq;
+                        LAST_CHECK_TIME = current_time;
+                    }
+                    
+                    // 如果频率连续相同超过3秒或10次，强制写入新频率以解锁
+                    let elapsed_time = current_time - LAST_CHECK_TIME;
+                    let same_freq_count = SAME_FREQ_COUNT;
+                    if same_freq_count > 10 || elapsed_time > 3 {
+                        debug!("Frequency locked at {current_system_freq} for {same_freq_count} checks or {elapsed_time}s, forcing frequency update");
+                        
+                        // 检测频率锁定时，先尝试强制重置驱动
+                        debug!("Attempting to reset driver OPP and voltage settings");
+                        
+                        // 准备重置所需的值
+                        let volt_path = if self.gpuv2 { GPUFREQV2_VOLT } else { GPUFREQ_VOLT };
+                        let opp_path = if self.gpuv2 { GPUFREQV2_OPP } else { GPUFREQ_OPP };
+                        let opp_reset_minus_one = "-1";
+                        let opp_reset_zero = "0";
+                        let volt_reset = "0 0";
+                        
+                        // 尝试两种不同的重置顺序，强制重置驱动状态
+                        // 方法A: volt=0,0 -> opp=-1 -> opp=0
+                        debug!("Reset method A: volt=0,0 -> opp=-1 -> opp=0");
+                        let _ = write_file_safe(volt_path, volt_reset, volt_reset.len());
+                        let _ = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
+                        let _ = write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len());
+                        
+                        // 方法B: opp=0 -> opp=-1 -> volt=0,0
+                        debug!("Reset method B: opp=0 -> opp=-1 -> volt=0,0");
+                        let _ = write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len());
+                        let _ = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
+                        let _ = write_file_safe(volt_path, volt_reset, volt_reset.len());
+                        
+                        // 强制跳过正常的跳过选项，确保写入新频率
+                        SAME_FREQ_COUNT = 0; // 重置计数
+                    } else if current_system_freq > 0 && current_system_freq == freq_to_use {
+                        // 当前系统频率与准备写入的频率相同，跳过写入操作
                         debug!("Current system frequency ({current_system_freq}) is the same as target frequency, skipping write operation");
                         return Ok(());
                     }
-                } else {
-                    // 频率不同，重置v2 driver的计数器
-                    if self.gpuv2 {
-                        self.same_freq_counter = 0;
-                    }
-                    // 如果频率不同，继续执行写入操作
-                    if current_system_freq > 0 {
-                        debug!("Current system frequency ({current_system_freq}) differs from target frequency ({freq_to_use}), proceeding with write operation");
-                    }
+                }
+                
+                // 如果频率不同，继续执行写入操作
+                if current_system_freq > 0 {
+                    debug!("Current system frequency ({current_system_freq}) differs from target frequency ({freq_to_use}), proceeding with write operation");
                 }
             },
             Err(e) => {
-                // 如果无法读取当前频率，重置v2 driver的计数器并继续执行写入操作
-                if self.gpuv2 {
-                    self.same_freq_counter = 0;
-                }
+                // 如果无法读取当前频率，记录错误但继续执行写入操作
                 debug!("Failed to read current system frequency: {e}, proceeding with write operation");
             }
         }
@@ -1034,6 +1054,12 @@ impl GPU {
                     // v2 driver正常模式处理
                     debug!("write {} to volt {}", volt_content, opp_path);
 
+                    // 重置操作，先执行完整的重置序列
+                    debug!("Performing full reset sequence before setting new frequency");
+                    
+                    // 方法A: volt=0,0 -> opp=-1 -> opp=0
+                    let _ = write_file_safe(volt_path, volt_reset, volt_reset.len());
+                    
                     // 先尝试写入"-1"
                     let result = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
                     if result.is_err() || result.unwrap() == 0 {
@@ -1041,9 +1067,31 @@ impl GPU {
                         // 如果写入"-1"失败，尝试写入"0"
                         write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
                     }
+                    
+                    // 短暂停以确保重置生效
+                    std::thread::sleep(std::time::Duration::from_millis(10));
 
-                    debug!("write {} to volt {}", volt_content, volt_path);
+                    // 写入新的频率和电压
+                    debug!("Writing new frequency and voltage: {} to {}", volt_content, volt_path);
                     write_file_safe(volt_path, &volt_content, volt_content.len())?;
+                    
+                    // 检查写入新频率后的实际频率
+                    std::thread::sleep(std::time::Duration::from_millis(20)); // 等待频率切换完成
+                    
+                    if let Ok(current_freq) = get_gpu_current_freq() {
+                        if current_freq == self.cur_freq && current_freq != freq_to_use { // 如果频率未能成功更改，再次尝试强制重置
+                            debug!("Frequency still locked at {}KHz (target: {}KHz), attempting more aggressive reset", current_freq, freq_to_use);
+                            
+                            // 更激进的重置序列
+                            let _ = write_file_safe(volt_path, volt_reset, volt_reset.len());
+                            let _ = write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len());
+                            let _ = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
+                            std::thread::sleep(std::time::Duration::from_millis(30));
+                            write_file_safe(volt_path, &volt_content, volt_content.len())?;
+                        } else {
+                            debug!("Successfully set new frequency: {}", current_freq);
+                        }
+                    }
                 } else {
                     // v1 driver正常模式处理 - 关闭动态调频调压，设置固定频率和电压
                     debug!("v1 driver normal mode: setting fixed frequency and voltage");
@@ -1055,7 +1103,7 @@ impl GPU {
                     }
 
                     // 先清除之前的设置
-                    write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len())?;
+                    write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len())?;  
 
                     // 设置固定频率和电压
                     debug!("Setting fixed frequency and voltage: {}", volt_content);
@@ -1118,29 +1166,6 @@ impl GPU {
 
     pub fn is_dcs_enabled(&self) -> bool {
         self.dcs_enable
-    }
-
-    // v2 driver强制写入相关方法
-    pub fn get_force_write_threshold(&self) -> i32 {
-        self.force_write_threshold
-    }
-
-    pub fn set_force_write_threshold(&mut self, threshold: i32) {
-        if threshold > 0 {
-            self.force_write_threshold = threshold;
-            debug!("Set V2 driver force write threshold to: {threshold}");
-        } else {
-            warn!("Invalid force write threshold: {threshold}, must be greater than 0");
-        }
-    }
-
-    pub fn get_same_freq_counter(&self) -> i32 {
-        self.same_freq_counter
-    }
-
-    pub fn reset_same_freq_counter(&mut self) {
-        self.same_freq_counter = 0;
-        debug!("Reset V2 driver same frequency counter");
     }
 
     pub fn set_gaming_mode(&mut self, gaming_mode: bool) {
