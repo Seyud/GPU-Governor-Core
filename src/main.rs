@@ -6,7 +6,7 @@ mod utils;
 use std::{env, path::Path, thread, time::Duration};
 
 use anyhow::Result;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 
 use crate::{
     datasource::{
@@ -231,10 +231,9 @@ fn main() -> Result<()> {
         gpu.set_debounce_times(10, 30);         // 游戏模式使用更短的去抖动时间，更快响应
 
         // 设置游戏模式的自适应采样参数
-        gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围
-
-        info!("Game mode detected: Using performance-oriented governor settings");
-        info!("Game mode hysteresis: up=65%, down=40%, debounce: up=10ms, down=30ms");
+        gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围        
+        debug!("Game mode detected: Using performance-oriented governor settings");
+        debug!("Game mode hysteresis: up=65%, down=40%, debounce: up=10ms, down=30ms");
     } else {
         // 普通模式：更保守的升频，更激进的降频
         gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
@@ -246,10 +245,9 @@ fn main() -> Result<()> {
         gpu.set_debounce_times(20, 50);          // 普通模式使用更长的去抖动时间，更稳定
 
         // 设置普通模式的自适应采样参数
-        gpu.set_adaptive_sampling(true, 10, 100); // 普通模式使用更宽的采样间隔范围
-
-        info!("Normal mode detected: Using power-saving governor settings");
-        info!("Normal mode hysteresis: up=75%, down=30%, debounce: up=20ms, down=50ms");
+        gpu.set_adaptive_sampling(true, 10, 100); // 普通模式使用更宽的采样间隔范围        
+        debug!("Normal mode detected: Using power-saving governor settings");
+        debug!("Normal mode hysteresis: up=75%, down=30%, debounce: up=20ms, down=50ms");
     }
 
     // 设置基础采样间隔

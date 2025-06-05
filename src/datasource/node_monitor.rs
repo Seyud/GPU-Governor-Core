@@ -176,10 +176,9 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                     gpu.set_debounce_times(10, 30);         // 游戏模式使用更短的去抖动时间，更快响应
 
                     // 设置游戏模式的自适应采样参数
-                    gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围
-
-                    info!("Game mode enabled: Using performance-oriented governor settings");
-                    info!("Game mode hysteresis: up=65%, down=40%, debounce: up=10ms, down=30ms");
+                    gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围                    
+                    debug!("Game mode enabled: Using performance-oriented governor settings");
+                    debug!("Game mode hysteresis: up=65%, down=40%, debounce: up=10ms, down=30ms");
                 } else {
                     // 普通模式：更保守的升频，更激进的降频
                     gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
@@ -225,13 +224,11 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
 
     // 使用read_freq_ge和read_freq_le方法获取频率范围
     let min_freq = gpu.get_min_freq();
-    let max_freq = gpu.get_max_freq();
-
-    // 使用read_freq_ge方法获取大于等于特定频率的最小频率
+    let max_freq = gpu.get_max_freq();    // 使用read_freq_ge方法获取大于等于特定频率的最小频率
     let target_freq = 600000; // 600MHz
-    let ge_freq = gpu.read_freq_ge(target_freq);    // 使用read_freq_le方法获取小于等于特定频率的最大频率
+    let _ge_freq = gpu.read_freq_ge(target_freq);    // 使用read_freq_le方法获取小于等于特定频率的最大频率
     let target_freq2 = 800000; // 800MHz
-    let le_freq = gpu.read_freq_le(target_freq2);
+    let _le_freq = gpu.read_freq_le(target_freq2);
 
     // 从GPU对象获取margin值
     let margin = gpu.get_margin();
