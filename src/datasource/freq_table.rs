@@ -145,19 +145,12 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
     detect_gpu_driver_type(gpu)?;
 
     // 检测内存频率控制文件
-    detect_ddr_freq_paths()?;
-
-    // 读取系统支持的频率表
+    detect_ddr_freq_paths()?;    // 读取系统支持的频率表
     let v2_supported_freqs = if gpu.is_gpuv2() {
         info!("Reading V2 driver frequency table");
         read_v2_driver_freq_table()?
     } else {
-        // 对于v1 driver，尝试从GPUFREQ_TABLE读取频率表
-        info!("Checking V1 driver frequency table: {GPUFREQ_TABLE}");
-        if Path::new(GPUFREQ_TABLE).exists() && check_read_simple(GPUFREQ_TABLE) {
-            info!("V1 driver frequency table file found, but not implemented yet");
-            // 这里可以实现读取v1驱动频率表的逻辑
-        }
+        // V1 driver使用配置文件中的频率，不需要读取系统频率表
         Vec::new()
     };
 
