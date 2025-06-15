@@ -1,3 +1,4 @@
 # 忽略除src文件夹和Cargo相关文件外的所有内容
 target/
 .cargo/config.toml
+log/
