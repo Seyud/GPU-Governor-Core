@@ -1026,15 +1026,13 @@ impl GPU {
                         debug!("Failed to write '-1' to v2 opp_path, trying '0'");
                         // 如果写入"-1"失败，尝试写入"0"
                         write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
-                    }
-                } else {
-                    // v1 driver空闲模式处理 - 恢复动态调频
-                    debug!("v1 driver idle mode: restoring dynamic frequency scaling");
+                    }                } else {
+                    // v1 driver空闲模式处理 - 设置设备空闲模式
+                    debug!("v1 driver idle mode: setting device idle mode");
 
-                    // 清除固定频率设置
-                    write_file_safe(opp_path, opp_reset_v1, opp_reset_v1.len())?;
-                    write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len())?;
+                    // v1 driver设备空闲模式：电压文件 ← "0 0"，OPP文件 ← "0"
                     write_file_safe(volt_path, volt_reset, volt_reset.len())?;
+                    write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
 
                     // 重新启用动态调频
                     if mali_dvfs_path_exists {
