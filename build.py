@@ -16,6 +16,9 @@ import argparse
 
 class GPUGovernorBuilder:
     def __init__(self):
+        # 清理系统PATH中的双引号字符，防止Python扩展加载失败
+        self._clean_system_path()
+        
         # 配置路径
         self.android_ndk_home = "D:/android-ndk-r27c"
         self.llvm_path = "D:/LLVM"
@@ -29,6 +32,14 @@ class GPUGovernorBuilder:
         # 设置环境变量
         self._setup_environment()
     
+    def _clean_system_path(self):
+        """清理系统PATH环境变量中的双引号字符"""
+        current_path = os.environ.get("PATH", "")
+        if '"' in current_path:
+            clean_path = current_path.replace('"', '')
+            os.environ["PATH"] = clean_path
+            print("已清理PATH环境变量中的双引号字符")
+    
     def _setup_environment(self):
         """设置编译所需的环境变量"""
         env_vars = {
@@ -41,8 +52,10 @@ class GPUGovernorBuilder:
                 f"--target=aarch64-linux-android -I{self.android_ndk_home}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include"
         }
         
-        # 更新PATH环境变量
+        # 更新PATH环境变量，清理双引号字符
         current_path = os.environ.get("PATH", "")
+        # 移除PATH中的双引号字符，防止Python扩展加载失败
+        current_path = current_path.replace('"', '')
         new_path_parts = [
             f"{self.llvm_path}/bin",
             f"{self.android_ndk_home}/toolchains/llvm/prebuilt/windows-x86_64/bin",
@@ -50,10 +63,12 @@ class GPUGovernorBuilder:
         ]
         env_vars["PATH"] = ";".join(new_path_parts)
         
-        # 设置环境变量
+        # 设置环境变量，清理所有值中的双引号字符
         for key, value in env_vars.items():
-            os.environ[key] = value
-            print(f"设置环境变量: {key}={value}")
+            # 移除环境变量值中的双引号字符，防止Python扩展加载失败
+            clean_value = str(value).replace('"', '')
+            os.environ[key] = clean_value
+            print(f"设置环境变量: {key}={clean_value}")
     
     def _check_dependencies(self):
         """检查编译依赖是否存在"""
