@@ -96,7 +96,7 @@ pub struct GPU {
     ddr_freq: i64,                // 当前固定的内存频率
     ddr_v2_supported_freqs: Vec<i64>, // v2 driver支持的内存频率列表
 
-    // 新增滞后与去抖动机制相关字段
+    // 滞后与去抖动机制相关字段
     hysteresis_up_threshold: i32, // 升频滞后阈值（百分比）
     hysteresis_down_threshold: i32, // 降频滞后阈值（百分比）
     debounce_time_up: u64,        // 升频去抖动时间（毫秒）

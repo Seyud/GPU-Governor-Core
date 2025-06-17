@@ -358,17 +358,17 @@ pub fn utilization_init() -> Result<()> {
     info!("Init LoadMonitor");
     info!("Testing GED...");
 
-    // Method 1: Read From /sys/module/ged
+    // 方法1：从 /sys/module/ged 读取
     let module_load_status = check_read(MODULE_LOAD, &mut is_good);
     info!("{MODULE_LOAD}: {module_load_status}");
     let module_idle_status = check_read(MODULE_IDLE, &mut is_good);
     info!("{MODULE_IDLE}: {module_idle_status}");
 
-    // Method 2: Read From /sys/kernel/ged
+    // 方法2：从 /sys/kernel/ged 读取
     let kernel_load_status = check_read(KERNEL_LOAD, &mut is_good);
     info!("{KERNEL_LOAD}: {kernel_load_status}");
 
-    // Method 3: Read From /sys/kernel/debug/ged
+    // 方法3：从 /sys/kernel/debug/ged 读取
     let kernel_debug_load_status = check_read(KERNEL_DEBUG_LOAD, &mut is_good);
     info!("{KERNEL_DEBUG_LOAD}: {kernel_debug_load_status}");
     let kernel_d_load_status = check_read(KERNEL_D_LOAD, &mut is_good);
@@ -379,17 +379,17 @@ pub fn utilization_init() -> Result<()> {
     let current_freq_status = check_read(GPU_CURRENT_FREQ_PATH, &mut freq_path_available);
     info!("{GPU_CURRENT_FREQ_PATH}: {current_freq_status}");
 
-    // 检查GPU debug频率路径
+    // 检查GPU调试频率路径
     let debug_current_freq_status = check_read(GPU_DEBUG_CURRENT_FREQ_PATH, &mut freq_path_available);
     info!("{GPU_DEBUG_CURRENT_FREQ_PATH}: {debug_current_freq_status}");
 
-    // Method 4: Read From /proc/gpufreq
+    // 方法4：从 /proc/gpufreq 读取
     info!("Testing gpufreq Driver...");
     let freq_load_status = check_read(GPU_FREQ_LOAD_PATH, &mut freq_path_available);
     info!("{GPU_FREQ_LOAD_PATH}: {freq_load_status}");
 
-    // Method 5: Read From Mali Driver
-    info!("Testing mali driver ...");
+    // 方法5：从Mali驱动读取
+    info!("Testing mali driver...");
     let proc_mtk_load_status = check_read(PROC_MTK_LOAD, &mut is_good);
     info!("{PROC_MTK_LOAD}: {proc_mtk_load_status}");
     let proc_mali_load_status = check_read(PROC_MALI_LOAD, &mut is_good);

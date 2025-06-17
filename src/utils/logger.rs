@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 
 use crate::datasource::file_path::{LOG_LEVEL_PATH, LOG_PATH};
 
-// Custom logger implementation - 只输出到控制台
+// 自定义日志实现 - 只输出到控制台
 struct CustomLogger;
 
 impl log::Log for CustomLogger {
@@ -33,7 +33,7 @@ impl log::Log for CustomLogger {
     }
 }
 
-// Global logger instance
+// 全局日志实例
 static LOGGER: Lazy<CustomLogger> = Lazy::new(|| CustomLogger);
 
 pub fn init_logger() -> Result<()> {

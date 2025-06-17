@@ -13,8 +13,6 @@ fn volt_is_valid(v: i64) -> bool {
     v != 0 && v % 625 == 0
 }
 
-
-
 pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     let file = File::open(config_file)
         .with_context(|| format!("Failed to open config file: {config_file}"))?;
@@ -27,10 +25,10 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     for line in reader.lines() {
         let line = line?;
 
-        // Trim whitespace
+        // 去除空白字符
         let trimmed = line.trim().to_string();
 
-        // Skip empty lines
+        // 跳过空行
         if trimmed.is_empty() {
             continue;
         }
@@ -47,14 +45,14 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
             continue;
         }
 
-        // Skip comments
+        // 跳过注释行
         if trimmed.starts_with('#') {
             continue;
         }
 
         debug!("{trimmed}");
 
-        // Parse frequency, voltage, and dram values
+        // 解析频率、电压和内存频率值
         let parts: Vec<&str> = trimmed.split_whitespace().collect();
         if parts.len() >= 3 {
             if let (Ok(freq), Ok(volt), Ok(dram)) = (
@@ -83,7 +81,7 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
         }
     }
 
-    // If no valid entries were found, return error
+    // 如果没有找到有效的条目，返回错误
     if new_config_list.is_empty() {
         error!("No valid frequency entries found in config file");
         return Err(anyhow::anyhow!("No valid frequency entries found in config file: {config_file}"));
@@ -98,7 +96,7 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
         new_config_list.len()
     );
 
-    // Update GPU with new configuration
+    // 使用新配置更新GPU
     gpu.set_config_list(new_config_list);
     gpu.replace_tab(TabType::FreqVolt, new_fvtab);
     gpu.replace_tab(TabType::FreqDram, new_fdtab);

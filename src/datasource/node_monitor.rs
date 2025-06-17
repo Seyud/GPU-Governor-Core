@@ -23,7 +23,7 @@ const GAME_MODE_DOWN_THRESHOLD: i64 = 27; // 游戏模式保持原有的27次阈
 const NORMAL_MODE_DOWN_THRESHOLD: i64 = 10; // 普通模式使用更低的10次阈值，更积极降频
 
 pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
-    // Set thread name (in Rust we can't set the current thread name easily)
+    // 设置线程名称（在Rust中无法轻易设置当前线程名称）
     info!("{} Start", GAME_THREAD);
 
     // 默认设置为非游戏模式
@@ -208,7 +208,7 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
 }
 
 pub fn monitor_config(mut gpu: GPU) -> Result<()> {
-    // Set thread name (in Rust we can't set the current thread name easily)
+    // 设置线程名称（在Rust中无法轻易设置当前线程名称）
     info!("{} Start", CONF_THREAD);
 
     // 只使用 CONFIG_FILE_TR 配置文件
@@ -224,9 +224,11 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
 
     // 使用read_freq_ge和read_freq_le方法获取频率范围
     let min_freq = gpu.get_min_freq();
-    let max_freq = gpu.get_max_freq();    // 使用read_freq_ge方法获取大于等于特定频率的最小频率
+    let max_freq = gpu.get_max_freq();    
+    // 使用read_freq_ge方法获取大于等于特定频率的最小频率
     let target_freq = 600000; // 600MHz
-    let _ge_freq = gpu.read_freq_ge(target_freq);    // 使用read_freq_le方法获取小于等于特定频率的最大频率
+    let _ge_freq = gpu.read_freq_ge(target_freq);    
+    // 使用read_freq_le方法获取小于等于特定频率的最大频率
     let target_freq2 = 800000; // 800MHz
     let _le_freq = gpu.read_freq_le(target_freq2);
 
@@ -241,7 +243,7 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
     let mut inotify = InotifyWatcher::new()?;
     inotify.add(&config_file, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
 
-    // Initial read of config
+    // 初始读取配置
     config_read(&config_file, &mut gpu)?;
 
     loop {

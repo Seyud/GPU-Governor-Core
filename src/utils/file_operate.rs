@@ -50,7 +50,7 @@ pub fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(
 ) -> Result<usize> {
     let path_ref = path.as_ref();
 
-    // Set permissions to writable
+    // 设置文件权限为可写
     if path_ref.exists() {
         let metadata = path_ref
             .metadata()
@@ -92,7 +92,7 @@ pub fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(
         }
     };
 
-    // Set permissions back to read-only
+    // 设置文件权限为只读
     let metadata = path_ref
         .metadata()
         .with_context(|| format!("Failed to get metadata for: {}", path_ref.display()))?;
