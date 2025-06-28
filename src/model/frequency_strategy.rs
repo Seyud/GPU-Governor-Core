@@ -37,32 +37,32 @@ pub struct FrequencyStrategy {
 impl FrequencyStrategy {
     pub fn new() -> Self {
         Self {
-            // 多级负载阈值默认值
-            very_low_load_threshold: 10,   // 10% 以下为极低负载
-            low_load_threshold: 30,        // 30% 以下为低负载
-            high_load_threshold: 70,       // 70% 以上为高负载
-            very_high_load_threshold: 85,  // 85% 以上为极高负载
+            // 超简化：只保留99%阈值，其他阈值不重要
+            very_low_load_threshold: 0,    // 不使用
+            low_load_threshold: 0,         // 不使用  
+            high_load_threshold: 0,        // 不使用
+            very_high_load_threshold: 99,  // 唯一重要的阈值：99%升频
 
-            // 负载稳定性默认值
-            load_stability_threshold: 3,   // 需要连续3次采样确认负载区域变化
+            // 简化的稳定性设置
+            load_stability_threshold: 1,   // 立即响应
 
-            // 滞后与去抖动机制默认值
-            hysteresis_up_threshold: 75,   // 默认升频滞后阈值为75%
-            hysteresis_down_threshold: 30, // 默认降频滞后阈值为30%
-            debounce_time_up: 20,          // 默认升频去抖动时间为20ms
-            debounce_time_down: 50,        // 默认降频去抖动时间为50ms
+            // 完全禁用滞后与去抖动机制
+            hysteresis_up_threshold: 0,
+            hysteresis_down_threshold: 0,
+            debounce_time_up: 0,
+            debounce_time_down: 0,
 
-            // 频率调整策略默认值
-            aggressive_down: true,         // 默认启用激进降频
-            margin: 5,                     // 默认余量为5%
-            up_rate_delay: 50,            // 默认升频延迟为50ms
-            down_threshold: 10,           // 默认降频阈值为10
+            // 简化的频率调整策略
+            aggressive_down: true,         // 启用激进降频
+            margin: 0,                     // 无余量
+            up_rate_delay: 0,             // 无升频延迟
+            down_threshold: 1,            // 降频阈值为1
 
-            // 采样相关默认值
-            sampling_interval: 16,         // 默认采样间隔16ms
-            adaptive_sampling: true,       // 默认启用自适应采样
-            min_sampling_interval: 10,     // 最小采样间隔为10ms
-            max_sampling_interval: 100,    // 最大采样间隔为100ms
+            // 固定采样设置 - 120Hz
+            sampling_interval: 8,          // 固定8ms采样间隔，约120Hz
+            adaptive_sampling: false,      // 禁用自适应采样
+            min_sampling_interval: 8,      // 固定最小采样间隔
+            max_sampling_interval: 8,      // 固定最大采样间隔
 
             // 时间戳默认值
             last_adjustment_time: 0,
@@ -149,30 +149,32 @@ impl FrequencyStrategy {
         margin
     }
 
-    /// 设置游戏模式参数
+    /// 设置游戏模式参数 - 超简化版
     pub fn set_gaming_mode_params(&mut self) {
-        // 游戏模式：更激进的升频，更保守的降频
-        self.set_load_thresholds(5, 20, 60, 85); // 更低的高负载阈值
-        self.load_stability_threshold = 2;       // 更低的稳定性阈值
-        self.aggressive_down = false;            // 禁用激进降频
-        self.set_hysteresis_thresholds(65, 40);  // 更宽松的滞后阈值
-        self.set_debounce_times(10, 30);         // 更短的去抖动时间
-        self.set_adaptive_sampling(true, 8, 50); // 更短的采样间隔范围
+        // 游戏模式：99%升频，相对保守的降频
+        self.very_high_load_threshold = 99;   // 唯一重要的阈值
+        self.load_stability_threshold = 1;    // 立即响应
+        self.aggressive_down = false;         // 游戏模式较保守的降频
+        
+        // 固定120Hz采样
+        self.sampling_interval = 8;
+        self.adaptive_sampling = false;
 
-        debug!("Applied gaming mode frequency strategy");
+        debug!("Gaming mode: 99% upgrade threshold, conservative downscaling, 120Hz sampling");
     }
 
-    /// 设置普通模式参数
+    /// 设置普通模式参数 - 超简化版
     pub fn set_normal_mode_params(&mut self) {
-        // 普通模式：更保守的升频，更激进的降频
-        self.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
-        self.load_stability_threshold = 3;         // 默认稳定性阈值
-        self.aggressive_down = true;               // 启用激进降频
-        self.set_hysteresis_thresholds(75, 30);    // 更严格的滞后阈值
-        self.set_debounce_times(20, 50);           // 更长的去抖动时间
-        self.set_adaptive_sampling(true, 10, 100); // 更宽的采样间隔范围
+        // 普通模式：99%升频，激进降频节省功耗
+        self.very_high_load_threshold = 99;   // 唯一重要的阈值
+        self.load_stability_threshold = 1;    // 立即响应
+        self.aggressive_down = true;          // 激进降频节省功耗
+        
+        // 固定120Hz采样
+        self.sampling_interval = 8;
+        self.adaptive_sampling = false;
 
-        debug!("Applied normal mode frequency strategy");
+        debug!("Normal mode: 99% upgrade threshold, aggressive downscaling, 120Hz sampling");
     }
 
     /// 设置负载阈值
