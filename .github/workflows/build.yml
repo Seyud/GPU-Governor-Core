@@ -201,7 +201,39 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y clang llvm-dev libclang-dev
-
+        
+        # 验证 clang 安装
+        clang --version
+        which clang
+        
+        # 确保 libclang 库可用
+        find /usr -name "libclang*.so*" 2>/dev/null | head -5 || echo "No libclang found"
+        ldconfig -p | grep clang || true
+        
+    - name: Setup libclang environment  
+      run: |
+        # 查找系统中的 libclang 库并设置正确的路径
+        LIBCLANG_LOCATIONS=(
+          "/usr/lib/llvm-*/lib"
+          "/usr/lib/x86_64-linux-gnu"
+          "/usr/lib"
+        )
+        
+        for location in "${LIBCLANG_LOCATIONS[@]}"; do
+          if find $location -name "libclang.so*" 2>/dev/null | grep -q .; then
+            echo "Found libclang in: $location"
+            echo "LIBCLANG_PATH=$location" >> $GITHUB_ENV
+            break
+          fi
+        done
+        
+        # 设置其他必要的 bindgen 环境变量
+        echo "CLANG_PATH=/usr/bin/clang" >> $GITHUB_ENV
+        
+        # 显示最终的 libclang 配置
+        echo "Final LIBCLANG_PATH configuration:"
+        find /usr -name 'libclang.so*' 2>/dev/null | head -3
+        
     - name: Cache cargo-ndk for tests
       uses: actions/cache@v4
       id: cache-cargo-ndk-test
@@ -238,12 +270,16 @@ jobs:
           
     - name: Run tests
       env:
-        LIBCLANG_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64
-        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
+        CLANG_PATH: /usr/bin/clang
+        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
         CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
         CXX_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++
         AR_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+        RANLIB_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
         CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
         RUST_LOG: debug
       run: |
@@ -251,8 +287,19 @@ jobs:
         echo "🔍 Environment verification:"
         echo "NDK Path: $ANDROID_NDK_HOME"
         echo "LibClang Path: $LIBCLANG_PATH"
+        echo "Clang Path: $CLANG_PATH"
         echo "Available targets:"
         rustup target list --installed
+        
+        # Check clang and libclang availability
+        echo "🔧 Checking clang setup:"
+        clang --version || echo "Clang not found"
+        echo "LibClang libraries:"
+        find /usr -name "libclang*.so*" 2>/dev/null | head -5 || echo "No libclang found"
+        
+        # Verify NDK tools
+        echo "🛠️ Checking NDK tools:"
+        ls -la "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/" | grep aarch64 | head -3
         
         # First, verify that the code compiles for Android target
         echo "🔧 Checking Android target compilation..."
@@ -323,6 +370,38 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y clang llvm-dev libclang-dev
+        
+        # 验证 clang 安装
+        clang --version
+        which clang
+        
+        # 确保 libclang 库可用
+        find /usr -name "libclang.so*" 2>/dev/null || true
+        ldconfig -p | grep clang || true
+        
+    - name: Setup libclang environment for build
+      run: |
+        # 查找系统中的 libclang 库并设置正确的路径
+        LIBCLANG_LOCATIONS=(
+          "/usr/lib/llvm-*/lib"
+          "/usr/lib/x86_64-linux-gnu"
+          "/usr/lib"
+        )
+        
+        for location in "${LIBCLANG_LOCATIONS[@]}"; do
+          if find $location -name "libclang.so*" 2>/dev/null | grep -q .; then
+            echo "Found libclang in: $location"
+            echo "LIBCLANG_PATH=$location" >> $GITHUB_ENV
+            break
+          fi
+        done
+        
+        # 设置其他必要的 bindgen 环境变量
+        echo "CLANG_PATH=/usr/bin/clang" >> $GITHUB_ENV
+        
+        # 显示最终的 libclang 配置
+        echo "Final LIBCLANG_PATH configuration:"
+        find /usr -name 'libclang.so*' 2>/dev/null | head -3
       
     - name: Setup Android NDK
       uses: nttld/setup-ndk@v1
@@ -353,27 +432,43 @@ jobs:
     - name: Build debug version
       if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
       env:
-        LIBCLANG_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64
-        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
-        CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
-        CXX_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++
-        AR_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
-        RANLIB_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
+        CLANG_PATH: /usr/bin/clang
+        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
       run: |
+        # Verify environment setup for debug build
+        echo "🔍 Debug build environment verification:"
+        echo "NDK Path: $ANDROID_NDK_HOME"
+        echo "LibClang Path: $LIBCLANG_PATH"
+        echo "Clang Path: $CLANG_PATH"
+        clang --version || echo "Clang not found"
+        echo "LibClang libraries:"
+        find /usr -name "libclang*.so*" 2>/dev/null | head -3 || echo "No libclang found"
+        
         cargo ndk -t arm64-v8a build --target aarch64-linux-android
         
     - name: Build release version
       if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
       env:
-        LIBCLANG_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64
-        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
-        CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
-        CXX_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++
-        AR_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
-        RANLIB_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
+        CLANG_PATH: /usr/bin/clang
+        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
       run: |
+        # Verify environment setup for release build
+        echo "🔍 Release build environment verification:"
+        echo "NDK Path: $ANDROID_NDK_HOME"
+        echo "LibClang Path: $LIBCLANG_PATH"
+        echo "Clang Path: $CLANG_PATH"
+        clang --version || echo "Clang not found"
+        echo "LibClang libraries:"
+        find /usr -name "libclang*.so*" 2>/dev/null | head -3 || echo "No libclang found"
+        
         cargo ndk -t arm64-v8a build --release --target aarch64-linux-android
         
     - name: Package debug module
