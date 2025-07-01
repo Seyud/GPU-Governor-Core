@@ -1,5 +1,12 @@
 name: Build and Package Mediatek Mali GPU Governor
 
+# 缓存策略说明:
+# 1. Rust工具链和组件缓存 - 跨job共享
+# 2. Cargo依赖缓存 - 基于Cargo.lock哈希
+# 3. NDK缓存 - 避免重复下载大文件
+# 4. 系统依赖缓存 - 避免重复apt安装
+# 5. 工具二进制缓存 - cargo-ndk, shfmt等
+
 on:
   push:
     branches: [ master ]
@@ -38,12 +45,38 @@ jobs:
         components: rustfmt, clippy
         override: true
 
+    - name: Cache Rust toolchain and tools
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.rustup
+          ~/.cargo/bin
+        key: ${{ runner.os }}-rust-toolchain-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-rust-toolchain-
+
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.x'
+
+    - name: Cache Python packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
         
+    - name: Cache shfmt binary
+      uses: actions/cache@v4
+      id: cache-shfmt
+      with:
+        path: /usr/local/bin/shfmt
+        key: ${{ runner.os }}-shfmt-v3.7.0
+
     - name: Install shfmt
+      if: steps.cache-shfmt.outputs.cache-hit != 'true'
       run: |
         # 使用更简单和可靠的方法安装 shfmt
         SHFMT_VERSION="v3.7.0"
@@ -114,6 +147,9 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_type == 'both'
     
+    # 添加超时限制
+    timeout-minutes: 30
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -125,23 +161,59 @@ jobs:
       with:
         toolchain: stable
         override: true
+
+    - name: Cache Rust toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.rustup
+          ~/.cargo/bin
+        key: ${{ runner.os }}-rust-toolchain-test-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-rust-toolchain-
         
     - name: Setup Android NDK
       uses: nttld/setup-ndk@v1
       id: setup-ndk
       with:
         ndk-version: r28b
+
+    - name: Cache NDK
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.setup-ndk.outputs.ndk-path }}
+        key: ${{ runner.os }}-ndk-r28b
+        restore-keys: |
+          ${{ runner.os }}-ndk-
+
+    - name: Cache system dependencies
+      uses: actions/cache@v4
+      id: cache-apt
+      with:
+        path: /var/cache/apt
+        key: ${{ runner.os }}-apt-bindgen-${{ hashFiles('.github/workflows/build.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-apt-bindgen-
         
     - name: Install system dependencies for bindgen
+      if: steps.cache-apt.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
         sudo apt-get install -y clang llvm-dev libclang-dev
+
+    - name: Cache cargo-ndk
+      uses: actions/cache@v4
+      id: cache-cargo-ndk
+      with:
+        path: ~/.cargo/bin/cargo-ndk
+        key: ${{ runner.os }}-cargo-ndk-${{ hashFiles('Cargo.toml') }}
         
     - name: Install cargo-ndk
+      if: steps.cache-cargo-ndk.outputs.cache-hit != 'true'
       run: cargo install cargo-ndk
         
     - name: Cache cargo dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
@@ -150,8 +222,13 @@ jobs:
         key: ${{ runner.os }}-test-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-test-cargo-
+          ${{ runner.os }}-cargo-
           
     - name: Run tests
+      env:
+        LIBCLANG_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64
+        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: cargo test --verbose
 
   build:
@@ -161,6 +238,9 @@ jobs:
     strategy:
       matrix:
         build_type: [debug, release]
+
+    # 添加超时限制，防止缓存问题导致的无限等待
+    timeout-minutes: 45
         
     steps:
     - name: Checkout code
@@ -174,11 +254,39 @@ jobs:
         toolchain: stable
         target: aarch64-linux-android
         override: true
+
+    - name: Cache Rust toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.rustup
+          ~/.cargo/bin
+        key: ${{ runner.os }}-rust-toolchain-build-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-rust-toolchain-
+
+    - name: Cache cargo-ndk
+      uses: actions/cache@v4
+      id: cache-cargo-ndk-build
+      with:
+        path: ~/.cargo/bin/cargo-ndk
+        key: ${{ runner.os }}-cargo-ndk-${{ hashFiles('Cargo.toml') }}
         
     - name: Install cargo-ndk
+      if: steps.cache-cargo-ndk-build.outputs.cache-hit != 'true'
       run: cargo install cargo-ndk
+
+    - name: Cache system dependencies
+      uses: actions/cache@v4
+      id: cache-apt-build
+      with:
+        path: /var/cache/apt
+        key: ${{ runner.os }}-apt-bindgen-${{ hashFiles('.github/workflows/build.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-apt-bindgen-
       
     - name: Install system dependencies for bindgen
+      if: steps.cache-apt-build.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
         sudo apt-get install -y clang llvm-dev libclang-dev
@@ -188,25 +296,37 @@ jobs:
       id: setup-ndk
       with:
         ndk-version: r28b
+
+    - name: Cache NDK
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.setup-ndk.outputs.ndk-path }}
+        key: ${{ runner.os }}-ndk-r28b
+        restore-keys: |
+          ${{ runner.os }}-ndk-
         
     - name: Cache cargo dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-build-${{ matrix.build_type }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
+          ${{ runner.os }}-build-cargo-
           ${{ runner.os }}-cargo-
           
     - name: Build debug version
       if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
       env:
         LIBCLANG_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64
-        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"
+        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
         CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
+        CXX_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++
         AR_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+        RANLIB_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: |
         cargo ndk -t arm64-v8a build --target aarch64-linux-android
         
@@ -214,9 +334,12 @@ jobs:
       if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
       env:
         LIBCLANG_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64
-        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"
+        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
         CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
+        CXX_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++
         AR_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
+        RANLIB_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: |
         cargo ndk -t arm64-v8a build --release --target aarch64-linux-android
         
@@ -274,5 +397,17 @@ jobs:
       with:
         name: Mediatek_Mali_GPU_Governor-release-${{ github.run_number }}
         path: output/Mediatek_Mali_GPU_Governor_release_v${{ github.run_number }}.zip
+
+  cleanup:
+    name: Cache Cleanup (Optional)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && contains(github.event.inputs.build_type, 'cleanup')
+    
+    steps:
+    - name: Cleanup old cache entries
+      run: |
+        echo "🧹 Cache cleanup job - manual trigger only"
+        echo "This job can be extended to clean up old cache entries if needed"
+        echo "Current caches will be automatically managed by GitHub Actions"
 
 
