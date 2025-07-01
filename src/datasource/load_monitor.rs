@@ -321,7 +321,9 @@ pub fn get_gpu_current_freq() -> Result<i64> {
                 debug!("Failed to open GPU_FREQ_LOAD_PATH: {e}");
                 write_status(GPU_FREQ_LOAD_PATH, false);
                 // 如果所有路径都不可用，抛出异常
-                return Err(anyhow!("Cannot read GPU frequency: all frequency paths are unavailable"));
+                return Err(anyhow!(
+                    "Cannot read GPU frequency: all frequency paths are unavailable"
+                ));
             }
         };
 
@@ -349,7 +351,9 @@ pub fn get_gpu_current_freq() -> Result<i64> {
     }
 
     // 如果所有路径都不可用，抛出异常
-    Err(anyhow!("Cannot read GPU frequency: all frequency paths are unavailable"))
+    Err(anyhow!(
+        "Cannot read GPU frequency: all frequency paths are unavailable"
+    ))
 }
 
 pub fn utilization_init() -> Result<()> {
@@ -380,7 +384,8 @@ pub fn utilization_init() -> Result<()> {
     info!("{GPU_CURRENT_FREQ_PATH}: {current_freq_status}");
 
     // 检查GPU调试频率路径
-    let debug_current_freq_status = check_read(GPU_DEBUG_CURRENT_FREQ_PATH, &mut freq_path_available);
+    let debug_current_freq_status =
+        check_read(GPU_DEBUG_CURRENT_FREQ_PATH, &mut freq_path_available);
     info!("{GPU_DEBUG_CURRENT_FREQ_PATH}: {debug_current_freq_status}");
 
     // 方法4：从 /proc/gpufreq 读取
@@ -410,7 +415,9 @@ pub fn utilization_init() -> Result<()> {
     // 检查是否可以读取GPU频率
     if !freq_path_available {
         error!("Can't read GPU frequency: all paths ({GPU_CURRENT_FREQ_PATH}, {GPU_DEBUG_CURRENT_FREQ_PATH}, {GPU_FREQ_LOAD_PATH}) are unavailable!");
-        return Err(anyhow!("Can't read GPU frequency: no valid frequency path available"));
+        return Err(anyhow!(
+            "Can't read GPU frequency: no valid frequency path available"
+        ));
     }
 
     info!("Test Finished.");

@@ -1,10 +1,9 @@
+use anyhow::{Context, Result};
+use log::{debug, warn};
 /// 改进的文件操作辅助工具
 /// 提供统一的文件读写接口，减少重复代码
-
 use std::fs;
 use std::path::Path;
-use anyhow::{Result, Context};
-use log::{debug, warn};
 
 /// 文件操作辅助结构
 pub struct FileHelper;
@@ -13,8 +12,7 @@ impl FileHelper {
     /// 安全地读取文件内容
     pub fn read_to_string<P: AsRef<Path>>(path: P) -> Result<String> {
         let path = path.as_ref();
-        fs::read_to_string(path)
-            .with_context(|| format!("Failed to read file: {}", path.display()))
+        fs::read_to_string(path).with_context(|| format!("Failed to read file: {}", path.display()))
     }
 
     /// 安全地写入文件内容
@@ -35,10 +33,7 @@ impl FileHelper {
         let path = path.as_ref();
         if path.exists() {
             // 检查是否有写权限
-            fs::OpenOptions::new()
-                .write(true)
-                .open(path)
-                .is_ok()
+            fs::OpenOptions::new().write(true).open(path).is_ok()
         } else {
             // 检查父目录是否存在且可写
             if let Some(parent) = path.parent() {
@@ -85,12 +80,12 @@ impl FileHelper {
 
     /// 带重试的文件写入
     pub fn write_with_retry<P: AsRef<Path>>(
-        path: P, 
-        content: &str, 
-        max_retries: u32
+        path: P,
+        content: &str,
+        max_retries: u32,
     ) -> Result<()> {
         let path = path.as_ref();
-        
+
         for attempt in 1..=max_retries {
             match Self::write_string(path, content) {
                 Ok(()) => return Ok(()),
@@ -98,19 +93,29 @@ impl FileHelper {
                     if attempt == max_retries {
                         return Err(e);
                     }
-                    warn!("Write attempt {} failed for {}: {}", attempt, path.display(), e);
+                    warn!(
+                        "Write attempt {} failed for {}: {}",
+                        attempt,
+                        path.display(),
+                        e
+                    );
                     std::thread::sleep(std::time::Duration::from_millis(10));
                 }
             }
         }
-        
-        anyhow::bail!("Failed to write to {} after {} attempts", path.display(), max_retries)
+
+        anyhow::bail!(
+            "Failed to write to {} after {} attempts",
+            path.display(),
+            max_retries
+        )
     }
 
     /// 解析整数值从文件内容
     pub fn parse_int_from_file<P: AsRef<Path>>(path: P) -> Result<i64> {
         let content = Self::read_to_string(path)?;
-        content.trim()
+        content
+            .trim()
             .parse::<i64>()
             .with_context(|| "Failed to parse integer from file content")
     }
@@ -118,7 +123,8 @@ impl FileHelper {
     /// 解析整数值从多个可能的文件中
     pub fn parse_int_from_any<P: AsRef<Path>>(paths: &[P]) -> Result<(i64, String)> {
         let (content, path) = Self::read_from_any(paths)?;
-        let value = content.trim()
+        let value = content
+            .trim()
             .parse::<i64>()
             .with_context(|| "Failed to parse integer from file content")?;
         Ok((value, path))

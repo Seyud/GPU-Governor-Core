@@ -1,12 +1,8 @@
-use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use anyhow::Result;
 use log::{debug, info, warn};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::{
-    datasource::load_monitor::get_gpu_load,
-    model::gpu::GPU,
-    utils::constants::strategy,
-};
+use crate::{datasource::load_monitor::get_gpu_load, model::gpu::GPU, utils::constants::strategy};
 
 /// GPU频率调整引擎 - 负责执行智能调频算法
 pub struct FrequencyAdjustmentEngine;
@@ -15,12 +11,16 @@ impl FrequencyAdjustmentEngine {
     /// 主要的频率调整循环
     pub fn run_adjustment_loop(gpu: &mut GPU) -> Result<()> {
         info!("Starting advanced GPU governor with ultra-simplified 99% threshold strategy");
-        
-        debug!("config:{:?}, freq:{}", gpu.get_config_list(), gpu.get_cur_freq());
+
+        debug!(
+            "config:{:?}, freq:{}",
+            gpu.get_config_list(),
+            gpu.get_cur_freq()
+        );
 
         loop {
             let current_time = Self::get_current_time_ms();
-            
+
             // 更新当前GPU频率
             Self::update_current_frequency(gpu)?;
 
@@ -58,15 +58,16 @@ impl FrequencyAdjustmentEngine {
     /// 更新当前GPU频率
     fn update_current_frequency(gpu: &mut GPU) -> Result<()> {
         use crate::datasource::load_monitor::get_gpu_current_freq;
-        
+
         match get_gpu_current_freq() {
             Ok(current_freq) => {
                 if current_freq > 0 {
                     gpu.set_cur_freq(current_freq);
-                    gpu.frequency_mut().cur_freq_idx = gpu.frequency().read_freq_index(current_freq);
+                    gpu.frequency_mut().cur_freq_idx =
+                        gpu.frequency().read_freq_index(current_freq);
                     debug!("Updated current GPU frequency from file: {}", current_freq);
                 }
-            },
+            }
             Err(e) => {
                 return Err(e);
             }
@@ -82,11 +83,7 @@ impl FrequencyAdjustmentEngine {
     }
 
     /// 执行频率调整逻辑
-    fn execute_frequency_adjustment(
-        gpu: &mut GPU, 
-        load: i32, 
-        current_time: u64
-    ) -> Result<()> {
+    fn execute_frequency_adjustment(gpu: &mut GPU, load: i32, current_time: u64) -> Result<()> {
         debug!("Executing frequency adjustment for load: {}%", load);
 
         let current_freq = gpu.get_cur_freq();
@@ -95,12 +92,20 @@ impl FrequencyAdjustmentEngine {
 
         let (target_freq, target_idx) = if load >= strategy::ULTRA_SIMPLE_THRESHOLD {
             // 负载达到99%或以上，升频一级
-            debug!("Load {}% >= {}%, upgrading frequency", load, strategy::ULTRA_SIMPLE_THRESHOLD);
+            debug!(
+                "Load {}% >= {}%, upgrading frequency",
+                load,
+                strategy::ULTRA_SIMPLE_THRESHOLD
+            );
             let next_idx = (current_idx + 1).min(max_idx);
             (gpu.get_freq_by_index(next_idx), next_idx)
         } else {
             // 负载低于99%，降频一级
-            debug!("Load {}% < {}%, downscaling frequency", load, strategy::ULTRA_SIMPLE_THRESHOLD);
+            debug!(
+                "Load {}% < {}%, downscaling frequency",
+                load,
+                strategy::ULTRA_SIMPLE_THRESHOLD
+            );
             let next_idx = (current_idx - 1).max(0);
             (gpu.get_freq_by_index(next_idx), next_idx)
         };
@@ -114,8 +119,16 @@ impl FrequencyAdjustmentEngine {
     }
 
     /// 应用频率变化
-    fn apply_frequency_change(gpu: &mut GPU, new_freq: i64, freq_index: i64, current_time: u64) -> Result<()> {
-        debug!("Applying frequency change: {}KHz (index: {})", new_freq, freq_index);
+    fn apply_frequency_change(
+        gpu: &mut GPU,
+        new_freq: i64,
+        freq_index: i64,
+        current_time: u64,
+    ) -> Result<()> {
+        debug!(
+            "Applying frequency change: {}KHz (index: {})",
+            new_freq, freq_index
+        );
 
         // 更新频率管理器
         gpu.frequency_mut().cur_freq = new_freq;
@@ -133,7 +146,8 @@ impl FrequencyAdjustmentEngine {
 
         // 重置计数器并更新时间
         gpu.reset_load_zone_counter();
-        gpu.frequency_strategy_mut().update_last_adjustment_time(current_time);
+        gpu.frequency_strategy_mut()
+            .update_last_adjustment_time(current_time);
 
         Ok(())
     }

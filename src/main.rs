@@ -19,10 +19,10 @@ use crate::{
     },
     model::gpu::GPU,
     utils::{
+        constants::{strategy, InfoDisplay},
         file_status::get_status,
         log_monitor::monitor_log_level,
         logger::init_logger,
-        constants::{InfoDisplay, strategy},
     },
 };
 
@@ -67,7 +67,7 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
 
     // 初始化GPU频率表
     gpufreq_table_init(gpu)?;
-    
+
     // 设置精确模式
     gpu.set_precise(get_status(DEBUG_DVFS_LOAD) || get_status(DEBUG_DVFS_LOAD_OLD));
 
@@ -94,7 +94,10 @@ fn start_monitoring_threads(gpu: GPU) {
 
     // 前台应用监控线程（延迟启动）
     thread::spawn(move || {
-        info!("Foreground app monitor will start in {} seconds", strategy::FOREGROUND_APP_STARTUP_DELAY);
+        info!(
+            "Foreground app monitor will start in {} seconds",
+            strategy::FOREGROUND_APP_STARTUP_DELAY
+        );
         thread::sleep(Duration::from_secs(strategy::FOREGROUND_APP_STARTUP_DELAY));
         info!("Starting foreground app monitor now");
 
@@ -115,51 +118,75 @@ fn start_monitoring_threads(gpu: GPU) {
 fn configure_gpu_strategy(gpu: &mut GPU) {
     // 使用超简化的99%升频策略
     gpu.configure_strategy(
-        0,                                    // 无余量
-        1,                                    // 降频阈值
-        strategy::SAMPLING_INTERVAL_120HZ,    // 120Hz采样
-        true,                                 // 激进降频
+        0,                                 // 无余量
+        1,                                 // 降频阈值
+        strategy::SAMPLING_INTERVAL_120HZ, // 120Hz采样
+        true,                              // 激进降频
     );
-    
+
     // 其他策略设置
     gpu.frequency_strategy_mut().set_load_stability_threshold(1);
-    gpu.frequency_strategy_mut().set_adaptive_sampling(false, 
-        strategy::SAMPLING_INTERVAL_120HZ, 
-        strategy::SAMPLING_INTERVAL_120HZ);
+    gpu.frequency_strategy_mut().set_adaptive_sampling(
+        false,
+        strategy::SAMPLING_INTERVAL_120HZ,
+        strategy::SAMPLING_INTERVAL_120HZ,
+    );
 }
 
 /// 显示系统信息
 fn display_system_info(gpu: &GPU) {
     info!("Monitor Inited");
     info!("{} Start", MAIN_THREAD);
-    
+
     // 频率信息
     info!("BootFreq: {}KHz", gpu.get_cur_freq());
-    info!("Driver: gpufreq{}", if gpu.is_gpuv2() { "v2" } else { "v1" });
-    info!("Is Precise: {}", if gpu.is_precise() { "Yes" } else { "No" });
+    info!(
+        "Driver: gpufreq{}",
+        if gpu.is_gpuv2() { "v2" } else { "v1" }
+    );
+    info!(
+        "Is Precise: {}",
+        if gpu.is_precise() { "Yes" } else { "No" }
+    );
     info!("Max Freq: {}KHz", gpu.get_max_freq());
     info!("Middle Freq: {}KHz", gpu.get_middle_freq());
     info!("Min Freq: {}KHz", gpu.get_min_freq());
     info!("Current Margin: {}%", gpu.get_margin());
-    
+
     // DCS信息
     if gpu.is_gpuv2() {
-        info!("DCS: {}", if gpu.is_dcs_enabled() { "Enabled" } else { "Disabled" });
-        info!("V2 Driver Down Threshold: {} times", gpu.get_down_threshold());
+        info!(
+            "DCS: {}",
+            if gpu.is_dcs_enabled() {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
+        );
+        info!(
+            "V2 Driver Down Threshold: {} times",
+            gpu.get_down_threshold()
+        );
     }
-    
+
     // DDR频率信息
     display_ddr_info(gpu);
-    
+
     // 策略信息
     info!("Using ultra-simplified strategy: Load >= 99% = upgrade, Load < 99% = downscale");
-    info!("Second highest frequency: {}KHz", gpu.get_second_highest_freq());
+    info!(
+        "Second highest frequency: {}KHz",
+        gpu.get_second_highest_freq()
+    );
 }
 
 /// 显示DDR相关信息
 fn display_ddr_info(gpu: &GPU) {
     if gpu.is_ddr_freq_fixed() {
-        info!("DDR Frequency: Fixed at {}", gpu.ddr_manager().get_ddr_freq());
+        info!(
+            "DDR Frequency: Fixed at {}",
+            gpu.ddr_manager().get_ddr_freq()
+        );
     } else {
         info!("DDR Frequency: Auto mode");
     }
@@ -168,12 +195,12 @@ fn display_ddr_info(gpu: &GPU) {
         Ok(freq_table) => {
             info!("Available DDR frequency options:");
             for (i, (opp, desc)) in freq_table.iter().enumerate().take(3) {
-                info!("  Option {}: OPP={}, Description: {}", i+1, opp, desc);
+                info!("  Option {}: OPP={}, Description: {}", i + 1, opp, desc);
             }
             if freq_table.len() > 3 {
                 info!("  ... and {} more options", freq_table.len() - 3);
             }
-        },
+        }
         Err(e) => {
             warn!("Failed to get DDR frequency table: {}", e);
         }

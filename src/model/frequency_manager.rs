@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use anyhow::Result;
 use log::debug;
+use std::collections::HashMap;
 
 use crate::datasource::file_path::*;
 use crate::utils::file_helper::FileHelper;
@@ -12,7 +12,7 @@ pub struct FrequencyManager {
     pub config_list: Vec<i64>,
     /// 频率到电压的映射
     pub freq_volt: HashMap<i64, i64>,
-    /// 频率到DDR的映射 
+    /// 频率到DDR的映射
     pub freq_dram: HashMap<i64, i64>,
     /// 默认电压映射
     pub def_volt: HashMap<i64, i64>,
@@ -51,7 +51,10 @@ impl FrequencyManager {
     /// 根据索引获取频率
     pub fn get_freq_by_index(&self, idx: i64) -> i64 {
         let unified_idx = self.unify_id(idx);
-        self.config_list.get(unified_idx as usize).copied().unwrap_or(0)
+        self.config_list
+            .get(unified_idx as usize)
+            .copied()
+            .unwrap_or(0)
     }
 
     /// 获取大于等于指定频率的最小频率
@@ -159,7 +162,10 @@ impl FrequencyManager {
         if self.cur_volt == 0 {
             let def_volt = *self.def_volt.get(&freq_to_use).unwrap_or(&0);
             if def_volt > 0 {
-                debug!("Using default voltage {} for frequency {}", def_volt, freq_to_use);
+                debug!(
+                    "Using default voltage {} for frequency {}",
+                    def_volt, freq_to_use
+                );
                 self.cur_volt = def_volt;
             }
         }
@@ -182,8 +188,16 @@ impl FrequencyManager {
         let opp_reset_minus_one = "-1";
         let opp_reset_zero = "0";
 
-        let volt_path = if self.gpuv2 { GPUFREQV2_VOLT } else { GPUFREQ_VOLT };
-        let opp_path = if self.gpuv2 { GPUFREQV2_OPP } else { GPUFREQ_OPP };
+        let volt_path = if self.gpuv2 {
+            GPUFREQV2_VOLT
+        } else {
+            GPUFREQ_VOLT
+        };
+        let opp_path = if self.gpuv2 {
+            GPUFREQV2_OPP
+        } else {
+            GPUFREQ_OPP
+        };
 
         // 检查文件是否存在
         if !std::path::Path::new(volt_path).exists() || !std::path::Path::new(opp_path).exists() {
@@ -194,18 +208,37 @@ impl FrequencyManager {
         if is_idle {
             self.write_idle_mode(volt_path, opp_path, volt_reset, opp_reset_zero)?;
         } else if need_dcs && self.gpuv2 && self.cur_freq_idx == 0 {
-            self.write_dcs_mode(volt_path, opp_path, volt_reset, opp_reset_minus_one, opp_reset_zero)?;
+            self.write_dcs_mode(
+                volt_path,
+                opp_path,
+                volt_reset,
+                opp_reset_minus_one,
+                opp_reset_zero,
+            )?;
         } else if self.cur_volt == 0 {
             self.write_no_volt_mode(volt_path, opp_path, volt_reset, &content)?;
         } else {
-            self.write_normal_mode(volt_path, opp_path, volt_reset, opp_reset_minus_one, opp_reset_zero, &volt_content)?;
+            self.write_normal_mode(
+                volt_path,
+                opp_path,
+                volt_reset,
+                opp_reset_minus_one,
+                opp_reset_zero,
+                &volt_content,
+            )?;
         }
 
         Ok(())
     }
 
     /// 空闲模式写入
-    fn write_idle_mode(&self, volt_path: &str, opp_path: &str, volt_reset: &str, opp_reset_zero: &str) -> Result<()> {
+    fn write_idle_mode(
+        &self,
+        volt_path: &str,
+        opp_path: &str,
+        volt_reset: &str,
+        opp_reset_zero: &str,
+    ) -> Result<()> {
         debug!("Writing in idle mode");
         if self.gpuv2 {
             FileHelper::write_string(volt_path, volt_reset)?;
@@ -221,8 +254,14 @@ impl FrequencyManager {
     }
 
     /// DCS模式写入
-    fn write_dcs_mode(&self, volt_path: &str, opp_path: &str, volt_reset: &str, 
-                     opp_reset_minus_one: &str, opp_reset_zero: &str) -> Result<()> {
+    fn write_dcs_mode(
+        &self,
+        volt_path: &str,
+        opp_path: &str,
+        volt_reset: &str,
+        opp_reset_minus_one: &str,
+        opp_reset_zero: &str,
+    ) -> Result<()> {
         debug!("Writing in DCS mode");
         FileHelper::write_string(volt_path, volt_reset)?;
         let result = FileHelper::write_string(opp_path, opp_reset_minus_one);
@@ -233,7 +272,13 @@ impl FrequencyManager {
     }
 
     /// 无电压模式写入
-    fn write_no_volt_mode(&self, volt_path: &str, opp_path: &str, volt_reset: &str, content: &str) -> Result<()> {
+    fn write_no_volt_mode(
+        &self,
+        volt_path: &str,
+        opp_path: &str,
+        volt_reset: &str,
+        content: &str,
+    ) -> Result<()> {
         debug!("Writing in no-volt mode");
         FileHelper::write_string(volt_path, volt_reset)?;
         FileHelper::write_string(opp_path, content)?;
@@ -241,8 +286,15 @@ impl FrequencyManager {
     }
 
     /// 正常模式写入
-    fn write_normal_mode(&self, volt_path: &str, opp_path: &str, volt_reset: &str,
-                        opp_reset_minus_one: &str, opp_reset_zero: &str, volt_content: &str) -> Result<()> {
+    fn write_normal_mode(
+        &self,
+        volt_path: &str,
+        opp_path: &str,
+        volt_reset: &str,
+        opp_reset_minus_one: &str,
+        opp_reset_zero: &str,
+        volt_content: &str,
+    ) -> Result<()> {
         debug!("Writing in normal mode");
         if self.gpuv2 {
             FileHelper::write_string(volt_path, volt_reset)?;

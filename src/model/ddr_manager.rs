@@ -32,7 +32,11 @@ impl DdrManager {
     pub fn set_ddr_freq(&mut self, freq: i64) -> Result<()> {
         // 如果频率是999，表示不固定内存频率，让系统自己选择
         if freq == 999 {
-            self.ddr_freq = if self.gpuv2 { DDR_AUTO_MODE_V2 } else { DDR_AUTO_MODE_V1 };
+            self.ddr_freq = if self.gpuv2 {
+                DDR_AUTO_MODE_V2
+            } else {
+                DDR_AUTO_MODE_V1
+            };
             self.ddr_freq_fixed = false;
             debug!("DDR frequency not fixed (auto mode)");
             return self.write_ddr_freq();
@@ -42,13 +46,20 @@ impl DdrManager {
         if freq == DDR_HIGHEST_FREQ {
             self.ddr_freq = freq;
             self.ddr_freq_fixed = true;
-            debug!("Setting DDR to highest frequency and voltage (OPP value: {})", DDR_HIGHEST_FREQ);
+            debug!(
+                "Setting DDR to highest frequency and voltage (OPP value: {})",
+                DDR_HIGHEST_FREQ
+            );
             return self.write_ddr_freq();
         }
 
         // 如果频率小于0，表示不固定内存频率
         if freq < 0 {
-            self.ddr_freq = if self.gpuv2 { DDR_AUTO_MODE_V2 } else { DDR_AUTO_MODE_V1 };
+            self.ddr_freq = if self.gpuv2 {
+                DDR_AUTO_MODE_V2
+            } else {
+                DDR_AUTO_MODE_V1
+            };
             self.ddr_freq_fixed = false;
             debug!("DDR frequency not fixed");
             return self.write_ddr_freq();
@@ -58,7 +69,7 @@ impl DdrManager {
         if freq < 100 {
             self.ddr_freq = freq;
             self.ddr_freq_fixed = true;
-            
+
             let opp_description = match freq {
                 DDR_HIGHEST_FREQ => "Highest Frequency and Voltage",
                 DDR_SECOND_FREQ => "Second Level Frequency and Voltage",
@@ -89,29 +100,38 @@ impl DdrManager {
                 let paths = [DVFSRC_V2_PATH_1, DVFSRC_V2_PATH_2];
 
                 let mut path_written = false;
-                for path in &paths {                if Path::new(path).exists() {
-                    let auto_mode_str = DDR_AUTO_MODE_V2.to_string();
-                    debug!("Writing {} to v2 DDR path: {}", auto_mode_str, path);
-                    if FileHelper::write_string(path, &auto_mode_str).is_ok() {
-                        path_written = true;
-                        break;
+                for path in &paths {
+                    if Path::new(path).exists() {
+                        let auto_mode_str = DDR_AUTO_MODE_V2.to_string();
+                        debug!("Writing {} to v2 DDR path: {}", auto_mode_str, path);
+                        if FileHelper::write_string(path, &auto_mode_str).is_ok() {
+                            path_written = true;
+                            break;
+                        }
                     }
-                }
                 }
 
                 if !path_written {
                     warn!("Failed to write DDR_AUTO_MODE_V2 to any v2 driver path");
-                    return Err(anyhow::anyhow!("Failed to write DDR_AUTO_MODE_V2 to any v2 driver path"));
+                    return Err(anyhow::anyhow!(
+                        "Failed to write DDR_AUTO_MODE_V2 to any v2 driver path"
+                    ));
                 }
             } else {
                 // v1 driver，使用DDR_AUTO_MODE_V1（-1）表示自动模式
                 if Path::new(DVFSRC_V1_PATH).exists() {
                     let auto_mode_str = DDR_AUTO_MODE_V1.to_string();
-                    debug!("Writing {} to v1 DDR path: {}", auto_mode_str, DVFSRC_V1_PATH);
+                    debug!(
+                        "Writing {} to v1 DDR path: {}",
+                        auto_mode_str, DVFSRC_V1_PATH
+                    );
                     FileHelper::write_string(DVFSRC_V1_PATH, &auto_mode_str)?;
                 } else {
                     warn!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH);
-                    return Err(anyhow::anyhow!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH));
+                    return Err(anyhow::anyhow!(
+                        "V1 DDR path does not exist: {}",
+                        DVFSRC_V1_PATH
+                    ));
                 }
             }
 
@@ -139,7 +159,9 @@ impl DdrManager {
 
             if !path_written {
                 warn!("Failed to write DDR frequency to any v2 driver path");
-                return Err(anyhow::anyhow!("Failed to write DDR frequency to any v2 driver path"));
+                return Err(anyhow::anyhow!(
+                    "Failed to write DDR frequency to any v2 driver path"
+                ));
             }
         } else {
             // v1 driver
@@ -148,7 +170,10 @@ impl DdrManager {
                 FileHelper::write_string(DVFSRC_V1_PATH, &freq_str)?;
             } else {
                 warn!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH);
-                return Err(anyhow::anyhow!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH));
+                return Err(anyhow::anyhow!(
+                    "V1 DDR path does not exist: {}",
+                    DVFSRC_V1_PATH
+                ));
             }
         }
 
@@ -162,7 +187,10 @@ impl DdrManager {
             _ => "Custom Level",
         };
 
-        info!("Set DDR frequency with OPP value: {} ({})", ddr_opp, opp_description);
+        info!(
+            "Set DDR frequency with OPP value: {} ({})",
+            ddr_opp, opp_description
+        );
         Ok(())
     }
 
@@ -181,11 +209,26 @@ impl DdrManager {
         }
 
         // 添加预设的DDR_OPP值
-        freq_table.push((DDR_HIGHEST_FREQ, "Highest Frequency and Voltage".to_string()));
-        freq_table.push((DDR_SECOND_FREQ, "Second Level Frequency and Voltage".to_string()));
-        freq_table.push((DDR_THIRD_FREQ, "Third Level Frequency and Voltage".to_string()));
-        freq_table.push((DDR_FOURTH_FREQ, "Fourth Level Frequency and Voltage".to_string()));
-        freq_table.push((DDR_FIFTH_FREQ, "Fifth Level Frequency and Voltage".to_string()));
+        freq_table.push((
+            DDR_HIGHEST_FREQ,
+            "Highest Frequency and Voltage".to_string(),
+        ));
+        freq_table.push((
+            DDR_SECOND_FREQ,
+            "Second Level Frequency and Voltage".to_string(),
+        ));
+        freq_table.push((
+            DDR_THIRD_FREQ,
+            "Third Level Frequency and Voltage".to_string(),
+        ));
+        freq_table.push((
+            DDR_FOURTH_FREQ,
+            "Fourth Level Frequency and Voltage".to_string(),
+        ));
+        freq_table.push((
+            DDR_FIFTH_FREQ,
+            "Fifth Level Frequency and Voltage".to_string(),
+        ));
 
         // 尝试读取系统内存频率表
         if self.gpuv2 {
@@ -206,7 +249,10 @@ impl DdrManager {
                                         // 解析OPP行
                                         if let Some(opp_str) = line.get(4..6) {
                                             if let Ok(opp) = opp_str.parse::<i64>() {
-                                                freq_table.push((opp, format!("OPP{:02}: {}", opp, line.trim())));
+                                                freq_table.push((
+                                                    opp,
+                                                    format!("OPP{:02}: {}", opp, line.trim()),
+                                                ));
                                             }
                                         }
                                     }
@@ -236,10 +282,17 @@ impl DdrManager {
                                         let opp_part = parts[0].trim();
                                         let ddr_part = parts[1].trim();
 
-                                        if opp_part.starts_with("[OPP") && opp_part.len() >= 6 && ddr_part.starts_with("ddr:") {
+                                        if opp_part.starts_with("[OPP")
+                                            && opp_part.len() >= 6
+                                            && ddr_part.starts_with("ddr:")
+                                        {
                                             if let Ok(opp) = opp_part[4..6].parse::<i64>() {
-                                                let ddr_desc = ddr_part.trim_start_matches("ddr:").trim();
-                                                freq_table.push((opp, format!("OPP{:02}: {}", opp, ddr_desc)));
+                                                let ddr_desc =
+                                                    ddr_part.trim_start_matches("ddr:").trim();
+                                                freq_table.push((
+                                                    opp,
+                                                    format!("OPP{:02}: {}", opp, ddr_desc),
+                                                ));
                                             }
                                         }
                                     }
@@ -248,7 +301,10 @@ impl DdrManager {
                         }
                     }
                     Err(e) => {
-                        warn!("Failed to open v1 DDR OPP table: {}: {}", DVFSRC_V1_OPP_TABLE, e);
+                        warn!(
+                            "Failed to open v1 DDR OPP table: {}: {}",
+                            DVFSRC_V1_OPP_TABLE, e
+                        );
                     }
                 }
             }
@@ -293,7 +349,10 @@ impl DdrManager {
 
             // 按升序排序
             freq_list.sort();
-            info!("Read {} DDR OPP values from V2 driver table", freq_list.len());
+            info!(
+                "Read {} DDR OPP values from V2 driver table",
+                freq_list.len()
+            );
         } else {
             warn!("No V2 driver DDR OPP table file found");
         }
@@ -313,11 +372,11 @@ impl DdrManager {
     pub fn get_ddr_v2_supported_freqs(&self) -> Vec<i64> {
         self.ddr_v2_supported_freqs.clone()
     }
-    
+
     pub fn set_ddr_v2_supported_freqs(&mut self, ddr_v2_supported_freqs: Vec<i64>) {
         self.ddr_v2_supported_freqs = ddr_v2_supported_freqs;
     }
-    
+
     pub fn set_gpuv2(&mut self, gpuv2: bool) {
         self.gpuv2 = gpuv2;
     }

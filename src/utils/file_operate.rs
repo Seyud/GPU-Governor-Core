@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use log::{debug, error};
 
 use crate::{
-    datasource::file_path::{GPUFREQ_OPP, GPUFREQV2_OPP},
+    datasource::file_path::{GPUFREQV2_OPP, GPUFREQ_OPP},
     utils::file_status::write_status,
 };
 

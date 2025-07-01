@@ -6,10 +6,8 @@ use log::{debug, warn};
 use crate::{
     datasource::file_path::*,
     model::{
-        frequency_manager::FrequencyManager,
-        frequency_strategy::FrequencyStrategy,
-        ddr_manager::DdrManager,
-        idle_manager::IdleManager,
+        ddr_manager::DdrManager, frequency_manager::FrequencyManager,
+        frequency_strategy::FrequencyStrategy, idle_manager::IdleManager,
     },
 };
 
@@ -25,7 +23,7 @@ impl TabType {
     pub fn description(&self) -> &'static str {
         match self {
             TabType::FreqVolt => "Frequency to Voltage mapping",
-            TabType::FreqDram => "Frequency to DDR mapping", 
+            TabType::FreqDram => "Frequency to DDR mapping",
             TabType::DefVolt => "Default voltage mapping",
         }
     }
@@ -54,7 +52,8 @@ pub struct GPU {
     pub precise: bool,
 }
 
-impl GPU {    pub fn new() -> Self {
+impl GPU {
+    pub fn new() -> Self {
         Self {
             frequency_manager: FrequencyManager::new(),
             frequency_strategy: FrequencyStrategy::new(),
@@ -119,7 +118,10 @@ impl GPU {    pub fn new() -> Self {
 
     pub fn set_dcs_enable(&mut self, dcs_enable: bool) {
         self.dcs_enable = dcs_enable;
-        debug!("DCS {} for GPU frequency control", if dcs_enable { "enabled" } else { "disabled" });
+        debug!(
+            "DCS {} for GPU frequency control",
+            if dcs_enable { "enabled" } else { "disabled" }
+        );
     }
 
     // 游戏模式相关方法
@@ -133,7 +135,7 @@ impl GPU {    pub fn new() -> Self {
         if gaming_mode {
             // 应用游戏模式调频策略
             self.frequency_strategy.set_gaming_mode_params();
-            
+
             // 设置游戏模式下的DDR频率
             let freq_to_use = if self.get_cur_freq() > 0 {
                 self.get_cur_freq()
@@ -151,14 +153,17 @@ impl GPU {    pub fn new() -> Self {
                 }
             }
 
-            debug!("Game mode: using DDR_OPP {} for frequency {}KHz", ddr_opp, freq_to_use);
+            debug!(
+                "Game mode: using DDR_OPP {} for frequency {}KHz",
+                ddr_opp, freq_to_use
+            );
             if let Err(e) = self.set_ddr_freq(ddr_opp) {
                 warn!("Failed to set DDR frequency in game mode: {}", e);
             }
         } else {
             // 应用普通模式调频策略
             self.frequency_strategy.set_normal_mode_params();
-            
+
             // 恢复自动DDR频率模式
             if self.is_ddr_freq_fixed() {
                 if let Err(e) = self.set_ddr_freq(999) {
@@ -201,7 +206,7 @@ impl GPU {    pub fn new() -> Self {
     pub fn is_gpuv2(&self) -> bool {
         self.gpuv2
     }
-    
+
     pub fn set_gpuv2(&mut self, gpuv2: bool) {
         self.gpuv2 = gpuv2;
     }
@@ -227,9 +232,9 @@ impl GPU {    pub fn new() -> Self {
 
     /// 获取v2 driver支持的最接近频率
     pub fn get_closest_v2_supported_freq(&self, freq: i64) -> i64 {
-        if !self.gpuv2 
-            || self.v2_supported_freqs.is_empty() 
-            || self.is_freq_supported_by_v2_driver(freq) 
+        if !self.gpuv2
+            || self.v2_supported_freqs.is_empty()
+            || self.is_freq_supported_by_v2_driver(freq)
         {
             // 如果不是v2 driver或者没有读取到支持的频率，或者频率已经在支持范围内，则直接返回原频率
             freq
@@ -255,28 +260,28 @@ impl GPU {    pub fn new() -> Self {
     }
 
     /// 快捷方法组合 - 提供更符合 Rust 习惯的API
-    
+
     // 最常用的频率操作
     pub fn get_freq_by_index(&self, idx: i64) -> i64 {
         self.frequency_manager.get_freq_by_index(idx)
     }
-    
+
     pub fn read_freq_index(&self, freq: i64) -> i64 {
         self.frequency_manager.read_freq_index(freq)
     }
-    
+
     pub fn get_middle_freq(&self) -> i64 {
         self.frequency_manager.get_middle_freq()
     }
-    
+
     pub fn get_second_highest_freq(&self) -> i64 {
         self.frequency_manager.get_second_highest_freq()
     }
-    
+
     pub fn get_config_list(&self) -> Vec<i64> {
         self.frequency_manager.get_config_list()
     }
-    
+
     pub fn set_config_list(&mut self, config_list: Vec<i64>) {
         self.frequency_manager.set_config_list(config_list);
     }
@@ -285,15 +290,15 @@ impl GPU {    pub fn new() -> Self {
     pub fn check_idle_state(&mut self, util: i32) {
         self.idle_manager.check_idle_state(util)
     }
-    
+
     pub fn reset_load_zone_counter(&mut self) {
         self.idle_manager.reset_load_zone_counter()
     }
-    
+
     pub fn is_idle(&self) -> bool {
         self.idle_manager.is_idle()
     }
-    
+
     pub fn set_idle(&mut self, idle: bool) {
         self.idle_manager.set_idle(idle);
     }
@@ -302,25 +307,27 @@ impl GPU {    pub fn new() -> Self {
     pub fn get_margin(&self) -> i64 {
         self.frequency_strategy.get_margin()
     }
-    
+
     pub fn set_margin(&mut self, margin: i64) {
         self.frequency_strategy.set_margin(margin);
     }
-    
+
     pub fn get_down_threshold(&self) -> i64 {
         self.frequency_strategy.get_down_threshold()
     }
-    
+
     pub fn set_down_threshold(&mut self, threshold: i64) {
         self.frequency_strategy.set_down_threshold(threshold);
     }
 
     // 批量设置方法 - 减少重复调用
-    pub fn configure_strategy(&mut self, 
-                             margin: i64, 
-                             down_threshold: i64, 
-                             sampling_interval: u64, 
-                             aggressive_down: bool) {
+    pub fn configure_strategy(
+        &mut self,
+        margin: i64,
+        down_threshold: i64,
+        sampling_interval: u64,
+        aggressive_down: bool,
+    ) {
         let strategy = &mut self.frequency_strategy;
         strategy.set_margin(margin);
         strategy.set_down_threshold(down_threshold);
@@ -332,7 +339,7 @@ impl GPU {    pub fn new() -> Self {
     pub fn set_ddr_freq(&mut self, freq: i64) -> Result<()> {
         self.ddr_manager.set_ddr_freq(freq)
     }
-    
+
     pub fn is_ddr_freq_fixed(&self) -> bool {
         self.ddr_manager.is_ddr_freq_fixed()
     }
@@ -341,36 +348,41 @@ impl GPU {    pub fn new() -> Self {
     pub fn set_up_rate_delay(&mut self, delay: u64) {
         self.frequency_strategy.set_up_rate_delay(delay);
     }
-    
+
     pub fn set_load_thresholds(&mut self, very_low: i32, low: i32, high: i32, very_high: i32) {
-        self.frequency_strategy.set_load_thresholds(very_low, low, high, very_high);
+        self.frequency_strategy
+            .set_load_thresholds(very_low, low, high, very_high);
     }
-    
+
     pub fn set_load_stability_threshold(&mut self, threshold: i32) {
-        self.frequency_strategy.set_load_stability_threshold(threshold);
+        self.frequency_strategy
+            .set_load_stability_threshold(threshold);
     }
-    
+
     pub fn set_aggressive_down(&mut self, aggressive: bool) {
         self.frequency_strategy.set_aggressive_down(aggressive);
     }
-    
+
     pub fn set_hysteresis_thresholds(&mut self, up_threshold: i32, down_threshold: i32) {
-        self.frequency_strategy.set_hysteresis_thresholds(up_threshold, down_threshold);
+        self.frequency_strategy
+            .set_hysteresis_thresholds(up_threshold, down_threshold);
     }
-    
+
     pub fn set_debounce_times(&mut self, up_time: u64, down_time: u64) {
-        self.frequency_strategy.set_debounce_times(up_time, down_time);
+        self.frequency_strategy
+            .set_debounce_times(up_time, down_time);
     }
-    
+
     pub fn set_adaptive_sampling(&mut self, enabled: bool, min_interval: u64, max_interval: u64) {
-        self.frequency_strategy.set_adaptive_sampling(enabled, min_interval, max_interval);
+        self.frequency_strategy
+            .set_adaptive_sampling(enabled, min_interval, max_interval);
     }
-    
+
     // 添加缺失的频率管理委托方法
     pub fn read_freq_ge(&self, freq: i64) -> i64 {
         self.frequency_manager.read_freq_ge(freq)
     }
-    
+
     pub fn read_freq_le(&self, freq: i64) -> i64 {
         self.frequency_manager.read_freq_le(freq)
     }
@@ -383,7 +395,8 @@ impl GPU {    pub fn new() -> Self {
 
     // 写入频率方法 - 简化版
     pub fn write_freq(&self) -> Result<()> {
-        self.frequency_manager.write_freq(self.need_dcs, self.is_idle())
+        self.frequency_manager
+            .write_freq(self.need_dcs, self.is_idle())
     }
 
     // 其他必要的实用方法

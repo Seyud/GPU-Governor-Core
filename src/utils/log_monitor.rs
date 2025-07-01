@@ -4,11 +4,7 @@ use log::{debug, info, warn};
 
 use crate::{
     datasource::file_path::LOG_LEVEL_PATH,
-    utils::{
-        file_operate::check_read_simple,
-        inotify::InotifyWatcher,
-        logger::update_log_level,
-    },
+    utils::{file_operate::check_read_simple, inotify::InotifyWatcher, logger::update_log_level},
 };
 
 pub fn monitor_log_level() -> Result<()> {
@@ -25,10 +21,7 @@ pub fn monitor_log_level() -> Result<()> {
 
     // 设置文件监控
     let mut inotify = InotifyWatcher::new()?;
-    inotify.add(
-        LOG_LEVEL_PATH,
-        WatchMask::CLOSE_WRITE | WatchMask::MODIFY,
-    )?;
+    inotify.add(LOG_LEVEL_PATH, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
 
     // 主循环
     loop {

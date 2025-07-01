@@ -84,7 +84,9 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     // 如果没有找到有效的条目，返回错误
     if new_config_list.is_empty() {
         error!("No valid frequency entries found in config file");
-        return Err(anyhow::anyhow!("No valid frequency entries found in config file: {config_file}"));
+        return Err(anyhow::anyhow!(
+            "No valid frequency entries found in config file: {config_file}"
+        ));
     }
 
     // 直接使用配置文件中的频率，不进行任何系统支持检查
@@ -107,9 +109,7 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     for &freq in &gpu.get_config_list() {
         let volt = gpu.read_tab(TabType::FreqVolt, freq);
         let dram = gpu.read_tab(TabType::FreqDram, freq);
-        info!(
-            "Freq={freq}, Volt={volt}, Dram={dram}"
-        );
+        info!("Freq={freq}, Volt={volt}, Dram={dram}");
     }
 
     Ok(())

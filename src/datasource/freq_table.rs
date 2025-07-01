@@ -84,8 +84,9 @@ fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
     }
 
     // 打开并读取频率表文件
-    let file = File::open(GPUFREQV2_TABLE)
-        .with_context(|| format!("Failed to open V2 driver frequency table file: {GPUFREQV2_TABLE}"))?;
+    let file = File::open(GPUFREQV2_TABLE).with_context(|| {
+        format!("Failed to open V2 driver frequency table file: {GPUFREQV2_TABLE}")
+    })?;
 
     let reader = BufReader::new(file);
 
@@ -111,23 +112,32 @@ fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
     Ok(freq_list)
 }
 
-
 // 检测内存频率控制文件
 fn detect_ddr_freq_paths() -> Result<()> {
     // 检查v1驱动的内存频率控制文件
     let v1_path_exists = Path::new(DVFSRC_V1_PATH).exists() && check_read_simple(DVFSRC_V1_PATH);
 
     // 检查v2驱动的内存频率控制文件
-    let v2_path1_exists = Path::new(DVFSRC_V2_PATH_1).exists() && check_read_simple(DVFSRC_V2_PATH_1);
-    let v2_path2_exists = Path::new(DVFSRC_V2_PATH_2).exists() && check_read_simple(DVFSRC_V2_PATH_2);
+    let v2_path1_exists =
+        Path::new(DVFSRC_V2_PATH_1).exists() && check_read_simple(DVFSRC_V2_PATH_1);
+    let v2_path2_exists =
+        Path::new(DVFSRC_V2_PATH_2).exists() && check_read_simple(DVFSRC_V2_PATH_2);
 
     // 记录检测到的文件
     info!("DDR Frequency Control Files Detection:");
     let v1_path_status = if v1_path_exists { "Found" } else { "Not Found" };
     info!("  V1 DDR Path: {v1_path_status}");
-    let v2_path1_status = if v2_path1_exists { "Found" } else { "Not Found" };
+    let v2_path1_status = if v2_path1_exists {
+        "Found"
+    } else {
+        "Not Found"
+    };
     info!("  V2 DDR Path 1: {v2_path1_status}");
-    let v2_path2_status = if v2_path2_exists { "Found" } else { "Not Found" };
+    let v2_path2_status = if v2_path2_exists {
+        "Found"
+    } else {
+        "Not Found"
+    };
     info!("  V2 DDR Path 2: {v2_path2_status}");
 
     // 检查是否至少有一个可用的内存频率控制文件
@@ -145,7 +155,7 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
     detect_gpu_driver_type(gpu)?;
 
     // 检测内存频率控制文件
-    detect_ddr_freq_paths()?;    // 读取系统支持的频率表
+    detect_ddr_freq_paths()?; // 读取系统支持的频率表
     let v2_supported_freqs = if gpu.is_gpuv2() {
         info!("Reading V2 driver frequency table");
         read_v2_driver_freq_table()?
@@ -176,7 +186,8 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
 
         if !ddr_v2_supported_freqs.is_empty() {
             // 将支持的内存频率列表保存到GPU对象
-            gpu.ddr_manager_mut().set_ddr_v2_supported_freqs(ddr_v2_supported_freqs.clone());
+            gpu.ddr_manager_mut()
+                .set_ddr_v2_supported_freqs(ddr_v2_supported_freqs.clone());
 
             if let Some(&min_freq) = ddr_v2_supported_freqs.first() {
                 info!("V2 Driver Min Supported DDR Freq: {min_freq}");

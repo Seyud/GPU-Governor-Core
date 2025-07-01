@@ -95,7 +95,7 @@ impl InotifyWatcher {
     // 提取共同的事件处理逻辑
     fn handle_events<I>(&mut self, events: I) -> Result<()>
     where
-        I: IntoIterator<Item = inotify::Event<&'static [u8]>>
+        I: IntoIterator<Item = inotify::Event<&'static [u8]>>,
     {
         // Collect all watches that need to be updated
         let mut watches_to_update = Vec::new();

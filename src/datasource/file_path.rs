@@ -38,23 +38,27 @@ pub const GAMES_CONF_PATH: &str = "/data/adb/gpu_governor/game/games.conf";
 pub const MALI_DVFS_ENABLE: &str = "/proc/mali/dvfs_enable";
 
 // 内存频率相关路径 - v1 driver
-pub const DVFSRC_V1_PATH: &str = "/sys/devices/platform/10012000.dvfsrc/helio-dvfsrc/dvfsrc_force_vcore_dvfs_opp";
-pub const DVFSRC_V1_OPP_TABLE: &str = "/sys/devices/platform/10012000.dvfsrc/helio-dvfsrc/dvfsrc_opp_table";
+pub const DVFSRC_V1_PATH: &str =
+    "/sys/devices/platform/10012000.dvfsrc/helio-dvfsrc/dvfsrc_force_vcore_dvfs_opp";
+pub const DVFSRC_V1_OPP_TABLE: &str =
+    "/sys/devices/platform/10012000.dvfsrc/helio-dvfsrc/dvfsrc_opp_table";
 
 // 内存频率相关路径 - v2 driver
 pub const DVFSRC_V2_PATH_1: &str = "/sys/devices/platform/soc/1c00f000.dvfsrc/1c00f000.dvfsrc:dvfsrc-helper/dvfsrc_force_vcore_dvfs_opp";
 pub const DVFSRC_V2_PATH_2: &str = "/sys/devices/platform/1c00f000.dvfsrc/1c00f000.dvfsrc:dvfsrc-helper/dvfsrc_force_vcore_dvfs_opp";
-pub const DVFSRC_V2_OPP_TABLE_1: &str = "/sys/devices/platform/soc/1c00f000.dvfsrc/1c00f000.dvfsrc:dvfsrc-helper/dvfsrc_opp_table";
-pub const DVFSRC_V2_OPP_TABLE_2: &str = "/sys/devices/platform/1c00f000.dvfsrc/1c00f000.dvfsrc:dvfsrc-helper/dvfsrc_opp_table";
+pub const DVFSRC_V2_OPP_TABLE_1: &str =
+    "/sys/devices/platform/soc/1c00f000.dvfsrc/1c00f000.dvfsrc:dvfsrc-helper/dvfsrc_opp_table";
+pub const DVFSRC_V2_OPP_TABLE_2: &str =
+    "/sys/devices/platform/1c00f000.dvfsrc/1c00f000.dvfsrc:dvfsrc-helper/dvfsrc_opp_table";
 
 // 内存频率固定值 - 用于设置内存频率
-pub const DDR_AUTO_MODE_V1: i64 = -1;   // v1 driver自动模式，系统自己选择内存频率
-pub const DDR_AUTO_MODE_V2: i64 = 999;  // v2 driver自动模式，系统自己选择内存频率
-pub const DDR_HIGHEST_FREQ: i64 = 0;    // 最高内存频率和电压（第一档）
-pub const DDR_SECOND_FREQ: i64 = 1;     // 第二档内存频率和电压
-pub const DDR_THIRD_FREQ: i64 = 2;      // 第三档内存频率和电压
-pub const DDR_FOURTH_FREQ: i64 = 3;     // 第四档内存频率和电压
-pub const DDR_FIFTH_FREQ: i64 = 4;      // 第五档内存频率和电压
+pub const DDR_AUTO_MODE_V1: i64 = -1; // v1 driver自动模式，系统自己选择内存频率
+pub const DDR_AUTO_MODE_V2: i64 = 999; // v2 driver自动模式，系统自己选择内存频率
+pub const DDR_HIGHEST_FREQ: i64 = 0; // 最高内存频率和电压（第一档）
+pub const DDR_SECOND_FREQ: i64 = 1; // 第二档内存频率和电压
+pub const DDR_THIRD_FREQ: i64 = 2; // 第三档内存频率和电压
+pub const DDR_FOURTH_FREQ: i64 = 3; // 第四档内存频率和电压
+pub const DDR_FIFTH_FREQ: i64 = 4; // 第五档内存频率和电压
 
 pub const FW: &str = "FreqWriter";
 pub const TOP_PID: &str = "/sys/kernel/gbe/gbe2_fg_pid";

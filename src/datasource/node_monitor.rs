@@ -3,10 +3,7 @@ use inotify::WatchMask;
 use log::{debug, error, info, warn};
 
 use crate::{
-    datasource::{
-        config_parser::config_read,
-        file_path::*,
-    },
+    datasource::{config_parser::config_read, file_path::*},
     model::gpu::GPU,
     utils::{
         file_operate::{check_read_simple, read_file},
@@ -60,18 +57,21 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
 
             gpu.set_up_rate_delay(up_rate_delay);
             gpu.set_down_threshold(down_threshold);
-            info!("Initial game mode {}", if is_gaming { "enabled" } else { "disabled" });
+            info!(
+                "Initial game mode {}",
+                if is_gaming { "enabled" } else { "disabled" }
+            );
 
             // 设置初始高级调速器参数
             if is_gaming {
                 // 游戏模式：更激进的升频，更保守的降频
                 gpu.set_load_thresholds(5, 20, 60, 85); // 更低的高负载阈值，更快进入高负载区域
-                gpu.set_load_stability_threshold(2);    // 更低的稳定性阈值，更快响应负载变化
-                gpu.set_aggressive_down(false);         // 禁用激进降频，保持性能
+                gpu.set_load_stability_threshold(2); // 更低的稳定性阈值，更快响应负载变化
+                gpu.set_aggressive_down(false); // 禁用激进降频，保持性能
 
                 // 设置游戏模式的滞后阈值和去抖动时间
-                gpu.set_hysteresis_thresholds(65, 40);  // 游戏模式使用更宽松的滞后阈值，更容易升频
-                gpu.set_debounce_times(10, 30);         // 游戏模式使用更短的去抖动时间，更快响应
+                gpu.set_hysteresis_thresholds(65, 40); // 游戏模式使用更宽松的滞后阈值，更容易升频
+                gpu.set_debounce_times(10, 30); // 游戏模式使用更短的去抖动时间，更快响应
 
                 // 设置游戏模式的自适应采样参数
                 gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围
@@ -81,12 +81,12 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
             } else {
                 // 普通模式：更保守的升频，更激进的降频
                 gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
-                gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
-                gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+                gpu.set_load_stability_threshold(3); // 默认稳定性阈值
+                gpu.set_aggressive_down(true); // 启用激进降频，节省功耗
 
                 // 设置普通模式的滞后阈值和去抖动时间
-                gpu.set_hysteresis_thresholds(75, 30);   // 普通模式使用更严格的滞后阈值，更难升频
-                gpu.set_debounce_times(20, 50);          // 普通模式使用更长的去抖动时间，更稳定
+                gpu.set_hysteresis_thresholds(75, 30); // 普通模式使用更严格的滞后阈值，更难升频
+                gpu.set_debounce_times(20, 50); // 普通模式使用更长的去抖动时间，更稳定
 
                 // 设置普通模式的自适应采样参数
                 gpu.set_adaptive_sampling(true, 10, 100); // 普通模式使用更宽的采样间隔范围
@@ -101,17 +101,19 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
             // 默认为普通模式
             gpu.set_up_rate_delay(NORMAL_MODE_UP_RATE_DELAY);
             gpu.set_down_threshold(NORMAL_MODE_DOWN_THRESHOLD);
-            info!("Setting default up rate delay to {}ms, down threshold to {}",
-                 NORMAL_MODE_UP_RATE_DELAY, NORMAL_MODE_DOWN_THRESHOLD);
+            info!(
+                "Setting default up rate delay to {}ms, down threshold to {}",
+                NORMAL_MODE_UP_RATE_DELAY, NORMAL_MODE_DOWN_THRESHOLD
+            );
 
             // 设置默认高级调速器参数（普通模式）
             gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
-            gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
-            gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+            gpu.set_load_stability_threshold(3); // 默认稳定性阈值
+            gpu.set_aggressive_down(true); // 启用激进降频，节省功耗
 
             // 设置普通模式的滞后阈值和去抖动时间
-            gpu.set_hysteresis_thresholds(75, 30);   // 普通模式使用更严格的滞后阈值，更难升频
-            gpu.set_debounce_times(20, 50);          // 普通模式使用更长的去抖动时间，更稳定
+            gpu.set_hysteresis_thresholds(75, 30); // 普通模式使用更严格的滞后阈值，更难升频
+            gpu.set_debounce_times(20, 50); // 普通模式使用更长的去抖动时间，更稳定
 
             // 设置普通模式的自适应采样参数
             gpu.set_adaptive_sampling(true, 10, 100); // 普通模式使用更宽的采样间隔范围
@@ -162,38 +164,43 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
 
                 gpu.set_up_rate_delay(up_rate_delay);
                 gpu.set_down_threshold(down_threshold);
-                debug!("Game mode {}", if is_gaming { "enabled" } else { "disabled" });
+                debug!(
+                    "Game mode {}",
+                    if is_gaming { "enabled" } else { "disabled" }
+                );
 
                 // 更新高级调速器参数
                 if is_gaming {
                     // 游戏模式：更激进的升频，更保守的降频
                     gpu.set_load_thresholds(5, 20, 60, 85); // 更低的高负载阈值，更快进入高负载区域
-                    gpu.set_load_stability_threshold(2);    // 更低的稳定性阈值，更快响应负载变化
-                    gpu.set_aggressive_down(false);         // 禁用激进降频，保持性能
+                    gpu.set_load_stability_threshold(2); // 更低的稳定性阈值，更快响应负载变化
+                    gpu.set_aggressive_down(false); // 禁用激进降频，保持性能
 
                     // 设置游戏模式的滞后阈值和去抖动时间
-                    gpu.set_hysteresis_thresholds(65, 40);  // 游戏模式使用更宽松的滞后阈值，更容易升频
-                    gpu.set_debounce_times(10, 30);         // 游戏模式使用更短的去抖动时间，更快响应
+                    gpu.set_hysteresis_thresholds(65, 40); // 游戏模式使用更宽松的滞后阈值，更容易升频
+                    gpu.set_debounce_times(10, 30); // 游戏模式使用更短的去抖动时间，更快响应
 
                     // 设置游戏模式的自适应采样参数
-                    gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围                    
+                    gpu.set_adaptive_sampling(true, 8, 50); // 游戏模式使用更短的采样间隔范围
                     debug!("Game mode enabled: Using performance-oriented governor settings");
                     debug!("Game mode hysteresis: up=65%, down=40%, debounce: up=10ms, down=30ms");
                 } else {
                     // 普通模式：更保守的升频，更激进的降频
                     gpu.set_load_thresholds(10, 30, 70, 90); // 默认负载阈值
-                    gpu.set_load_stability_threshold(3);     // 默认稳定性阈值
-                    gpu.set_aggressive_down(true);           // 启用激进降频，节省功耗
+                    gpu.set_load_stability_threshold(3); // 默认稳定性阈值
+                    gpu.set_aggressive_down(true); // 启用激进降频，节省功耗
 
                     // 设置普通模式的滞后阈值和去抖动时间
-                    gpu.set_hysteresis_thresholds(75, 30);   // 普通模式使用更严格的滞后阈值，更难升频
-                    gpu.set_debounce_times(20, 50);          // 普通模式使用更长的去抖动时间，更稳定
+                    gpu.set_hysteresis_thresholds(75, 30); // 普通模式使用更严格的滞后阈值，更难升频
+                    gpu.set_debounce_times(20, 50); // 普通模式使用更长的去抖动时间，更稳定
 
                     // 设置普通模式的自适应采样参数
                     gpu.set_adaptive_sampling(true, 10, 100); // 普通模式使用更宽的采样间隔范围
 
                     debug!("Game mode disabled: Using power-saving governor settings");
-                    debug!("Normal mode hysteresis: up=75%, down=30%, debounce: up=20ms, down=50ms");
+                    debug!(
+                        "Normal mode hysteresis: up=75%, down=30%, debounce: up=20ms, down=50ms"
+                    );
                 }
 
                 debug!("Game mode changed: {}", is_gaming);
@@ -224,10 +231,10 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
 
     // 使用read_freq_ge和read_freq_le方法获取频率范围
     let min_freq = gpu.get_min_freq();
-    let max_freq = gpu.get_max_freq();    
+    let max_freq = gpu.get_max_freq();
     // 使用read_freq_ge方法获取大于等于特定频率的最小频率
     let target_freq = 600000; // 600MHz
-    let _ge_freq = gpu.read_freq_ge(target_freq);    
+    let _ge_freq = gpu.read_freq_ge(target_freq);
     // 使用read_freq_le方法获取小于等于特定频率的最大频率
     let target_freq2 = 800000; // 800MHz
     let _le_freq = gpu.read_freq_le(target_freq2);
