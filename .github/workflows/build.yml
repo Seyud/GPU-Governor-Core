@@ -128,8 +128,14 @@ jobs:
         
     - name: Setup Android NDK
       uses: nttld/setup-ndk@v1
+      id: setup-ndk
       with:
         ndk-version: r28b
+        
+    - name: Install system dependencies for bindgen
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang llvm-dev libclang-dev
         
     - name: Install cargo-ndk
       run: cargo install cargo-ndk
@@ -172,8 +178,14 @@ jobs:
     - name: Install cargo-ndk
       run: cargo install cargo-ndk
       
+    - name: Install system dependencies for bindgen
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang llvm-dev libclang-dev
+      
     - name: Setup Android NDK
       uses: nttld/setup-ndk@v1
+      id: setup-ndk
       with:
         ndk-version: r28b
         
@@ -190,11 +202,21 @@ jobs:
           
     - name: Build debug version
       if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+      env:
+        LIBCLANG_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64
+        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"
+        CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
+        AR_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
       run: |
         cargo ndk -t arm64-v8a build --target aarch64-linux-android
         
     - name: Build release version
       if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+      env:
+        LIBCLANG_PATH: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/lib64
+        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include"
+        CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
+        AR_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
       run: |
         cargo ndk -t arm64-v8a build --release --target aarch64-linux-android
         
@@ -230,7 +252,7 @@ jobs:
         cp -f target/aarch64-linux-android/release/gpugovernor output/.temp/bin/gpugovernor
         
         # Strip the binary
-        $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip output/.temp/bin/gpugovernor
+        ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip output/.temp/bin/gpugovernor
         
         # Create zip package
         cd output/.temp
