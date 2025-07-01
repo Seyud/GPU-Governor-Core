@@ -125,9 +125,7 @@ impl FrequencyAdjustmentEngine {
         freq_index: i64,
         current_time: u64,
     ) -> Result<()> {
-        debug!(
-            "Applying frequency change: {new_freq}KHz (index: {freq_index})"
-        );
+        debug!("Applying frequency change: {new_freq}KHz (index: {freq_index})");
 
         // 更新频率管理器
         gpu.frequency_mut().cur_freq = new_freq;

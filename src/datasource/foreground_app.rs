@@ -127,9 +127,7 @@ fn get_foreground_app() -> Result<String> {
     // 直接使用activity lru方法
     match get_foreground_app_activity() {
         Ok(package_name) => {
-            debug!(
-                "Successfully got foreground app using activity lru method: {package_name}"
-            );
+            debug!("Successfully got foreground app using activity lru method: {package_name}");
             Ok(package_name)
         }
         Err(e) => {

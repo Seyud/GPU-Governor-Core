@@ -46,9 +46,7 @@ impl DdrManager {
         if freq == DDR_HIGHEST_FREQ {
             self.ddr_freq = freq;
             self.ddr_freq_fixed = true;
-            debug!(
-                "Setting DDR to highest frequency and voltage (OPP value: {DDR_HIGHEST_FREQ})"
-            );
+            debug!("Setting DDR to highest frequency and voltage (OPP value: {DDR_HIGHEST_FREQ})");
             return self.write_ddr_freq();
         }
 
@@ -120,9 +118,7 @@ impl DdrManager {
                 // v1 driver，使用DDR_AUTO_MODE_V1（-1）表示自动模式
                 if Path::new(DVFSRC_V1_PATH).exists() {
                     let auto_mode_str = DDR_AUTO_MODE_V1.to_string();
-                    debug!(
-                        "Writing {auto_mode_str} to v1 DDR path: {DVFSRC_V1_PATH}"
-                    );
+                    debug!("Writing {auto_mode_str} to v1 DDR path: {DVFSRC_V1_PATH}");
                     FileHelper::write_string(DVFSRC_V1_PATH, &auto_mode_str)?;
                 } else {
                     warn!("V1 DDR path does not exist: {DVFSRC_V1_PATH}");
@@ -185,9 +181,7 @@ impl DdrManager {
             _ => "Custom Level",
         };
 
-        info!(
-            "Set DDR frequency with OPP value: {ddr_opp} ({opp_description})"
-        );
+        info!("Set DDR frequency with OPP value: {ddr_opp} ({opp_description})");
         Ok(())
     }
 
@@ -283,10 +277,8 @@ impl DdrManager {
                                         if let Ok(opp) = opp_part[4..6].parse::<i64>() {
                                             let ddr_desc =
                                                 ddr_part.trim_start_matches("ddr:").trim();
-                                            freq_table.push((
-                                                opp,
-                                                format!("OPP{opp:02}: {ddr_desc}"),
-                                            ));
+                                            freq_table
+                                                .push((opp, format!("OPP{opp:02}: {ddr_desc}")));
                                         }
                                     }
                                 }
@@ -294,9 +286,7 @@ impl DdrManager {
                         }
                     }
                     Err(e) => {
-                        warn!(
-                            "Failed to open v1 DDR OPP table: {DVFSRC_V1_OPP_TABLE}: {e}"
-                        );
+                        warn!("Failed to open v1 DDR OPP table: {DVFSRC_V1_OPP_TABLE}: {e}");
                     }
                 }
             }
@@ -366,8 +356,6 @@ impl DdrManager {
     pub fn set_ddr_v2_supported_freqs(&mut self, ddr_v2_supported_freqs: Vec<i64>) {
         self.ddr_v2_supported_freqs = ddr_v2_supported_freqs;
     }
-
-
 }
 
 impl Default for DdrManager {

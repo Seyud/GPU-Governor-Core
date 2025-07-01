@@ -136,9 +136,7 @@ impl GPU {
                 }
             }
 
-            debug!(
-                "Game mode: using DDR_OPP {ddr_opp} for frequency {freq_to_use}KHz"
-            );
+            debug!("Game mode: using DDR_OPP {ddr_opp} for frequency {freq_to_use}KHz");
             if let Err(e) = self.set_ddr_freq(ddr_opp) {
                 warn!("Failed to set DDR frequency in game mode: {e}");
             }

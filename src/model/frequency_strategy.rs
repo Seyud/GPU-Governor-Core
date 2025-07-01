@@ -112,9 +112,7 @@ impl FrequencyStrategy {
     pub fn set_hysteresis_thresholds(&mut self, up_threshold: i32, down_threshold: i32) {
         self.hysteresis_up_threshold = up_threshold;
         self.hysteresis_down_threshold = down_threshold;
-        debug!(
-            "Set hysteresis thresholds: up={up_threshold}%, down={down_threshold}%"
-        );
+        debug!("Set hysteresis thresholds: up={up_threshold}%, down={down_threshold}%");
     }
 
     /// 设置去抖动时间
@@ -174,9 +172,7 @@ impl FrequencyStrategy {
 
     pub fn set_load_stability_threshold(&mut self, load_stability_threshold: i32) {
         self.load_stability_threshold = load_stability_threshold;
-        debug!(
-            "Set load stability threshold to: {load_stability_threshold}"
-        );
+        debug!("Set load stability threshold to: {load_stability_threshold}");
     }
 
     pub fn set_aggressive_down(&mut self, aggressive: bool) {

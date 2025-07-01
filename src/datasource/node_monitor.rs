@@ -29,9 +29,7 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
     // 检查游戏模式文件路径
     if !check_read_simple(GPU_GOVERNOR_GAME_MODE_PATH) {
         // 如果文件不存在，记录日志
-        info!(
-            "Game mode file does not exist: {GPU_GOVERNOR_GAME_MODE_PATH}"
-        );
+        info!("Game mode file does not exist: {GPU_GOVERNOR_GAME_MODE_PATH}");
     } else {
         info!("Using game mode path: {GPU_GOVERNOR_GAME_MODE_PATH}");
 
@@ -240,9 +238,7 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
     // 从GPU对象获取margin值
     let margin = gpu.get_margin();
 
-    info!(
-        "Config values: min_freq={min_freq}KHz, max_freq={max_freq}KHz, margin={margin}%"
-    );
+    info!("Config values: min_freq={min_freq}KHz, max_freq={max_freq}KHz, margin={margin}%");
 
     let mut inotify = InotifyWatcher::new()?;
     inotify.add(&config_file, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
