@@ -132,7 +132,7 @@ impl FrequencyAdjustmentEngine {
         Self::update_ddr_if_gaming(gpu, new_freq)?;
 
         // 重置计数器并更新时间
-        gpu.load_analyzer_mut().reset_load_zone_counter();
+        gpu.reset_load_zone_counter();
         gpu.frequency_strategy_mut().update_last_adjustment_time(current_time);
 
         Ok(())

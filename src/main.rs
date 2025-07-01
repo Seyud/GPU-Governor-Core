@@ -6,7 +6,7 @@ mod utils;
 use std::{env, path::Path, thread, time::Duration};
 
 use anyhow::Result;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 
 use crate::{
     datasource::{
@@ -22,7 +22,7 @@ use crate::{
         file_status::get_status,
         log_monitor::monitor_log_level,
         logger::init_logger,
-        constants::{InfoDisplay, strategy, NOTES, AUTHOR, SPECIAL, VERSION},
+        constants::{InfoDisplay, strategy},
     },
 };
 

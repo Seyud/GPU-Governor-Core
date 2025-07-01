@@ -7,9 +7,9 @@ use crate::{
     datasource::file_path::*,
     model::{
         frequency_manager::FrequencyManager,
-        load_analyzer::LoadAnalyzer, 
         frequency_strategy::FrequencyStrategy,
         ddr_manager::DdrManager,
+        idle_manager::IdleManager,
     },
 };
 
@@ -36,12 +36,12 @@ impl TabType {
 pub struct GPU {
     /// 频率管理器
     pub frequency_manager: FrequencyManager,
-    /// 负载分析器
-    pub load_analyzer: LoadAnalyzer,
     /// 调频策略
     pub frequency_strategy: FrequencyStrategy,
     /// DDR管理器
     pub ddr_manager: DdrManager,
+    /// 空闲状态管理器
+    pub idle_manager: IdleManager,
     /// GPU版本相关
     pub gpuv2: bool,
     pub v2_supported_freqs: Vec<i64>,
@@ -57,9 +57,9 @@ pub struct GPU {
 impl GPU {    pub fn new() -> Self {
         Self {
             frequency_manager: FrequencyManager::new(),
-            load_analyzer: LoadAnalyzer::new(),
             frequency_strategy: FrequencyStrategy::new(),
             ddr_manager: DdrManager::new(),
+            idle_manager: IdleManager::new(),
             gpuv2: false,
             v2_supported_freqs: Vec::new(),
             dcs_enable: false,
@@ -96,14 +96,6 @@ impl GPU {    pub fn new() -> Self {
         self.frequency_manager.get_min_freq()
     }
     // 为其他组件提供直接访问，减少委托样板代码
-    pub fn load_analyzer(&self) -> &LoadAnalyzer {
-        &self.load_analyzer
-    }
-
-    pub fn load_analyzer_mut(&mut self) -> &mut LoadAnalyzer {
-        &mut self.load_analyzer
-    }
-
     pub fn frequency_strategy(&self) -> &FrequencyStrategy {
         &self.frequency_strategy
     }
@@ -289,21 +281,21 @@ impl GPU {    pub fn new() -> Self {
         self.frequency_manager.set_config_list(config_list);
     }
 
-    // 最常用的负载操作
-    pub fn update_load_history(&mut self, load: i32) -> i32 {
-        self.load_analyzer.update_load_history(load)
+    // 最常用的空闲状态操作
+    pub fn check_idle_state(&mut self, util: i32) {
+        self.idle_manager.check_idle_state(util)
     }
     
-    pub fn get_load_trend(&self) -> i32 {
-        self.load_analyzer.get_load_trend()
+    pub fn reset_load_zone_counter(&mut self) {
+        self.idle_manager.reset_load_zone_counter()
     }
     
     pub fn is_idle(&self) -> bool {
-        self.load_analyzer.is_idle()
+        self.idle_manager.is_idle()
     }
     
     pub fn set_idle(&mut self, idle: bool) {
-        self.load_analyzer.set_idle(idle);
+        self.idle_manager.set_idle(idle);
     }
 
     // 最常用的策略操作
