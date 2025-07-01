@@ -305,9 +305,9 @@ jobs:
         echo "🔧 Checking Android target compilation..."
         cargo ndk --target aarch64-linux-android --platform 33 check --verbose
         
-        # Run library tests that don't require Android runtime
+        # Run unit tests (this project is a binary, so we test the binary)
         echo "🧪 Running unit tests..."
-        cargo ndk --target aarch64-linux-android --platform 33 test --lib --verbose --no-run
+        cargo ndk --target aarch64-linux-android --platform 33 test --verbose --no-run
         
         echo "✅ Android target compilation and test compilation successful"
 

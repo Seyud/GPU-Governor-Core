@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["Rust Port: Seyud"]
 description = "Mediatek Mali GPU Load-Based Frequency Adjustment"
 
+[[bin]]
+name = "gpugovernor"
+path = "src/main.rs"
+
 [dependencies]
 log = "0.4"
 env_logger = "0.11"
