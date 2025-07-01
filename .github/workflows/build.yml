@@ -1,0 +1,300 @@
+name: Build and Package Mediatek Mali GPU Governor
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (debug, release, or both)'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+        - debug
+        - release
+        - both
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  format-and-check:
+    name: Format and Lint Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        components: rustfmt, clippy
+        override: true
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+        
+    - name: Install shfmt
+      run: |
+        GO_VERSION=$(curl -s https://api.github.com/repos/golang/go/releases/latest | grep -o '"tag_name": "go[^"]*' | cut -d'"' -f4)
+        wget https://dl.google.com/go/${GO_VERSION}.linux-amd64.tar.gz
+        sudo tar -C /usr/local -xzf ${GO_VERSION}.linux-amd64.tar.gz
+        export PATH=$PATH:/usr/local/go/bin
+        go install mvdan.cc/sh/v3/cmd/shfmt@latest
+        echo "$HOME/go/bin" >> $GITHUB_PATH
+        
+    - name: Format shell scripts
+      run: |
+        find module -type f -name "*.sh" -exec shfmt -w -s {} \;
+        
+    - name: Format Python code
+      run: |
+        python -m pip install --upgrade pip black isort
+        black --check build.py
+        isort --check-only build.py
+        
+    - name: Format Rust code
+      run: cargo fmt --check
+      
+    - name: Run clippy
+      run: cargo clippy -- -D warnings
+
+  version-sync:
+    name: Version Synchronization Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check version consistency
+      run: |
+        CARGO_VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "//' | sed 's/"//')
+        MODULE_VERSION=$(grep '^version=' module/module.prop | sed 's/version=v//')
+        
+        echo "Cargo.toml version: $CARGO_VERSION"
+        echo "module.prop version: $MODULE_VERSION"
+        
+        if [ "$CARGO_VERSION" != "$MODULE_VERSION" ]; then
+          echo "⚠️  Version mismatch detected!"
+          echo "Please update module/module.prop version to match Cargo.toml"
+          exit 1
+        else
+          echo "✅ Versions are synchronized"
+        fi
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_type == 'both'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r25c
+        
+    - name: Install cargo-ndk
+      run: cargo install cargo-ndk
+        
+    - name: Cache cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-test-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-test-cargo-
+          
+    - name: Run unit tests
+      run: cargo test --verbose
+      
+    - name: Run integration tests
+      run: cargo test --verbose --test '*'
+
+  build:
+    name: Build Module
+    runs-on: ubuntu-latest
+    needs: [format-and-check, version-sync, test]
+    strategy:
+      matrix:
+        build_type: [debug, release]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: aarch64-linux-android
+        override: true
+        
+    - name: Install cargo-ndk
+      run: cargo install cargo-ndk
+      
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r25c
+        
+    - name: Cache cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+          
+    - name: Build debug version
+      if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+      run: |
+        cargo ndk -t arm64-v8a build --target aarch64-linux-android
+        
+    - name: Build release version
+      if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+      run: |
+        cargo ndk -t arm64-v8a build --release --target aarch64-linux-android
+        
+    - name: Package debug module
+      if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+      run: |
+        # Create output directory
+        mkdir -p output/.temp
+        
+        # Copy module files
+        cp -rf module/* output/.temp/
+        
+        # Copy the binary and rename it
+        cp -f target/aarch64-linux-android/debug/gpugovernor output/.temp/bin/gpugovernor
+        
+        # Create zip package
+        cd output/.temp
+        zip -9 -rq "../Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip" .
+        cd ../..
+        
+        echo "Debug module packaged: output/Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip"
+        
+    - name: Package release module
+      if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+      run: |
+        # Create output directory
+        mkdir -p output/.temp
+        
+        # Copy module files
+        cp -rf module/* output/.temp/
+        
+        # Copy the binary and rename it
+        cp -f target/aarch64-linux-android/release/gpugovernor output/.temp/bin/gpugovernor
+        
+        # Strip the binary
+        $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip output/.temp/bin/gpugovernor
+        
+        # Create zip package
+        cd output/.temp
+        zip -9 -rq "../Mediatek_Mali_GPU_Governor_release_v${{ github.run_number }}.zip" .
+        cd ../..
+        
+        echo "Release module packaged: output/Mediatek_Mali_GPU_Governor_release_v${{ github.run_number }}.zip"
+        
+    - name: Upload debug artifact
+      if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mediatek_Mali_GPU_Governor-debug-${{ github.run_number }}
+        path: output/Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip
+        
+    - name: Upload release artifact
+      if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mediatek_Mali_GPU_Governor-release-${{ github.run_number }}
+        path: output/Mediatek_Mali_GPU_Governor_release_v${{ github.run_number }}.zip
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download debug artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: Mediatek_Mali_GPU_Governor-debug-${{ github.run_number }}
+        path: ./artifacts/
+        
+    - name: Download release artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: Mediatek_Mali_GPU_Governor-release-${{ github.run_number }}
+        path: ./artifacts/
+        
+    - name: Get version from Cargo.toml
+      id: get_version
+      run: |
+        VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "//' | sed 's/"//')
+        echo "version=v$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: v$VERSION"
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.get_version.outputs.version }}-${{ github.run_number }}
+        name: Release ${{ steps.get_version.outputs.version }} Build ${{ github.run_number }}
+        body: |
+          ## 🚀 Release ${{ steps.get_version.outputs.version }} Build ${{ github.run_number }}
+          
+          ### 📦 包含内容
+          - **Debug版本**: 包含调试信息的完整版本，便于问题排查
+          - **Release版本**: 优化后的生产版本（推荐日常使用）
+          
+          ### 📝 安装说明
+          1. 下载对应的 zip 文件到手机存储
+          2. 使用 Magisk Manager 安装模块
+          3. 重启设备生效
+          
+          ### ⚙️ 模块功能
+          - 适用于联发科 Mali GPU 的动态调频
+          - 基于负载智能调节 GPU 频率
+          - 优化高负载场景下的功耗与性能平衡
+          
+          ### 🔄 更新日志
+          - 自动构建版本 ${{ github.run_number }}
+          - 基于代码版本: ${{ steps.get_version.outputs.version }}
+          - 构建提交: ${{ github.sha }}
+          
+          ---
+          构建时间: ${{ github.event.head_commit.timestamp }}
+        files: |
+          ./artifacts/Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip
+          ./artifacts/Mediatek_Mali_GPU_Governor_release_v${{ github.run_number }}.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
