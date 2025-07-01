@@ -14,9 +14,9 @@ pub fn monitor_log_level() -> Result<()> {
     // 检查日志等级文件路径
     if !check_read_simple(LOG_LEVEL_PATH) {
         // 如果文件不存在，记录日志
-        info!("Log level file does not exist: {}", LOG_LEVEL_PATH);
+        info!("Log level file does not exist: {LOG_LEVEL_PATH}");
     } else {
-        info!("Using log level path: {}", LOG_LEVEL_PATH);
+        info!("Using log level path: {LOG_LEVEL_PATH}");
     }
 
     // 设置文件监控
@@ -36,7 +36,7 @@ pub fn monitor_log_level() -> Result<()> {
         // 更新日志等级
         match update_log_level() {
             Ok(_) => debug!("Log level updated successfully"),
-            Err(e) => warn!("Failed to update log level: {}", e),
+            Err(e) => warn!("Failed to update log level: {e}"),
         }
     }
 }

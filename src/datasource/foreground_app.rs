@@ -93,16 +93,15 @@ fn get_foreground_app_activity() -> Result<String> {
     };
 
     // 使用正则表达式提取前台应用包名
+    let re = Regex::new(r"(\d+):([a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)/").unwrap();
     for line in output.lines() {
         if line.contains("fg") && line.contains("TOP") && !line.contains("BTOP") {
-            debug!("Trying regex on line: {}", line);
+            debug!("Trying regex on line: {line}");
 
             // 使用正则表达式提取包名部分
-            let re =
-                Regex::new(r"(\d+):([a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+)/").unwrap();
             if let Some(caps) = re.captures(line) {
                 let package_name = caps[2].to_string();
-                debug!("Extracted package name with regex: {}", package_name);
+                debug!("Extracted package name with regex: {package_name}");
                 return Ok(package_name);
             }
         }
@@ -116,7 +115,7 @@ fn get_foreground_app_activity() -> Result<String> {
     }
     debug!("Lines containing 'TOP':");
     for line in output.lines().filter(|l| l.contains("TOP")) {
-        debug!("Line with TOP: {}", line);
+        debug!("Line with TOP: {line}");
     }
     Err(anyhow!(
         "Failed to find foreground app in dumpsys activity lru output"
@@ -129,15 +128,14 @@ fn get_foreground_app() -> Result<String> {
     match get_foreground_app_activity() {
         Ok(package_name) => {
             debug!(
-                "Successfully got foreground app using activity lru method: {}",
-                package_name
+                "Successfully got foreground app using activity lru method: {package_name}"
             );
-            return Ok(package_name);
+            Ok(package_name)
         }
         Err(e) => {
             // 如果失败，直接返回错误
-            debug!("Activity lru method failed: {}", e);
-            return Err(anyhow!("Failed to get foreground app: {}", e));
+            debug!("Activity lru method failed: {e}");
+            Err(anyhow!("Failed to get foreground app: {e}"))
         }
     }
 }
@@ -151,7 +149,7 @@ fn read_games_list(path: &str) -> Result<HashSet<String>> {
     }
 
     let file =
-        File::open(path).with_context(|| format!("Failed to open games list file: {}", path))?;
+        File::open(path).with_context(|| format!("Failed to open games list file: {path}"))?;
 
     let reader = BufReader::new(file);
 
@@ -173,7 +171,7 @@ fn read_games_list(path: &str) -> Result<HashSet<String>> {
 // 监控前台应用
 pub fn monitor_foreground_app() -> Result<()> {
     // 设置线程名称
-    info!("{} Start", FOREGROUND_APP_THREAD);
+    info!("{FOREGROUND_APP_THREAD} Start");
 
     // 初始化缓存
     let mut app_cache = ForegroundAppCache::new();
@@ -191,9 +189,9 @@ pub fn monitor_foreground_app() -> Result<()> {
     // 如果游戏列表文件存在，监控它的变化
     if check_read_simple(GAMES_CONF_PATH) {
         inotify.add(GAMES_CONF_PATH, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
-        info!("Watching games list file: {}", GAMES_CONF_PATH);
+        info!("Watching games list file: {GAMES_CONF_PATH}");
     } else {
-        info!("Games list file does not exist: {}", GAMES_CONF_PATH);
+        info!("Games list file does not exist: {GAMES_CONF_PATH}");
     }
 
     // 主循环
@@ -217,7 +215,7 @@ pub fn monitor_foreground_app() -> Result<()> {
                     // 只有当包名变化时才处理
                     if package_name != app_cache.package_name {
                         // 将前台应用变化的日志改为debug级别
-                        debug!("Foreground app changed: {}", package_name);
+                        debug!("Foreground app changed: {package_name}");
 
                         // 检查是否是游戏
                         let is_game = games.contains(&package_name);
@@ -229,15 +227,14 @@ pub fn monitor_foreground_app() -> Result<()> {
                         // 只有在游戏模式状态变化时才记录info级别日志
                         if is_game {
                             if !prev_is_game {
-                                info!("Game mode enabled: {}", package_name);
+                                info!("Game mode enabled: {package_name}");
                             } else {
                                 // 游戏切换到另一个游戏时也记录
-                                info!("Game changed: {}", package_name);
+                                info!("Game changed: {package_name}");
                             }
                         } else if prev_is_game {
                             info!(
-                                "Game mode disabled: switching from game to normal app: {}",
-                                package_name
+                                "Game mode disabled: switching from game to normal app: {package_name}"
                             );
                         }
 
@@ -247,7 +244,7 @@ pub fn monitor_foreground_app() -> Result<()> {
                             if is_game { "1" } else { "0" },
                             3,
                         ) {
-                            warn!("Failed to write game mode: {}", e);
+                            warn!("Failed to write game mode: {e}");
                         } else {
                             debug!(
                                 "Wrote game mode {} to file",
@@ -262,10 +259,10 @@ pub fn monitor_foreground_app() -> Result<()> {
                 Err(e) => {
                     // 使用警告限流器检查是否应该显示警告
                     if warning_throttler.should_warn() {
-                        warn!("Failed to get foreground app: {}", e);
+                        warn!("Failed to get foreground app: {e}");
                     } else {
                         // 如果不应该显示警告，则降级为debug日志
-                        debug!("Failed to get foreground app (throttled warning): {}", e);
+                        debug!("Failed to get foreground app (throttled warning): {e}");
                     }
                 }
             }

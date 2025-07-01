@@ -127,7 +127,7 @@ impl InotifyWatcher {
                 .inotify
                 .watches()
                 .add(&path, mask)
-                .with_context(|| format!("Failed to re-add watch for: {}", path))?;
+                .with_context(|| format!("Failed to re-add watch for: {path}"))?;
 
             // Update the watches map
             self.watches.remove(&wd);

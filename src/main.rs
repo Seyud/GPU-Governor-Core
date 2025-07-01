@@ -41,7 +41,7 @@ fn handle_command_line_args() -> Result<()> {
                 std::process::exit(0);
             }
             unknown => {
-                println!("Unknown argument: {}", unknown);
+                println!("Unknown argument: {unknown}");
                 println!("Use -h for help");
                 std::process::exit(1);
             }
@@ -58,7 +58,7 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
     // 读取配置文件
     let config_file = CONFIG_FILE_TR;
     if Path::new(config_file).exists() {
-        info!("Reading config file: {}", config_file);
+        info!("Reading config file: {config_file}");
         config_read(config_file, gpu)
             .map_err(|e| anyhow::anyhow!("Failed to read config file: {}", e))?;
     } else {
@@ -80,7 +80,7 @@ fn start_monitoring_threads(gpu: GPU) {
     let gpu_clone1 = gpu.clone();
     thread::spawn(move || {
         if let Err(e) = monitor_gaming(gpu_clone1) {
-            error!("Gaming monitor error: {}", e);
+            error!("Gaming monitor error: {e}");
         }
     });
 
@@ -88,7 +88,7 @@ fn start_monitoring_threads(gpu: GPU) {
     let gpu_clone2 = gpu.clone();
     thread::spawn(move || {
         if let Err(e) = monitor_config(gpu_clone2) {
-            error!("Config monitor error: {}", e);
+            error!("Config monitor error: {e}");
         }
     });
 
@@ -102,14 +102,14 @@ fn start_monitoring_threads(gpu: GPU) {
         info!("Starting foreground app monitor now");
 
         if let Err(e) = monitor_foreground_app() {
-            error!("Foreground app monitor error: {}", e);
+            error!("Foreground app monitor error: {e}");
         }
     });
 
     // 日志等级监控线程
     thread::spawn(move || {
         if let Err(e) = monitor_log_level() {
-            error!("Log level monitor error: {}", e);
+            error!("Log level monitor error: {e}");
         }
     });
 }
@@ -136,7 +136,7 @@ fn configure_gpu_strategy(gpu: &mut GPU) {
 /// 显示系统信息
 fn display_system_info(gpu: &GPU) {
     info!("Monitor Inited");
-    info!("{} Start", MAIN_THREAD);
+    info!("{MAIN_THREAD} Start");
 
     // 频率信息
     info!("BootFreq: {}KHz", gpu.get_cur_freq());
@@ -202,19 +202,19 @@ fn display_ddr_info(gpu: &GPU) {
             }
         }
         Err(e) => {
-            warn!("Failed to get DDR frequency table: {}", e);
+            warn!("Failed to get DDR frequency table: {e}");
         }
     }
 
     if gpu.is_gpuv2() {
         let ddr_freqs = gpu.ddr_manager().get_ddr_v2_supported_freqs();
         if !ddr_freqs.is_empty() {
-            info!("V2 driver supported DDR frequencies: {:?}", ddr_freqs);
+            info!("V2 driver supported DDR frequencies: {ddr_freqs:?}");
         }
 
         let gpu_freqs = gpu.get_v2_supported_freqs();
         if !gpu_freqs.is_empty() {
-            info!("V2 driver supported GPU frequencies: {:?}", gpu_freqs);
+            info!("V2 driver supported GPU frequencies: {gpu_freqs:?}");
         }
     }
 }

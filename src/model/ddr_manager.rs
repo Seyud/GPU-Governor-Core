@@ -47,8 +47,7 @@ impl DdrManager {
             self.ddr_freq = freq;
             self.ddr_freq_fixed = true;
             debug!(
-                "Setting DDR to highest frequency and voltage (OPP value: {})",
-                DDR_HIGHEST_FREQ
+                "Setting DDR to highest frequency and voltage (OPP value: {DDR_HIGHEST_FREQ})"
             );
             return self.write_ddr_freq();
         }
@@ -79,13 +78,13 @@ impl DdrManager {
                 _ => "Custom Level",
             };
 
-            debug!("Using direct DDR_OPP value: {} ({})", freq, opp_description);
+            debug!("Using direct DDR_OPP value: {freq} ({opp_description})");
         } else {
             // 如果是实际频率值，需要转换为DDR_OPP值
             // 这里简化处理，使用最高频率
             self.ddr_freq = DDR_HIGHEST_FREQ;
             self.ddr_freq_fixed = true;
-            debug!("Using highest DDR frequency for target freq: {}", freq);
+            debug!("Using highest DDR frequency for target freq: {freq}");
         }
 
         self.write_ddr_freq()
@@ -103,7 +102,7 @@ impl DdrManager {
                 for path in &paths {
                     if Path::new(path).exists() {
                         let auto_mode_str = DDR_AUTO_MODE_V2.to_string();
-                        debug!("Writing {} to v2 DDR path: {}", auto_mode_str, path);
+                        debug!("Writing {auto_mode_str} to v2 DDR path: {path}");
                         if FileHelper::write_string(path, &auto_mode_str).is_ok() {
                             path_written = true;
                             break;
@@ -122,12 +121,11 @@ impl DdrManager {
                 if Path::new(DVFSRC_V1_PATH).exists() {
                     let auto_mode_str = DDR_AUTO_MODE_V1.to_string();
                     debug!(
-                        "Writing {} to v1 DDR path: {}",
-                        auto_mode_str, DVFSRC_V1_PATH
+                        "Writing {auto_mode_str} to v1 DDR path: {DVFSRC_V1_PATH}"
                     );
                     FileHelper::write_string(DVFSRC_V1_PATH, &auto_mode_str)?;
                 } else {
-                    warn!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH);
+                    warn!("V1 DDR path does not exist: {DVFSRC_V1_PATH}");
                     return Err(anyhow::anyhow!(
                         "V1 DDR path does not exist: {}",
                         DVFSRC_V1_PATH
@@ -149,7 +147,7 @@ impl DdrManager {
             let mut path_written = false;
             for path in &paths {
                 if Path::new(path).exists() {
-                    debug!("Writing {} to v2 DDR path: {}", freq_str, path);
+                    debug!("Writing {freq_str} to v2 DDR path: {path}");
                     if FileHelper::write_string(path, &freq_str).is_ok() {
                         path_written = true;
                         break;
@@ -166,10 +164,10 @@ impl DdrManager {
         } else {
             // v1 driver
             if Path::new(DVFSRC_V1_PATH).exists() {
-                debug!("Writing {} to v1 DDR path: {}", freq_str, DVFSRC_V1_PATH);
+                debug!("Writing {freq_str} to v1 DDR path: {DVFSRC_V1_PATH}");
                 FileHelper::write_string(DVFSRC_V1_PATH, &freq_str)?;
             } else {
-                warn!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH);
+                warn!("V1 DDR path does not exist: {DVFSRC_V1_PATH}");
                 return Err(anyhow::anyhow!(
                     "V1 DDR path does not exist: {}",
                     DVFSRC_V1_PATH
@@ -188,8 +186,7 @@ impl DdrManager {
         };
 
         info!(
-            "Set DDR frequency with OPP value: {} ({})",
-            ddr_opp, opp_description
+            "Set DDR frequency with OPP value: {ddr_opp} ({opp_description})"
         );
         Ok(())
     }
@@ -237,30 +234,28 @@ impl DdrManager {
 
             for opp_table in &opp_tables {
                 if Path::new(opp_table).exists() {
-                    debug!("Reading v2 DDR OPP table: {}", opp_table);
+                    debug!("Reading v2 DDR OPP table: {opp_table}");
 
                     match File::open(opp_table) {
                         Ok(file) => {
                             let reader = BufReader::new(file);
 
-                            for line in reader.lines() {
-                                if let Ok(line) = line {
-                                    if line.contains("[OPP") {
-                                        // 解析OPP行
-                                        if let Some(opp_str) = line.get(4..6) {
-                                            if let Ok(opp) = opp_str.parse::<i64>() {
-                                                freq_table.push((
-                                                    opp,
-                                                    format!("OPP{:02}: {}", opp, line.trim()),
-                                                ));
-                                            }
+                            for line in reader.lines().map_while(Result::ok) {
+                                if line.contains("[OPP") {
+                                    // 解析OPP行
+                                    if let Some(opp_str) = line.get(4..6) {
+                                        if let Ok(opp) = opp_str.parse::<i64>() {
+                                            freq_table.push((
+                                                opp,
+                                                format!("OPP{:02}: {}", opp, line.trim()),
+                                            ));
                                         }
                                     }
                                 }
                             }
                         }
                         Err(e) => {
-                            warn!("Failed to open v2 DDR OPP table: {}: {}", opp_table, e);
+                            warn!("Failed to open v2 DDR OPP table: {opp_table}: {e}");
                         }
                     }
                 }
@@ -268,32 +263,30 @@ impl DdrManager {
         } else {
             // v1 driver
             if Path::new(DVFSRC_V1_OPP_TABLE).exists() {
-                debug!("Reading v1 DDR OPP table: {}", DVFSRC_V1_OPP_TABLE);
+                debug!("Reading v1 DDR OPP table: {DVFSRC_V1_OPP_TABLE}");
 
                 match File::open(DVFSRC_V1_OPP_TABLE) {
                     Ok(file) => {
                         let reader = BufReader::new(file);
 
-                        for line in reader.lines() {
-                            if let Ok(line) = line {
-                                if line.contains("[OPP") {
-                                    let parts: Vec<&str> = line.split(',').collect();
-                                    if parts.len() >= 2 {
-                                        let opp_part = parts[0].trim();
-                                        let ddr_part = parts[1].trim();
+                        for line in reader.lines().map_while(Result::ok) {
+                            if line.contains("[OPP") {
+                                let parts: Vec<&str> = line.split(',').collect();
+                                if parts.len() >= 2 {
+                                    let opp_part = parts[0].trim();
+                                    let ddr_part = parts[1].trim();
 
-                                        if opp_part.starts_with("[OPP")
-                                            && opp_part.len() >= 6
-                                            && ddr_part.starts_with("ddr:")
-                                        {
-                                            if let Ok(opp) = opp_part[4..6].parse::<i64>() {
-                                                let ddr_desc =
-                                                    ddr_part.trim_start_matches("ddr:").trim();
-                                                freq_table.push((
-                                                    opp,
-                                                    format!("OPP{:02}: {}", opp, ddr_desc),
-                                                ));
-                                            }
+                                    if opp_part.starts_with("[OPP")
+                                        && opp_part.len() >= 6
+                                        && ddr_part.starts_with("ddr:")
+                                    {
+                                        if let Ok(opp) = opp_part[4..6].parse::<i64>() {
+                                            let ddr_desc =
+                                                ddr_part.trim_start_matches("ddr:").trim();
+                                            freq_table.push((
+                                                opp,
+                                                format!("OPP{opp:02}: {ddr_desc}"),
+                                            ));
                                         }
                                     }
                                 }
@@ -302,8 +295,7 @@ impl DdrManager {
                     }
                     Err(e) => {
                         warn!(
-                            "Failed to open v1 DDR OPP table: {}: {}",
-                            DVFSRC_V1_OPP_TABLE, e
+                            "Failed to open v1 DDR OPP table: {DVFSRC_V1_OPP_TABLE}: {e}"
                         );
                     }
                 }
@@ -327,7 +319,7 @@ impl DdrManager {
         for path in &paths {
             if Path::new(path).exists() {
                 found_path = Some(*path);
-                debug!("Found V2 driver DDR OPP table file: {}", path);
+                debug!("Found V2 driver DDR OPP table file: {path}");
                 break;
             }
         }
@@ -336,13 +328,11 @@ impl DdrManager {
             let file = File::open(path)?;
             let reader = BufReader::new(file);
 
-            for line in reader.lines() {
-                if let Ok(line) = line {
-                    if line.contains("[OPP") && line.len() >= 6 {
-                        if let Ok(opp) = line[4..6].parse::<i64>() {
-                            freq_list.push(opp);
-                            debug!("Found V2 driver DDR OPP value: {}", opp);
-                        }
+            for line in reader.lines().map_while(Result::ok) {
+                if line.contains("[OPP") && line.len() >= 6 {
+                    if let Ok(opp) = line[4..6].parse::<i64>() {
+                        freq_list.push(opp);
+                        debug!("Found V2 driver DDR OPP value: {opp}");
                     }
                 }
             }
@@ -377,9 +367,7 @@ impl DdrManager {
         self.ddr_v2_supported_freqs = ddr_v2_supported_freqs;
     }
 
-    pub fn set_gpuv2(&mut self, gpuv2: bool) {
-        self.gpuv2 = gpuv2;
-    }
+
 }
 
 impl Default for DdrManager {

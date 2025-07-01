@@ -65,7 +65,7 @@ impl FrequencyAdjustmentEngine {
                     gpu.set_cur_freq(current_freq);
                     gpu.frequency_mut().cur_freq_idx =
                         gpu.frequency().read_freq_index(current_freq);
-                    debug!("Updated current GPU frequency from file: {}", current_freq);
+                    debug!("Updated current GPU frequency from file: {current_freq}");
                 }
             }
             Err(e) => {
@@ -78,13 +78,13 @@ impl FrequencyAdjustmentEngine {
     /// 处理空闲状态
     fn handle_idle_state(gpu: &GPU) {
         let idle_sleep_time = if gpu.is_precise() { 200 } else { 160 };
-        debug!("Idle state, sleeping for {}ms", idle_sleep_time);
+        debug!("Idle state, sleeping for {idle_sleep_time}ms");
         std::thread::sleep(Duration::from_millis(idle_sleep_time));
     }
 
     /// 执行频率调整逻辑
     fn execute_frequency_adjustment(gpu: &mut GPU, load: i32, current_time: u64) -> Result<()> {
-        debug!("Executing frequency adjustment for load: {}%", load);
+        debug!("Executing frequency adjustment for load: {load}%");
 
         let current_freq = gpu.get_cur_freq();
         let current_idx = gpu.frequency().cur_freq_idx;
@@ -126,8 +126,7 @@ impl FrequencyAdjustmentEngine {
         current_time: u64,
     ) -> Result<()> {
         debug!(
-            "Applying frequency change: {}KHz (index: {})",
-            new_freq, freq_index
+            "Applying frequency change: {new_freq}KHz (index: {freq_index})"
         );
 
         // 更新频率管理器
@@ -159,7 +158,7 @@ impl FrequencyAdjustmentEngine {
             let ddr_opp = gpu.read_tab(TabType::FreqDram, freq);
             if ddr_opp > 0 || ddr_opp == crate::datasource::file_path::DDR_HIGHEST_FREQ {
                 if let Err(e) = gpu.set_ddr_freq(ddr_opp) {
-                    warn!("Failed to update DDR frequency: {}", e);
+                    warn!("Failed to update DDR frequency: {e}");
                 }
             }
         }
@@ -172,13 +171,9 @@ impl FrequencyAdjustmentEngine {
             return; // 精确模式不睡眠
         }
 
-        let sleep_time = if gpu.frequency_strategy.adaptive_sampling {
-            gpu.frequency_strategy.get_sampling_interval()
-        } else {
-            gpu.frequency_strategy.get_sampling_interval()
-        };
+        let sleep_time = gpu.frequency_strategy.get_sampling_interval();
 
-        debug!("Sleeping for {}ms", sleep_time);
+        debug!("Sleeping for {sleep_time}ms");
         std::thread::sleep(Duration::from_millis(sleep_time));
     }
 }

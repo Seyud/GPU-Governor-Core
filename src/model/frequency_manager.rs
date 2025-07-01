@@ -14,8 +14,6 @@ pub struct FrequencyManager {
     pub freq_volt: HashMap<i64, i64>,
     /// 频率到DDR的映射
     pub freq_dram: HashMap<i64, i64>,
-    /// 默认电压映射
-    pub def_volt: HashMap<i64, i64>,
     /// 当前频率
     pub cur_freq: i64,
     /// 当前频率索引
@@ -34,7 +32,6 @@ impl FrequencyManager {
             config_list: Vec::new(),
             freq_volt: HashMap::new(),
             freq_dram: HashMap::new(),
-            def_volt: HashMap::new(),
             cur_freq: 0,
             cur_freq_idx: 0,
             cur_volt: 0,
@@ -122,14 +119,6 @@ impl FrequencyManager {
         self.config_list[self.config_list.len() - 2]
     }
 
-    /// 获取第二低频率
-    pub fn get_second_lowest_freq(&self) -> i64 {
-        if self.config_list.len() < 2 {
-            return self.get_min_freq();
-        }
-        self.config_list[1]
-    }
-
     /// 获取v2驱动支持的最接近频率
     pub fn get_closest_v2_supported_freq(&self, target_freq: i64) -> i64 {
         if self.v2_supported_freqs.is_empty() {
@@ -157,18 +146,6 @@ impl FrequencyManager {
 
         // 获取电压值，优先使用频率-电压表，如果没有则尝试使用默认电压表
         self.cur_volt = self.get_volt(freq_to_use);
-
-        // 如果电压为0，尝试从默认电压表获取
-        if self.cur_volt == 0 {
-            let def_volt = *self.def_volt.get(&freq_to_use).unwrap_or(&0);
-            if def_volt > 0 {
-                debug!(
-                    "Using default voltage {} for frequency {}",
-                    def_volt, freq_to_use
-                );
-                self.cur_volt = def_volt;
-            }
-        }
 
         self.cur_volt
     }
@@ -341,10 +318,6 @@ impl FrequencyManager {
         self.freq_dram = tab;
     }
 
-    pub fn replace_def_volt_tab(&mut self, tab: HashMap<i64, i64>) {
-        self.def_volt = tab;
-    }
-
     /// 读取映射表值
     pub fn read_freq_volt(&self, freq: i64) -> i64 {
         *self.freq_volt.get(&freq).unwrap_or(&0)
@@ -352,10 +325,6 @@ impl FrequencyManager {
 
     pub fn read_freq_dram(&self, freq: i64) -> i64 {
         *self.freq_dram.get(&freq).unwrap_or(&0)
-    }
-
-    pub fn read_def_volt(&self, freq: i64) -> i64 {
-        *self.def_volt.get(&freq).unwrap_or(&0)
     }
 }
 

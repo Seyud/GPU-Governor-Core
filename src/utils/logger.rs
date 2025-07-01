@@ -25,7 +25,7 @@ impl log::Log for CustomLogger {
         let log_message = format!("[{}][{}]: {}\n", timestamp, level_str, record.args());
 
         // 只输出到控制台
-        print!("{}", log_message);
+        print!("{log_message}");
     }
 
     fn flush(&self) {
@@ -46,10 +46,10 @@ pub fn init_logger() -> Result<()> {
         .with_context(|| "Failed to set logger")?;
 
     // 记录当前使用的日志等级
-    log::info!("Logger initialized with level: {}", log_level);
+    log::info!("Logger initialized with level: {log_level}");
     log::info!("Console output only mode");
-    log::info!("Log file path (not used): {}", LOG_PATH);
-    log::info!("Log level config path: {}", LOG_LEVEL_PATH);
+    log::info!("Log file path (not used): {LOG_PATH}");
+    log::info!("Log level config path: {LOG_LEVEL_PATH}");
 
     // 在debug级别记录一条消息，说明某些错误只会在debug级别显示
     log::debug!("Some error messages (like writing to /proc/gpufreqv2/fix_target_opp_index) will only be shown at debug level");
@@ -93,7 +93,7 @@ pub fn update_log_level() -> Result<()> {
     log::set_max_level(new_level);
 
     // 记录日志等级变更
-    log::info!("Log level updated to: {}", new_level);
+    log::info!("Log level updated to: {new_level}");
 
     Ok(())
 }

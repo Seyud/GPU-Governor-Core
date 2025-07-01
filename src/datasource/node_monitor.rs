@@ -21,7 +21,7 @@ const NORMAL_MODE_DOWN_THRESHOLD: i64 = 10; // 普通模式使用更低的10次�
 
 pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
     // 设置线程名称（在Rust中无法轻易设置当前线程名称）
-    info!("{} Start", GAME_THREAD);
+    info!("{GAME_THREAD} Start");
 
     // 默认设置为非游戏模式
     gpu.set_gaming_mode(false);
@@ -30,11 +30,10 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
     if !check_read_simple(GPU_GOVERNOR_GAME_MODE_PATH) {
         // 如果文件不存在，记录日志
         info!(
-            "Game mode file does not exist: {}",
-            GPU_GOVERNOR_GAME_MODE_PATH
+            "Game mode file does not exist: {GPU_GOVERNOR_GAME_MODE_PATH}"
         );
     } else {
-        info!("Using game mode path: {}", GPU_GOVERNOR_GAME_MODE_PATH);
+        info!("Using game mode path: {GPU_GOVERNOR_GAME_MODE_PATH}");
 
         // 初始读取游戏模式状态
         if let Ok(buf) = read_file(GPU_GOVERNOR_GAME_MODE_PATH, 3) {
@@ -95,15 +94,14 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                 debug!("Normal mode hysteresis: up=75%, down=30%, debounce: up=20ms, down=50ms");
             }
 
-            info!("Initial game mode value: {}", value);
+            info!("Initial game mode value: {value}");
         } else {
             info!("Failed to read initial game mode value, defaulting to non-gaming mode");
             // 默认为普通模式
             gpu.set_up_rate_delay(NORMAL_MODE_UP_RATE_DELAY);
             gpu.set_down_threshold(NORMAL_MODE_DOWN_THRESHOLD);
             info!(
-                "Setting default up rate delay to {}ms, down threshold to {}",
-                NORMAL_MODE_UP_RATE_DELAY, NORMAL_MODE_DOWN_THRESHOLD
+                "Setting default up rate delay to {NORMAL_MODE_UP_RATE_DELAY}ms, down threshold to {NORMAL_MODE_DOWN_THRESHOLD}"
             );
 
             // 设置默认高级调速器参数（普通模式）
@@ -203,10 +201,10 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
                     );
                 }
 
-                debug!("Game mode changed: {}", is_gaming);
+                debug!("Game mode changed: {is_gaming}");
             }
             Err(e) => {
-                warn!("Failed to read game mode file: {}", e);
+                warn!("Failed to read game mode file: {e}");
                 // 如果读取失败，设置为非游戏模式
                 gpu.set_gaming_mode(false);
             }
@@ -216,7 +214,7 @@ pub fn monitor_gaming(mut gpu: GPU) -> Result<()> {
 
 pub fn monitor_config(mut gpu: GPU) -> Result<()> {
     // 设置线程名称（在Rust中无法轻易设置当前线程名称）
-    info!("{} Start", CONF_THREAD);
+    info!("{CONF_THREAD} Start");
 
     // 只使用 CONFIG_FILE_TR 配置文件
     let config_file = CONFIG_FILE_TR.to_string();
@@ -227,7 +225,7 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
         return Err(anyhow::anyhow!("Config file not found: {}", config_file));
     };
 
-    info!("Using Config: {}", config_file);
+    info!("Using Config: {config_file}");
 
     // 使用read_freq_ge和read_freq_le方法获取频率范围
     let min_freq = gpu.get_min_freq();
@@ -243,8 +241,7 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
     let margin = gpu.get_margin();
 
     info!(
-        "Config values: min_freq={}KHz, max_freq={}KHz, margin={}%",
-        min_freq, max_freq, margin
+        "Config values: min_freq={min_freq}KHz, max_freq={max_freq}KHz, margin={margin}%"
     );
 
     let mut inotify = InotifyWatcher::new()?;

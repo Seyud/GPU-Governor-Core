@@ -1,6 +1,5 @@
 /// GPU Governor 常量定义
 /// 将分散的常量集中管理，提高代码可维护性
-
 pub const NOTES: &str = "Mediatek Mali GPU Governor";
 pub const AUTHOR: &str = "Author: walika @CoolApk, rtools @CoolApk";
 pub const SPECIAL: &str =
@@ -20,16 +19,16 @@ pub struct InfoDisplay;
 
 impl InfoDisplay {
     pub fn print_header() {
-        println!("{}", NOTES);
-        println!("{}", AUTHOR);
-        println!("{}", SPECIAL);
-        println!("{}", VERSION);
+        println!("{NOTES}");
+        println!("{AUTHOR}");
+        println!("{SPECIAL}");
+        println!("{VERSION}");
     }
 
     pub fn print_usage() {
-        println!("{}", NOTES);
-        println!("{}", AUTHOR);
-        println!("{}", SPECIAL);
+        println!("{NOTES}");
+        println!("{AUTHOR}");
+        println!("{SPECIAL}");
         println!("Usage:");
         println!("\t-v show version");
         println!("\t-h show help");

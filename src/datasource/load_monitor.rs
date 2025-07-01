@@ -270,10 +270,10 @@ pub fn get_gpu_current_freq() -> Result<i64> {
                     debug!("Current GPU frequency from {GPU_CURRENT_FREQ_PATH}: {freq}");
                     return Ok(freq);
                 } else {
-                    debug!("Failed to parse second value as frequency from: {}", buf);
+                    debug!("Failed to parse second value as frequency from: {buf}");
                 }
             } else {
-                debug!("Not enough values in GPU frequency file, content: {}", buf);
+                debug!("Not enough values in GPU frequency file, content: {buf}");
             }
         }
     } else {
@@ -301,10 +301,10 @@ pub fn get_gpu_current_freq() -> Result<i64> {
                     debug!("Current GPU frequency from {GPU_DEBUG_CURRENT_FREQ_PATH}: {freq}");
                     return Ok(freq);
                 } else {
-                    debug!("Failed to parse second value as frequency from: {}", buf);
+                    debug!("Failed to parse second value as frequency from: {buf}");
                 }
             } else {
-                debug!("Not enough values in GPU frequency file, content: {}", buf);
+                debug!("Not enough values in GPU frequency file, content: {buf}");
             }
         }
     } else {

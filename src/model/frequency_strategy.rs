@@ -69,93 +69,6 @@ impl FrequencyStrategy {
         }
     }
 
-    /// 确定当前负载所属区域，考虑滞后阈值
-    pub fn determine_load_zone(&self, load: i32) -> i32 {
-        if load <= self.very_low_load_threshold {
-            0 // 极低负载区域
-        } else if load <= self.low_load_threshold {
-            1 // 低负载区域
-        } else if load < self.high_load_threshold {
-            2 // 中等负载区域
-        } else if load < self.very_high_load_threshold {
-            3 // 高负载区域
-        } else {
-            4 // 极高负载区域
-        }
-    }
-
-    /// 检查是否满足去抖动时间要求
-    pub fn check_debounce_time(&self, current_time: u64, target_higher: bool) -> bool {
-        let elapsed = current_time - self.last_adjustment_time;
-        let required_time = if target_higher {
-            self.debounce_time_up
-        } else {
-            self.debounce_time_down
-        };
-
-        elapsed >= required_time
-    }
-
-    /// 获取所需的去抖动时间
-    pub fn get_required_debounce_time(&self, target_higher: bool) -> u64 {
-        if target_higher {
-            self.debounce_time_up
-        } else {
-            self.debounce_time_down
-        }
-    }
-
-    /// 根据负载波动性和当前负载调整采样间隔
-    pub fn adjust_sampling_interval(&mut self, load: i32) -> u64 {
-        if !self.adaptive_sampling {
-            return self.sampling_interval;
-        }
-
-        // 根据负载值调整采样间隔
-        // 高负载时使用更短的采样间隔，低负载时使用更长的采样间隔
-        let load_factor = if load > 80 {
-            0.5 // 高负载时减半
-        } else if load > 50 {
-            0.8 // 中等负载时稍微减少
-        } else if load < 20 {
-            1.5 // 低负载时增加
-        } else {
-            1.0 // 正常负载
-        };
-
-        let new_interval = (self.sampling_interval as f64 * load_factor) as u64;
-        self.sampling_interval =
-            new_interval.clamp(self.min_sampling_interval, self.max_sampling_interval);
-
-        debug!(
-            "Adjusted sampling interval to {}ms based on load {}%",
-            self.sampling_interval, load
-        );
-        self.sampling_interval
-    }
-
-    /// 计算调整后的margin值
-    pub fn calculate_margin(&self, load_trend: i32, gaming_mode: bool) -> i64 {
-        let mut margin = if gaming_mode {
-            self.margin + 10
-        } else {
-            self.margin
-        };
-
-        // 根据负载趋势适度调整margin
-        if load_trend > 0 {
-            margin += 3; // 负载上升趋势，适度增加margin
-        } else if load_trend < 0 {
-            margin = if margin > 3 { margin - 3 } else { margin }; // 负载下降趋势，适度减少margin
-        }
-
-        debug!(
-            "Calculated margin: {}% (trend: {}, gaming: {})",
-            margin, load_trend, gaming_mode
-        );
-        margin
-    }
-
     /// 设置游戏模式参数 - 超简化版
     pub fn set_gaming_mode_params(&mut self) {
         // 游戏模式：99%升频，相对保守的降频
@@ -191,8 +104,7 @@ impl FrequencyStrategy {
         self.high_load_threshold = high;
         self.very_high_load_threshold = very_high;
         debug!(
-            "Set load thresholds: very_low={}%, low={}%, high={}%, very_high={}%",
-            very_low, low, high, very_high
+            "Set load thresholds: very_low={very_low}%, low={low}%, high={high}%, very_high={very_high}%"
         );
     }
 
@@ -201,8 +113,7 @@ impl FrequencyStrategy {
         self.hysteresis_up_threshold = up_threshold;
         self.hysteresis_down_threshold = down_threshold;
         debug!(
-            "Set hysteresis thresholds: up={}%, down={}%",
-            up_threshold, down_threshold
+            "Set hysteresis thresholds: up={up_threshold}%, down={down_threshold}%"
         );
     }
 
@@ -210,7 +121,7 @@ impl FrequencyStrategy {
     pub fn set_debounce_times(&mut self, up_time: u64, down_time: u64) {
         self.debounce_time_up = up_time;
         self.debounce_time_down = down_time;
-        debug!("Set debounce times: up={}ms, down={}ms", up_time, down_time);
+        debug!("Set debounce times: up={up_time}ms, down={down_time}ms");
     }
 
     /// 设置自适应采样参数
@@ -219,8 +130,7 @@ impl FrequencyStrategy {
         self.min_sampling_interval = min_interval;
         self.max_sampling_interval = max_interval;
         debug!(
-            "Set adaptive sampling: enabled={}, min={}ms, max={}ms",
-            enabled, min_interval, max_interval
+            "Set adaptive sampling: enabled={enabled}, min={min_interval}ms, max={max_interval}ms"
         );
     }
 
@@ -236,16 +146,12 @@ impl FrequencyStrategy {
 
     pub fn set_margin(&mut self, margin: i64) {
         self.margin = margin;
-        debug!("Set margin to: {}%", margin);
-    }
-
-    pub fn get_up_rate_delay(&self) -> u64 {
-        self.up_rate_delay
+        debug!("Set margin to: {margin}%");
     }
 
     pub fn set_up_rate_delay(&mut self, up_rate_delay: u64) {
         self.up_rate_delay = up_rate_delay;
-        debug!("Set up rate delay to: {}ms", up_rate_delay);
+        debug!("Set up rate delay to: {up_rate_delay}ms");
     }
 
     pub fn get_down_threshold(&self) -> i64 {
@@ -254,7 +160,7 @@ impl FrequencyStrategy {
 
     pub fn set_down_threshold(&mut self, down_threshold: i64) {
         self.down_threshold = down_threshold;
-        debug!("Set down threshold to: {}", down_threshold);
+        debug!("Set down threshold to: {down_threshold}");
     }
 
     pub fn get_sampling_interval(&self) -> u64 {
@@ -263,24 +169,14 @@ impl FrequencyStrategy {
 
     pub fn set_sampling_interval(&mut self, sampling_interval: u64) {
         self.sampling_interval = sampling_interval;
-        debug!("Set sampling interval to: {}ms", sampling_interval);
-    }
-
-    pub fn get_load_stability_threshold(&self) -> i32 {
-        self.load_stability_threshold
+        debug!("Set sampling interval to: {sampling_interval}ms");
     }
 
     pub fn set_load_stability_threshold(&mut self, load_stability_threshold: i32) {
         self.load_stability_threshold = load_stability_threshold;
         debug!(
-            "Set load stability threshold to: {}",
-            load_stability_threshold
+            "Set load stability threshold to: {load_stability_threshold}"
         );
-    }
-
-    // 布尔值使用特殊的 getter
-    pub fn is_aggressive_down(&self) -> bool {
-        self.aggressive_down
     }
 
     pub fn set_aggressive_down(&mut self, aggressive: bool) {

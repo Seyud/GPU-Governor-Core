@@ -15,18 +15,6 @@ use crate::{
 pub enum TabType {
     FreqVolt,
     FreqDram,
-    DefVolt,
-}
-
-impl TabType {
-    /// 获取表类型的描述字符串
-    pub fn description(&self) -> &'static str {
-        match self {
-            TabType::FreqVolt => "Frequency to Voltage mapping",
-            TabType::FreqDram => "Frequency to DDR mapping",
-            TabType::DefVolt => "Default voltage mapping",
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -94,11 +82,6 @@ impl GPU {
     pub fn get_min_freq(&self) -> i64 {
         self.frequency_manager.get_min_freq()
     }
-    // 为其他组件提供直接访问，减少委托样板代码
-    pub fn frequency_strategy(&self) -> &FrequencyStrategy {
-        &self.frequency_strategy
-    }
-
     pub fn frequency_strategy_mut(&mut self) -> &mut FrequencyStrategy {
         &mut self.frequency_strategy
     }
@@ -154,11 +137,10 @@ impl GPU {
             }
 
             debug!(
-                "Game mode: using DDR_OPP {} for frequency {}KHz",
-                ddr_opp, freq_to_use
+                "Game mode: using DDR_OPP {ddr_opp} for frequency {freq_to_use}KHz"
             );
             if let Err(e) = self.set_ddr_freq(ddr_opp) {
-                warn!("Failed to set DDR frequency in game mode: {}", e);
+                warn!("Failed to set DDR frequency in game mode: {e}");
             }
         } else {
             // 应用普通模式调频策略
@@ -167,7 +149,7 @@ impl GPU {
             // 恢复自动DDR频率模式
             if self.is_ddr_freq_fixed() {
                 if let Err(e) = self.set_ddr_freq(999) {
-                    warn!("Failed to restore auto DDR mode: {}", e);
+                    warn!("Failed to restore auto DDR mode: {e}");
                 }
             }
         }
@@ -184,21 +166,17 @@ impl GPU {
 
     /// 读取映射表值 - 使用更简洁的模式匹配
     pub fn read_tab(&self, tab_type: TabType, freq: i64) -> i64 {
-        use TabType::*;
         match tab_type {
-            FreqVolt => self.frequency_manager.read_freq_volt(freq),
-            FreqDram => self.frequency_manager.read_freq_dram(freq),
-            DefVolt => self.frequency_manager.read_def_volt(freq),
+            TabType::FreqVolt => self.frequency_manager.read_freq_volt(freq),
+            TabType::FreqDram => self.frequency_manager.read_freq_dram(freq),
         }
     }
 
     /// 替换映射表 - 使用更简洁的模式匹配
     pub fn replace_tab(&mut self, tab_type: TabType, tab: HashMap<i64, i64>) {
-        use TabType::*;
         match tab_type {
-            FreqVolt => self.frequency_manager.replace_freq_volt_tab(tab),
-            FreqDram => self.frequency_manager.replace_freq_dram_tab(tab),
-            DefVolt => self.frequency_manager.replace_def_volt_tab(tab),
+            TabType::FreqVolt => self.frequency_manager.replace_freq_volt_tab(tab),
+            TabType::FreqDram => self.frequency_manager.replace_freq_dram_tab(tab),
         }
     }
 
@@ -230,44 +208,10 @@ impl GPU {
         }
     }
 
-    /// 获取v2 driver支持的最接近频率
-    pub fn get_closest_v2_supported_freq(&self, freq: i64) -> i64 {
-        if !self.gpuv2
-            || self.v2_supported_freqs.is_empty()
-            || self.is_freq_supported_by_v2_driver(freq)
-        {
-            // 如果不是v2 driver或者没有读取到支持的频率，或者频率已经在支持范围内，则直接返回原频率
-            freq
-        } else {
-            // 找到最接近的支持频率
-            let mut closest_freq = self.v2_supported_freqs[0];
-            let mut min_diff = (freq - closest_freq).abs();
-
-            for &supported_freq in &self.v2_supported_freqs {
-                let diff = (freq - supported_freq).abs();
-                if diff < min_diff {
-                    min_diff = diff;
-                    closest_freq = supported_freq;
-                }
-            }
-
-            debug!(
-                "Freq {} not supported by V2 driver, using closest supported freq: {}",
-                freq, closest_freq
-            );
-            closest_freq
-        }
-    }
-
     /// 快捷方法组合 - 提供更符合 Rust 习惯的API
-
     // 最常用的频率操作
     pub fn get_freq_by_index(&self, idx: i64) -> i64 {
         self.frequency_manager.get_freq_by_index(idx)
-    }
-
-    pub fn read_freq_index(&self, freq: i64) -> i64 {
-        self.frequency_manager.read_freq_index(freq)
     }
 
     pub fn get_middle_freq(&self) -> i64 {
@@ -287,20 +231,12 @@ impl GPU {
     }
 
     // 最常用的空闲状态操作
-    pub fn check_idle_state(&mut self, util: i32) {
-        self.idle_manager.check_idle_state(util)
-    }
-
     pub fn reset_load_zone_counter(&mut self) {
         self.idle_manager.reset_load_zone_counter()
     }
 
     pub fn is_idle(&self) -> bool {
         self.idle_manager.is_idle()
-    }
-
-    pub fn set_idle(&mut self, idle: bool) {
-        self.idle_manager.set_idle(idle);
     }
 
     // 最常用的策略操作
@@ -391,33 +327,6 @@ impl GPU {
     pub fn adjust_gpufreq(&mut self) -> Result<()> {
         use crate::model::frequency_engine::FrequencyAdjustmentEngine;
         FrequencyAdjustmentEngine::run_adjustment_loop(self)
-    }
-
-    // 写入频率方法 - 简化版
-    pub fn write_freq(&self) -> Result<()> {
-        self.frequency_manager
-            .write_freq(self.need_dcs, self.is_idle())
-    }
-
-    // 其他必要的实用方法
-    pub fn find_closest_gpu_freq(&self, target_freq: i64) -> i64 {
-        if self.get_config_list().is_empty() {
-            0
-        } else {
-            let config_list = self.get_config_list();
-            let mut closest_freq = config_list[0];
-            let mut min_diff = (target_freq - closest_freq).abs();
-
-            for &freq in &config_list {
-                let diff = (target_freq - freq).abs();
-                if diff < min_diff {
-                    min_diff = diff;
-                    closest_freq = freq;
-                }
-            }
-
-            closest_freq
-        }
     }
 }
 
