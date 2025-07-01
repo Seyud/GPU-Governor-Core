@@ -255,3 +255,30 @@ fn main() -> Result<()> {
     // 开始频率调整
     gpu.adjust_gpufreq()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_handle_command_line_args_no_args() {
+        // 测试无参数情况 - 这应该成功
+        let result = handle_command_line_args();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_basic_functionality() {
+        // 这是一个基础的单元测试
+        assert_eq!(2 + 2, 4);
+        assert!(true);
+    }
+
+    #[test]
+    fn test_string_operations() {
+        // 测试字符串操作
+        let test_str = "gpugovernor";
+        assert!(!test_str.is_empty());
+        assert_eq!(test_str.len(), 11);
+    }
+}

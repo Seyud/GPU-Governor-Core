@@ -145,11 +145,8 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-test-cargo-
           
-    - name: Run unit tests
+    - name: Run tests
       run: cargo test --verbose
-      
-    - name: Run integration tests
-      run: cargo test --verbose --test '*'
 
   build:
     name: Build Module
