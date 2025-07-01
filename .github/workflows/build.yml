@@ -45,12 +45,11 @@ jobs:
         
     - name: Install shfmt
       run: |
-        GO_VERSION=$(curl -s https://api.github.com/repos/golang/go/releases/latest | grep -o '"tag_name": "go[^"]*' | cut -d'"' -f4)
-        wget https://dl.google.com/go/${GO_VERSION}.linux-amd64.tar.gz
-        sudo tar -C /usr/local -xzf ${GO_VERSION}.linux-amd64.tar.gz
-        export PATH=$PATH:/usr/local/go/bin
-        go install mvdan.cc/sh/v3/cmd/shfmt@latest
-        echo "$HOME/go/bin" >> $GITHUB_PATH
+        # 使用更简单和可靠的方法安装 shfmt
+        SHFMT_VERSION="v3.7.0"
+        wget -O shfmt "https://github.com/mvdan/sh/releases/download/${SHFMT_VERSION}/shfmt_${SHFMT_VERSION}_linux_amd64"
+        chmod +x shfmt
+        sudo mv shfmt /usr/local/bin/
         
     - name: Format shell scripts
       run: |
