@@ -215,43 +215,60 @@ impl FrequencyStrategy {
         self.last_adjustment_time = time;
     }
 
-    // Getter方法
-    pub fn get_margin(&self) -> i64 { self.margin }
-    pub fn get_up_rate_delay(&self) -> u64 { self.up_rate_delay }
-    pub fn get_down_threshold(&self) -> i64 { self.down_threshold }
-    pub fn get_sampling_interval(&self) -> u64 { self.sampling_interval }
-    pub fn is_aggressive_down(&self) -> bool { self.aggressive_down }
-    pub fn get_load_stability_threshold(&self) -> i32 { self.load_stability_threshold }
-
-    // Setter方法
+    // Getter和Setter方法 - 手动实现，确保编译通过
+    pub fn get_margin(&self) -> i64 { 
+        self.margin 
+    }
+    
     pub fn set_margin(&mut self, margin: i64) {
         self.margin = margin;
         debug!("Set margin to: {}%", margin);
     }
-
-    pub fn set_up_rate_delay(&mut self, delay: u64) {
-        self.up_rate_delay = delay;
-        debug!("Set up rate delay to: {}ms", delay);
+    
+    pub fn get_up_rate_delay(&self) -> u64 { 
+        self.up_rate_delay 
     }
-
-    pub fn set_down_threshold(&mut self, threshold: i64) {
-        self.down_threshold = threshold;
-        debug!("Set down threshold to: {}", threshold);
+    
+    pub fn set_up_rate_delay(&mut self, up_rate_delay: u64) {
+        self.up_rate_delay = up_rate_delay;
+        debug!("Set up rate delay to: {}ms", up_rate_delay);
     }
-
-    pub fn set_sampling_interval(&mut self, interval: u64) {
-        self.sampling_interval = interval;
-        debug!("Set sampling interval to: {}ms", interval);
+    
+    pub fn get_down_threshold(&self) -> i64 { 
+        self.down_threshold 
     }
-
+    
+    pub fn set_down_threshold(&mut self, down_threshold: i64) {
+        self.down_threshold = down_threshold;
+        debug!("Set down threshold to: {}", down_threshold);
+    }
+    
+    pub fn get_sampling_interval(&self) -> u64 { 
+        self.sampling_interval 
+    }
+    
+    pub fn set_sampling_interval(&mut self, sampling_interval: u64) {
+        self.sampling_interval = sampling_interval;
+        debug!("Set sampling interval to: {}ms", sampling_interval);
+    }
+    
+    pub fn get_load_stability_threshold(&self) -> i32 { 
+        self.load_stability_threshold 
+    }
+    
+    pub fn set_load_stability_threshold(&mut self, load_stability_threshold: i32) {
+        self.load_stability_threshold = load_stability_threshold;
+        debug!("Set load stability threshold to: {}", load_stability_threshold);
+    }
+    
+    // 布尔值使用特殊的 getter
+    pub fn is_aggressive_down(&self) -> bool { 
+        self.aggressive_down 
+    }
+    
     pub fn set_aggressive_down(&mut self, aggressive: bool) {
         self.aggressive_down = aggressive;
         debug!("Set aggressive downscaling: {}", if aggressive { "enabled" } else { "disabled" });
-    }
-
-    pub fn set_load_stability_threshold(&mut self, threshold: i32) {
-        self.load_stability_threshold = threshold;
-        debug!("Set load stability threshold to: {}", threshold);
     }
 }
 

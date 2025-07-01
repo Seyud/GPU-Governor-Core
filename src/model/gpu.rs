@@ -13,10 +13,22 @@ use crate::{
     },
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TabType {
     FreqVolt,
     FreqDram,
     DefVolt,
+}
+
+impl TabType {
+    /// 获取表类型的描述字符串
+    pub fn description(&self) -> &'static str {
+        match self {
+            TabType::FreqVolt => "Frequency to Voltage mapping",
+            TabType::FreqDram => "Frequency to DDR mapping", 
+            TabType::DefVolt => "Default voltage mapping",
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -57,7 +69,7 @@ impl GPU {    pub fn new() -> Self {
         }
     }
 
-    // 委托方法 - 频率管理相关
+    // 频率管理相关 - 使用 Deref 模式减少样板代码
     pub fn get_cur_freq(&self) -> i64 {
         self.frequency_manager.cur_freq
     }
@@ -66,14 +78,16 @@ impl GPU {    pub fn new() -> Self {
         self.frequency_manager.cur_freq = cur_freq;
     }
 
-    pub fn get_freq_by_index(&self, idx: i64) -> i64 {
-        self.frequency_manager.get_freq_by_index(idx)
+    // 将频率管理方法直接暴露为引用，减少委托
+    pub fn frequency(&self) -> &FrequencyManager {
+        &self.frequency_manager
     }
 
-    pub fn read_freq_index(&self, freq: i64) -> i64 {
-        self.frequency_manager.read_freq_index(freq)
+    pub fn frequency_mut(&mut self) -> &mut FrequencyManager {
+        &mut self.frequency_manager
     }
 
+    // 保留最常用的快捷方法
     pub fn get_max_freq(&self) -> i64 {
         self.frequency_manager.get_max_freq()
     }
@@ -81,136 +95,29 @@ impl GPU {    pub fn new() -> Self {
     pub fn get_min_freq(&self) -> i64 {
         self.frequency_manager.get_min_freq()
     }
-
-    pub fn get_middle_freq(&self) -> i64 {
-        self.frequency_manager.get_middle_freq()
+    // 为其他组件提供直接访问，减少委托样板代码
+    pub fn load_analyzer(&self) -> &LoadAnalyzer {
+        &self.load_analyzer
     }
 
-    pub fn get_second_highest_freq(&self) -> i64 {
-        self.frequency_manager.get_second_highest_freq()
+    pub fn load_analyzer_mut(&mut self) -> &mut LoadAnalyzer {
+        &mut self.load_analyzer
     }
 
-    pub fn get_second_lowest_freq(&self) -> i64 {
-        self.frequency_manager.get_second_lowest_freq()
+    pub fn frequency_strategy(&self) -> &FrequencyStrategy {
+        &self.frequency_strategy
     }
 
-    pub fn get_volt(&self, freq: i64) -> i64 {
-        self.frequency_manager.get_volt(freq)
+    pub fn frequency_strategy_mut(&mut self) -> &mut FrequencyStrategy {
+        &mut self.frequency_strategy
     }
 
-    pub fn gen_cur_volt(&mut self) -> i64 {
-        self.frequency_manager.gen_cur_volt()
+    pub fn ddr_manager(&self) -> &DdrManager {
+        &self.ddr_manager
     }
 
-    pub fn get_config_list(&self) -> Vec<i64> {
-        self.frequency_manager.get_config_list()
-    }
-
-    pub fn set_config_list(&mut self, config_list: Vec<i64>) {
-        self.frequency_manager.set_config_list(config_list);
-    }
-
-    // 委托方法 - 负载分析相关
-    pub fn update_load_history(&mut self, load: i32) -> i32 {
-        self.load_analyzer.update_load_history(load)
-    }
-
-    pub fn get_load_trend(&self) -> i32 {
-        self.load_analyzer.get_load_trend()
-    }
-
-    pub fn is_idle(&self) -> bool {
-        self.load_analyzer.is_idle()
-    }
-
-    pub fn set_idle(&mut self, idle: bool) {
-        self.load_analyzer.set_idle(idle);
-    }
-
-    // 委托方法 - 调频策略相关
-    pub fn get_margin(&self) -> i64 {
-        self.frequency_strategy.get_margin()
-    }
-
-    pub fn set_margin(&mut self, margin: i64) {
-        self.frequency_strategy.set_margin(margin);
-    }
-
-    pub fn determine_load_zone(&self, load: i32) -> i32 {
-        self.frequency_strategy.determine_load_zone(load)
-    }
-
-    pub fn get_up_rate_delay(&self) -> u64 {
-        self.frequency_strategy.get_up_rate_delay()
-    }
-
-    pub fn set_up_rate_delay(&mut self, delay: u64) {
-        self.frequency_strategy.set_up_rate_delay(delay);
-    }
-
-    pub fn get_down_threshold(&self) -> i64 {
-        self.frequency_strategy.get_down_threshold()
-    }
-
-    pub fn set_down_threshold(&mut self, threshold: i64) {
-        self.frequency_strategy.set_down_threshold(threshold);
-    }
-
-    pub fn set_load_thresholds(&mut self, very_low: i32, low: i32, high: i32, very_high: i32) {
-        self.frequency_strategy.set_load_thresholds(very_low, low, high, very_high);
-    }
-
-    pub fn set_load_stability_threshold(&mut self, threshold: i32) {
-        self.frequency_strategy.set_load_stability_threshold(threshold);
-    }
-
-    pub fn set_aggressive_down(&mut self, aggressive: bool) {
-        self.frequency_strategy.set_aggressive_down(aggressive);
-    }
-
-    pub fn set_hysteresis_thresholds(&mut self, up_threshold: i32, down_threshold: i32) {
-        self.frequency_strategy.set_hysteresis_thresholds(up_threshold, down_threshold);
-    }
-
-    pub fn set_debounce_times(&mut self, up_time: u64, down_time: u64) {
-        self.frequency_strategy.set_debounce_times(up_time, down_time);
-    }
-
-    pub fn set_adaptive_sampling(&mut self, enabled: bool, min_interval: u64, max_interval: u64) {
-        self.frequency_strategy.set_adaptive_sampling(enabled, min_interval, max_interval);
-    }
-
-    pub fn set_sampling_interval(&mut self, interval: u64) {
-        self.frequency_strategy.set_sampling_interval(interval);
-    }
-
-    // 委托方法 - DDR管理相关
-    pub fn set_ddr_freq(&mut self, freq: i64) -> Result<()> {
-        self.ddr_manager.set_ddr_freq(freq)
-    }
-
-    pub fn get_ddr_freq(&self) -> i64 {
-        self.ddr_manager.get_ddr_freq()
-    }
-
-    pub fn is_ddr_freq_fixed(&self) -> bool {
-        self.ddr_manager.is_ddr_freq_fixed()
-    }
-
-    pub fn get_ddr_freq_table(&self) -> Result<Vec<(i64, String)>> {
-        self.ddr_manager.get_ddr_freq_table()
-    }
-
-    pub fn get_ddr_v2_supported_freqs(&self) -> Vec<i64> {
-        self.ddr_manager.get_ddr_v2_supported_freqs()
-    }
-
-    pub fn set_ddr_v2_supported_freqs(&mut self, freqs: Vec<i64>) {
-        self.ddr_manager.set_ddr_v2_supported_freqs(freqs);
-    }
-
-    pub fn read_ddr_v2_freq_table(&self) -> Result<Vec<i64>> {
-        self.ddr_manager.read_ddr_v2_freq_table()
+    pub fn ddr_manager_mut(&mut self) -> &mut DdrManager {
+        &mut self.ddr_manager
     }
 
     // DCS相关方法
@@ -278,21 +185,23 @@ impl GPU {    pub fn new() -> Self {
         self.precise = precise;
     }
 
-    // 读取映射表值
+    /// 读取映射表值 - 使用更简洁的模式匹配
     pub fn read_tab(&self, tab_type: TabType, freq: i64) -> i64 {
+        use TabType::*;
         match tab_type {
-            TabType::FreqVolt => self.frequency_manager.read_freq_volt(freq),
-            TabType::FreqDram => self.frequency_manager.read_freq_dram(freq),
-            TabType::DefVolt => self.frequency_manager.read_def_volt(freq),
+            FreqVolt => self.frequency_manager.read_freq_volt(freq),
+            FreqDram => self.frequency_manager.read_freq_dram(freq),
+            DefVolt => self.frequency_manager.read_def_volt(freq),
         }
     }
 
-    // 替换映射表
+    /// 替换映射表 - 使用更简洁的模式匹配
     pub fn replace_tab(&mut self, tab_type: TabType, tab: HashMap<i64, i64>) {
+        use TabType::*;
         match tab_type {
-            TabType::FreqVolt => self.frequency_manager.replace_freq_volt_tab(tab),
-            TabType::FreqDram => self.frequency_manager.replace_freq_dram_tab(tab),
-            TabType::DefVolt => self.frequency_manager.replace_def_volt_tab(tab),
+            FreqVolt => self.frequency_manager.replace_freq_volt_tab(tab),
+            FreqDram => self.frequency_manager.replace_freq_dram_tab(tab),
+            DefVolt => self.frequency_manager.replace_def_volt_tab(tab),
         }
     }
 
@@ -353,17 +262,125 @@ impl GPU {    pub fn new() -> Self {
         }
     }
 
-    // 频率读取相关方法
+    /// 快捷方法组合 - 提供更符合 Rust 习惯的API
+    
+    // 最常用的频率操作
+    pub fn get_freq_by_index(&self, idx: i64) -> i64 {
+        self.frequency_manager.get_freq_by_index(idx)
+    }
+    
+    pub fn read_freq_index(&self, freq: i64) -> i64 {
+        self.frequency_manager.read_freq_index(freq)
+    }
+    
+    pub fn get_middle_freq(&self) -> i64 {
+        self.frequency_manager.get_middle_freq()
+    }
+    
+    pub fn get_second_highest_freq(&self) -> i64 {
+        self.frequency_manager.get_second_highest_freq()
+    }
+    
+    pub fn get_config_list(&self) -> Vec<i64> {
+        self.frequency_manager.get_config_list()
+    }
+    
+    pub fn set_config_list(&mut self, config_list: Vec<i64>) {
+        self.frequency_manager.set_config_list(config_list);
+    }
+
+    // 最常用的负载操作
+    pub fn update_load_history(&mut self, load: i32) -> i32 {
+        self.load_analyzer.update_load_history(load)
+    }
+    
+    pub fn get_load_trend(&self) -> i32 {
+        self.load_analyzer.get_load_trend()
+    }
+    
+    pub fn is_idle(&self) -> bool {
+        self.load_analyzer.is_idle()
+    }
+    
+    pub fn set_idle(&mut self, idle: bool) {
+        self.load_analyzer.set_idle(idle);
+    }
+
+    // 最常用的策略操作
+    pub fn get_margin(&self) -> i64 {
+        self.frequency_strategy.get_margin()
+    }
+    
+    pub fn set_margin(&mut self, margin: i64) {
+        self.frequency_strategy.set_margin(margin);
+    }
+    
+    pub fn get_down_threshold(&self) -> i64 {
+        self.frequency_strategy.get_down_threshold()
+    }
+    
+    pub fn set_down_threshold(&mut self, threshold: i64) {
+        self.frequency_strategy.set_down_threshold(threshold);
+    }
+
+    // 批量设置方法 - 减少重复调用
+    pub fn configure_strategy(&mut self, 
+                             margin: i64, 
+                             down_threshold: i64, 
+                             sampling_interval: u64, 
+                             aggressive_down: bool) {
+        let strategy = &mut self.frequency_strategy;
+        strategy.set_margin(margin);
+        strategy.set_down_threshold(down_threshold);
+        strategy.set_sampling_interval(sampling_interval);
+        strategy.set_aggressive_down(aggressive_down);
+    }
+
+    // 最常用的DDR操作
+    pub fn set_ddr_freq(&mut self, freq: i64) -> Result<()> {
+        self.ddr_manager.set_ddr_freq(freq)
+    }
+    
+    pub fn is_ddr_freq_fixed(&self) -> bool {
+        self.ddr_manager.is_ddr_freq_fixed()
+    }
+
+    // 添加缺失的策略委托方法
+    pub fn set_up_rate_delay(&mut self, delay: u64) {
+        self.frequency_strategy.set_up_rate_delay(delay);
+    }
+    
+    pub fn set_load_thresholds(&mut self, very_low: i32, low: i32, high: i32, very_high: i32) {
+        self.frequency_strategy.set_load_thresholds(very_low, low, high, very_high);
+    }
+    
+    pub fn set_load_stability_threshold(&mut self, threshold: i32) {
+        self.frequency_strategy.set_load_stability_threshold(threshold);
+    }
+    
+    pub fn set_aggressive_down(&mut self, aggressive: bool) {
+        self.frequency_strategy.set_aggressive_down(aggressive);
+    }
+    
+    pub fn set_hysteresis_thresholds(&mut self, up_threshold: i32, down_threshold: i32) {
+        self.frequency_strategy.set_hysteresis_thresholds(up_threshold, down_threshold);
+    }
+    
+    pub fn set_debounce_times(&mut self, up_time: u64, down_time: u64) {
+        self.frequency_strategy.set_debounce_times(up_time, down_time);
+    }
+    
+    pub fn set_adaptive_sampling(&mut self, enabled: bool, min_interval: u64, max_interval: u64) {
+        self.frequency_strategy.set_adaptive_sampling(enabled, min_interval, max_interval);
+    }
+    
+    // 添加缺失的频率管理委托方法
     pub fn read_freq_ge(&self, freq: i64) -> i64 {
         self.frequency_manager.read_freq_ge(freq)
     }
-
+    
     pub fn read_freq_le(&self, freq: i64) -> i64 {
         self.frequency_manager.read_freq_le(freq)
-    }
-
-    pub fn gen_cur_freq(&self, idx: i64) -> i64 {
-        self.frequency_manager.get_freq_by_index(idx)
     }
 
     // 主要的频率调整方法 - 现在使用新的引擎

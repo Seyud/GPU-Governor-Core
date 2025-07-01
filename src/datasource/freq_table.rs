@@ -172,11 +172,11 @@ pub fn gpufreq_table_init(gpu: &mut GPU) -> Result<()> {
 
         // 如果是v2 driver，也读取内存频率表
         info!("Reading V2 driver DDR frequency table");
-        let ddr_v2_supported_freqs = gpu.read_ddr_v2_freq_table()?;
+        let ddr_v2_supported_freqs = gpu.ddr_manager().read_ddr_v2_freq_table()?;
 
         if !ddr_v2_supported_freqs.is_empty() {
             // 将支持的内存频率列表保存到GPU对象
-            gpu.set_ddr_v2_supported_freqs(ddr_v2_supported_freqs.clone());
+            gpu.ddr_manager_mut().set_ddr_v2_supported_freqs(ddr_v2_supported_freqs.clone());
 
             if let Some(&min_freq) = ddr_v2_supported_freqs.first() {
                 info!("V2 Driver Min Supported DDR Freq: {min_freq}");
