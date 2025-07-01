@@ -3,7 +3,7 @@ use anyhow::Result;
 use log::debug;
 
 use crate::datasource::file_path::*;
-use crate::utils::file_operate::write_file_safe;
+use crate::utils::file_helper::FileHelper;
 
 /// 频率管理器 - 负责GPU频率的计算和调整逻辑
 #[derive(Clone)]
@@ -12,7 +12,7 @@ pub struct FrequencyManager {
     pub config_list: Vec<i64>,
     /// 频率到电压的映射
     pub freq_volt: HashMap<i64, i64>,
-    /// 频率到DDR的映射  
+    /// 频率到DDR的映射 
     pub freq_dram: HashMap<i64, i64>,
     /// 默认电压映射
     pub def_volt: HashMap<i64, i64>,
@@ -208,14 +208,14 @@ impl FrequencyManager {
     fn write_idle_mode(&self, volt_path: &str, opp_path: &str, volt_reset: &str, opp_reset_zero: &str) -> Result<()> {
         debug!("Writing in idle mode");
         if self.gpuv2 {
-            write_file_safe(volt_path, volt_reset, volt_reset.len())?;
-            let result = write_file_safe(opp_path, "-1", 2);
-            if result.is_err() || result.unwrap() == 0 {
-                write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
+            FileHelper::write_string(volt_path, volt_reset)?;
+            let result = FileHelper::write_string(opp_path, "-1");
+            if result.is_err() {
+                FileHelper::write_string(opp_path, opp_reset_zero)?;
             }
         } else {
-            write_file_safe(volt_path, volt_reset, volt_reset.len())?;
-            write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
+            FileHelper::write_string(volt_path, volt_reset)?;
+            FileHelper::write_string(opp_path, opp_reset_zero)?;
         }
         Ok(())
     }
@@ -224,10 +224,10 @@ impl FrequencyManager {
     fn write_dcs_mode(&self, volt_path: &str, opp_path: &str, volt_reset: &str, 
                      opp_reset_minus_one: &str, opp_reset_zero: &str) -> Result<()> {
         debug!("Writing in DCS mode");
-        write_file_safe(volt_path, volt_reset, volt_reset.len())?;
-        let result = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
-        if result.is_err() || result.unwrap() == 0 {
-            write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
+        FileHelper::write_string(volt_path, volt_reset)?;
+        let result = FileHelper::write_string(opp_path, opp_reset_minus_one);
+        if result.is_err() {
+            FileHelper::write_string(opp_path, opp_reset_zero)?;
         }
         Ok(())
     }
@@ -235,8 +235,8 @@ impl FrequencyManager {
     /// 无电压模式写入
     fn write_no_volt_mode(&self, volt_path: &str, opp_path: &str, volt_reset: &str, content: &str) -> Result<()> {
         debug!("Writing in no-volt mode");
-        write_file_safe(volt_path, volt_reset, volt_reset.len())?;
-        write_file_safe(opp_path, content, content.len())?;
+        FileHelper::write_string(volt_path, volt_reset)?;
+        FileHelper::write_string(opp_path, content)?;
         Ok(())
     }
 
@@ -245,16 +245,16 @@ impl FrequencyManager {
                         opp_reset_minus_one: &str, opp_reset_zero: &str, volt_content: &str) -> Result<()> {
         debug!("Writing in normal mode");
         if self.gpuv2 {
-            write_file_safe(volt_path, volt_reset, volt_reset.len())?;
-            let result = write_file_safe(opp_path, opp_reset_minus_one, opp_reset_minus_one.len());
-            if result.is_err() || result.unwrap() == 0 {
-                write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
+            FileHelper::write_string(volt_path, volt_reset)?;
+            let result = FileHelper::write_string(opp_path, opp_reset_minus_one);
+            if result.is_err() {
+                FileHelper::write_string(opp_path, opp_reset_zero)?;
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
-            write_file_safe(volt_path, volt_content, volt_content.len())?;
+            FileHelper::write_string(volt_path, volt_content)?;
         } else {
-            write_file_safe(opp_path, opp_reset_zero, opp_reset_zero.len())?;
-            write_file_safe(volt_path, volt_content, volt_content.len())?;
+            FileHelper::write_string(opp_path, opp_reset_zero)?;
+            FileHelper::write_string(volt_path, volt_content)?;
         }
         Ok(())
     }

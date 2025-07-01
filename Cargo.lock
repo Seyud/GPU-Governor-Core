@@ -301,7 +301,7 @@ checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
 name = "gpugovernor"
-version = "2.7.0"
+version = "2.8.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -312,6 +312,7 @@ dependencies = [
  "log",
  "nix",
  "once_cell",
+ "paste",
  "regex",
  "thiserror 2.0.12",
 ]
@@ -526,6 +527,12 @@ dependencies = [
  "libc",
  "windows-sys 0.59.0",
 ]
+
+[[package]]
+name = "paste"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "pin-project-lite"

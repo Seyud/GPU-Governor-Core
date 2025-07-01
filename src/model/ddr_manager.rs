@@ -3,7 +3,7 @@ use log::{debug, info, warn};
 use std::path::Path;
 
 use crate::datasource::file_path::*;
-use crate::utils::file_operate::write_file_safe;
+use crate::utils::file_helper::FileHelper;
 
 /// DDR频率管理器 - 负责内存频率控制
 #[derive(Clone)]
@@ -89,15 +89,14 @@ impl DdrManager {
                 let paths = [DVFSRC_V2_PATH_1, DVFSRC_V2_PATH_2];
 
                 let mut path_written = false;
-                for path in &paths {
-                    if Path::new(path).exists() {
-                        let auto_mode_str = DDR_AUTO_MODE_V2.to_string();
-                        debug!("Writing {} to v2 DDR path: {}", auto_mode_str, path);
-                        if write_file_safe(path, &auto_mode_str, auto_mode_str.len()).is_ok() {
-                            path_written = true;
-                            break;
-                        }
+                for path in &paths {                if Path::new(path).exists() {
+                    let auto_mode_str = DDR_AUTO_MODE_V2.to_string();
+                    debug!("Writing {} to v2 DDR path: {}", auto_mode_str, path);
+                    if FileHelper::write_string(path, &auto_mode_str).is_ok() {
+                        path_written = true;
+                        break;
                     }
+                }
                 }
 
                 if !path_written {
@@ -109,7 +108,7 @@ impl DdrManager {
                 if Path::new(DVFSRC_V1_PATH).exists() {
                     let auto_mode_str = DDR_AUTO_MODE_V1.to_string();
                     debug!("Writing {} to v1 DDR path: {}", auto_mode_str, DVFSRC_V1_PATH);
-                    write_file_safe(DVFSRC_V1_PATH, &auto_mode_str, auto_mode_str.len())?;
+                    FileHelper::write_string(DVFSRC_V1_PATH, &auto_mode_str)?;
                 } else {
                     warn!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH);
                     return Err(anyhow::anyhow!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH));
@@ -131,7 +130,7 @@ impl DdrManager {
             for path in &paths {
                 if Path::new(path).exists() {
                     debug!("Writing {} to v2 DDR path: {}", freq_str, path);
-                    if write_file_safe(path, &freq_str, freq_str.len()).is_ok() {
+                    if FileHelper::write_string(path, &freq_str).is_ok() {
                         path_written = true;
                         break;
                     }
@@ -146,7 +145,7 @@ impl DdrManager {
             // v1 driver
             if Path::new(DVFSRC_V1_PATH).exists() {
                 debug!("Writing {} to v1 DDR path: {}", freq_str, DVFSRC_V1_PATH);
-                write_file_safe(DVFSRC_V1_PATH, &freq_str, freq_str.len())?;
+                FileHelper::write_string(DVFSRC_V1_PATH, &freq_str)?;
             } else {
                 warn!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH);
                 return Err(anyhow::anyhow!("V1 DDR path does not exist: {}", DVFSRC_V1_PATH));
@@ -302,7 +301,7 @@ impl DdrManager {
         Ok(freq_list)
     }
 
-    // Getter和Setter方法
+    // Getter和Setter方法 - 手动实现
     pub fn is_ddr_freq_fixed(&self) -> bool {
         self.ddr_freq_fixed
     }
@@ -311,14 +310,14 @@ impl DdrManager {
         self.ddr_freq
     }
 
-    pub fn set_ddr_v2_supported_freqs(&mut self, freqs: Vec<i64>) {
-        self.ddr_v2_supported_freqs = freqs;
-    }
-
     pub fn get_ddr_v2_supported_freqs(&self) -> Vec<i64> {
         self.ddr_v2_supported_freqs.clone()
     }
-
+    
+    pub fn set_ddr_v2_supported_freqs(&mut self, ddr_v2_supported_freqs: Vec<i64>) {
+        self.ddr_v2_supported_freqs = ddr_v2_supported_freqs;
+    }
+    
     pub fn set_gpuv2(&mut self, gpuv2: bool) {
         self.gpuv2 = gpuv2;
     }
