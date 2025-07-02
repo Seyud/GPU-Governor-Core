@@ -328,13 +328,171 @@ jobs:
         
         echo "✅ Android target compilation and test compilation successful"
 
-  build:
-    name: Build Module
+  build-debug:
+    name: Build Module (debug)
     runs-on: ubuntu-latest
     needs: [format-and-check, version-sync, test]
-    strategy:
-      matrix:
-        build_type: [debug, release]
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == ''
+
+    # 添加超时限制，防止缓存问题导致的无限等待
+    timeout-minutes: 45
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: aarch64-linux-android
+
+    - name: Cache Rust toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.rustup
+          ~/.cargo/bin
+        key: ${{ runner.os }}-rust-toolchain-build-${{ hashFiles('rust-toolchain.toml', 'Cargo.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-rust-toolchain-
+
+    - name: Cache cargo-ndk
+      uses: actions/cache@v4
+      id: cache-cargo-ndk-build
+      with:
+        path: ~/.cargo/bin/cargo-ndk
+        key: ${{ runner.os }}-cargo-ndk-${{ hashFiles('Cargo.toml') }}
+        
+    - name: Install cargo-ndk
+      if: steps.cache-cargo-ndk-build.outputs.cache-hit != 'true'
+      run: cargo install cargo-ndk
+
+    - name: Cache system packages for build (bindgen dependencies)
+      uses: actions/cache@v4
+      id: cache-system-deps-build
+      with:
+        path: |
+          ~/.cache/bindgen-deps-build
+        key: ${{ runner.os }}-bindgen-system-deps-build-v4-${{ hashFiles('.github/workflows/build.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-bindgen-system-deps-v4-
+          ${{ runner.os }}-bindgen-system-deps-build-
+      
+    - name: Install system dependencies for bindgen (build optimized)
+      if: steps.cache-system-deps-build.outputs.cache-hit != 'true'
+      run: |
+        echo "📦 Installing bindgen dependencies for build job..."
+        
+        # 快速安装，复用test job的优化
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          clang-14 \
+          libclang-14-dev \
+          llvm-14-dev
+        
+        # 创建缓存标记和符号链接
+        mkdir -p ~/.cache/bindgen-deps-build
+        echo "bindgen-deps-build-v4-$(date +%Y%m%d)" > ~/.cache/bindgen-deps-build/installed
+        
+        # 创建符号链接避免路径查找
+        sudo ln -sf /usr/bin/clang-14 /usr/local/bin/clang
+        sudo ln -sf /usr/lib/llvm-14/lib/libclang.so.1 /usr/local/lib/libclang.so
+        
+        echo "✅ Build dependencies installed"
+
+    - name: Setup libclang environment (build)
+      run: |
+        echo "LIBCLANG_PATH=/usr/lib/llvm-14/lib" >> $GITHUB_ENV
+        echo "CLANG_PATH=/usr/bin/clang-14" >> $GITHUB_ENV
+        echo "BINDGEN_EXTRA_CLANG_ARGS=-I/usr/lib/llvm-14/lib/clang/14.0.0/include" >> $GITHUB_ENV
+        
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      id: setup-ndk
+      with:
+        ndk-version: r28b
+
+    # NDK 缓存暂时禁用以避免 GitHub Actions 缓存大小限制
+    # - name: Cache NDK
+    #   uses: actions/cache@v4
+    #   with:
+    #     path: ${{ steps.setup-ndk.outputs.ndk-path }}
+    #     key: ${{ runner.os }}-ndk-r28b
+    #     restore-keys: |
+    #       ${{ runner.os }}-ndk-
+
+    - name: Cache cargo dependencies (debug)
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: ${{ runner.os }}-build-debug-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-build-cargo-deps-
+          ${{ runner.os }}-cargo-deps-
+
+    - name: Clean target directory (avoid cache size issues)
+      run: |
+        # Remove old target files to prevent cache bloat
+        if [ -d "target" ]; then
+          find target -name "*.rlib" -type f -delete 2>/dev/null || true
+          find target -name "*.rmeta" -type f -delete 2>/dev/null || true
+          find target -name "incremental" -type d -exec rm -rf {} + 2>/dev/null || true
+          echo "🧹 Cleaned target directory"
+        fi
+          
+    - name: Build debug version
+      env:
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+        NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        LIBCLANG_PATH: /usr/lib/llvm-14/lib
+        CLANG_PATH: /usr/bin/clang-14
+        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
+      run: |
+        # 精简的环境验证，仅在非缓存情况下输出详细信息
+        if [ "${{ steps.cache-system-deps-build.outputs.cache-hit }}" != "true" ]; then
+          echo "🔍 Debug build environment verification:"
+          echo "NDK Path: $ANDROID_NDK_HOME"
+          echo "LibClang Path: $LIBCLANG_PATH"
+          echo "Clang Path: $CLANG_PATH"
+          clang-14 --version | head -1
+        fi
+        
+        cargo ndk -t arm64-v8a build --target aarch64-linux-android
+        
+    - name: Package debug module
+      run: |
+        # Create output directory
+        mkdir -p output/.temp
+        
+        # Copy module files
+        cp -rf module/* output/.temp/
+        
+        # Copy the binary and rename it
+        cp -f target/aarch64-linux-android/debug/gpugovernor output/.temp/bin/gpugovernor
+        
+        # Create zip package
+        cd output/.temp
+        zip -9 -rq "../Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip" .
+        cd ../..
+        
+        echo "Debug module packaged: output/Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip"
+        
+    - name: Upload debug artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mediatek_Mali_GPU_Governor-debug-${{ github.run_number }}
+        path: output/Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip
+
+  build-release:
+    name: Build Module (release)
+    runs-on: ubuntu-latest
+    needs: [format-and-check, version-sync, test]
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == ''
 
     # 添加超时限制，防止缓存问题导致的无限等待
     timeout-minutes: 45
@@ -434,13 +592,13 @@ jobs:
     #     restore-keys: |
     #       ${{ runner.os }}-ndk-
         
-    - name: Cache cargo dependencies
+    - name: Cache cargo dependencies (release)
       uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
-        key: ${{ runner.os }}-build-${{ matrix.build_type }}-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-build-release-cargo-deps-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
           ${{ runner.os }}-build-cargo-deps-
           ${{ runner.os }}-cargo-deps-
@@ -455,29 +613,7 @@ jobs:
           echo "🧹 Cleaned target directory"
         fi
           
-    - name: Build debug version
-      if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
-      env:
-        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
-        NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        LIBCLANG_PATH: /usr/lib/llvm-14/lib
-        CLANG_PATH: /usr/bin/clang-14
-        BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
-      run: |
-        # 精简的环境验证，仅在非缓存情况下输出详细信息
-        if [ "${{ steps.cache-system-deps-build.outputs.cache-hit }}" != "true" ]; then
-          echo "🔍 Debug build environment verification:"
-          echo "NDK Path: $ANDROID_NDK_HOME"
-          echo "LibClang Path: $LIBCLANG_PATH"
-          echo "Clang Path: $CLANG_PATH"
-          clang-14 --version | head -1
-        fi
-        
-        cargo ndk -t arm64-v8a build --target aarch64-linux-android
-        
     - name: Build release version
-      if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
@@ -497,27 +633,7 @@ jobs:
         
         cargo ndk -t arm64-v8a build --release --target aarch64-linux-android
         
-    - name: Package debug module
-      if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
-      run: |
-        # Create output directory
-        mkdir -p output/.temp
-        
-        # Copy module files
-        cp -rf module/* output/.temp/
-        
-        # Copy the binary and rename it
-        cp -f target/aarch64-linux-android/debug/gpugovernor output/.temp/bin/gpugovernor
-        
-        # Create zip package
-        cd output/.temp
-        zip -9 -rq "../Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip" .
-        cd ../..
-        
-        echo "Debug module packaged: output/Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip"
-        
     - name: Package release module
-      if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
       run: |
         # Create output directory
         mkdir -p output/.temp
@@ -538,15 +654,7 @@ jobs:
         
         echo "Release module packaged: output/Mediatek_Mali_GPU_Governor_release_v${{ github.run_number }}.zip"
         
-    - name: Upload debug artifact
-      if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
-      uses: actions/upload-artifact@v4
-      with:
-        name: Mediatek_Mali_GPU_Governor-debug-${{ github.run_number }}
-        path: output/Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip
-        
     - name: Upload release artifact
-      if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both' || github.event.inputs.build_type == '')
       uses: actions/upload-artifact@v4
       with:
         name: Mediatek_Mali_GPU_Governor-release-${{ github.run_number }}
