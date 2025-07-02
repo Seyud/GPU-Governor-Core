@@ -254,18 +254,7 @@ jobs:
         
     - name: Install cargo-ndk for tests
       if: steps.cache-cargo-ndk-test.outputs.cache-hit != 'true'
-      run: cargo install cargo-ndk
-
-    - name: Cache cargo-ndk
-      uses: actions/cache@v4
-      id: cache-cargo-ndk
-      with:
-        path: ~/.cargo/bin/cargo-ndk
-        key: ${{ runner.os }}-cargo-ndk-${{ hashFiles('Cargo.toml') }}
-        
-    - name: Install cargo-ndk
-      if: steps.cache-cargo-ndk.outputs.cache-hit != 'true'
-      run: cargo install cargo-ndk
+      run: cargo install cargo-ndk --force
         
     - name: Cache cargo dependencies
       uses: actions/cache@v4
@@ -368,7 +357,7 @@ jobs:
         
     - name: Install cargo-ndk
       if: steps.cache-cargo-ndk-build.outputs.cache-hit != 'true'
-      run: cargo install cargo-ndk
+      run: cargo install cargo-ndk --force
 
     - name: Cache system packages for build (bindgen dependencies)
       uses: actions/cache@v4
@@ -628,7 +617,7 @@ jobs:
         
     - name: Install cargo-ndk
       if: steps.cache-cargo-ndk-build.outputs.cache-hit != 'true'
-      run: cargo install cargo-ndk
+      run: cargo install cargo-ndk --force
 
     - name: Cache system packages for build (bindgen dependencies)
       uses: actions/cache@v4
