@@ -68,17 +68,18 @@ jobs:
       uses: actions/cache@v4
       id: cache-shfmt
       with:
-        path: /usr/local/bin/shfmt
+        path: ~/.local/bin/shfmt
         key: ${{ runner.os }}-shfmt-v3.7.0
 
     - name: Install shfmt
       if: steps.cache-shfmt.outputs.cache-hit != 'true'
       run: |
-        # 使用更简单和可靠的方法安装 shfmt
+        # 使用更简单和可靠的方法安装 shfmt 到用户目录
         SHFMT_VERSION="v3.7.0"
-        wget -O shfmt "https://github.com/mvdan/sh/releases/download/${SHFMT_VERSION}/shfmt_${SHFMT_VERSION}_linux_amd64"
-        chmod +x shfmt
-        sudo mv shfmt /usr/local/bin/
+        mkdir -p ~/.local/bin
+        wget -O ~/.local/bin/shfmt "https://github.com/mvdan/sh/releases/download/${SHFMT_VERSION}/shfmt_${SHFMT_VERSION}_linux_amd64"
+        chmod +x ~/.local/bin/shfmt
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
         
     - name: Format shell scripts
       run: |
@@ -181,20 +182,23 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-ndk-
 
-    - name: Cache system dependencies
+    - name: Cache installed packages list
       uses: actions/cache@v4
-      id: cache-apt
+      id: cache-apt-packages
       with:
-        path: /var/cache/apt
-        key: ${{ runner.os }}-apt-bindgen-${{ hashFiles('.github/workflows/build.yml') }}
+        path: ~/.cache/apt-packages
+        key: ${{ runner.os }}-apt-bindgen-${{ hashFiles('.github/workflows/build.yml') }}-v2
         restore-keys: |
           ${{ runner.os }}-apt-bindgen-
         
     - name: Install system dependencies for bindgen
-      if: steps.cache-apt.outputs.cache-hit != 'true'
+      if: steps.cache-apt-packages.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
         sudo apt-get install -y clang llvm-dev libclang-dev
+        # 创建缓存标记文件
+        mkdir -p ~/.cache/apt-packages
+        echo "bindgen-deps-installed-$(date)" > ~/.cache/apt-packages/installed
         
         # 验证 clang 安装
         clang --version
@@ -348,20 +352,23 @@ jobs:
       if: steps.cache-cargo-ndk-build.outputs.cache-hit != 'true'
       run: cargo install cargo-ndk
 
-    - name: Cache system dependencies
+    - name: Cache installed packages list
       uses: actions/cache@v4
-      id: cache-apt-build
+      id: cache-apt-packages-build
       with:
-        path: /var/cache/apt
-        key: ${{ runner.os }}-apt-bindgen-${{ hashFiles('.github/workflows/build.yml') }}
+        path: ~/.cache/apt-packages-build
+        key: ${{ runner.os }}-apt-bindgen-${{ hashFiles('.github/workflows/build.yml') }}-v2
         restore-keys: |
           ${{ runner.os }}-apt-bindgen-
       
     - name: Install system dependencies for bindgen
-      if: steps.cache-apt-build.outputs.cache-hit != 'true'
+      if: steps.cache-apt-packages-build.outputs.cache-hit != 'true'
       run: |
         sudo apt-get update
         sudo apt-get install -y clang llvm-dev libclang-dev
+        # 创建缓存标记文件
+        mkdir -p ~/.cache/apt-packages-build
+        echo "bindgen-deps-installed-$(date)" > ~/.cache/apt-packages-build/installed
         
         # 验证 clang 安装
         clang --version
