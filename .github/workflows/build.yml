@@ -498,9 +498,24 @@ jobs:
         # Copy module files
         cp -rf module/* output/
 
-        # Remove unwanted files
+        # Remove unwanted files immediately after copying
         rm -f output/pack.py
         rm -f output/Update.json
+        
+        # Verify unwanted files were removed
+        if [ -f "output/pack.py" ]; then
+          echo "⚠️ Warning: pack.py still exists in output directory"
+          ls -la output/pack.py
+        else
+          echo "✅ pack.py successfully removed"
+        fi
+        
+        if [ -f "output/Update.json" ]; then
+          echo "⚠️ Warning: Update.json still exists in output directory"
+          ls -la output/Update.json
+        else
+          echo "✅ Update.json successfully removed"
+        fi
         
         # Verify module files were copied
         if [ ! -d "output" ] || [ ! "$(ls -A output)" ]; then
@@ -766,6 +781,25 @@ jobs:
         
         # Copy module files
         cp -rf module/* output/
+        
+        # Remove unwanted files immediately after copying
+        rm -f output/pack.py
+        rm -f output/Update.json
+        
+        # Verify unwanted files were removed
+        if [ -f "output/pack.py" ]; then
+          echo "⚠️ Warning: pack.py still exists in output directory"
+          ls -la output/pack.py
+        else
+          echo "✅ pack.py successfully removed"
+        fi
+        
+        if [ -f "output/Update.json" ]; then
+          echo "⚠️ Warning: Update.json still exists in output directory"
+          ls -la output/Update.json
+        else
+          echo "✅ Update.json successfully removed"
+        fi
         
         # Verify module files were copied
         if [ ! -d "output" ] || [ ! "$(ls -A output)" ]; then
