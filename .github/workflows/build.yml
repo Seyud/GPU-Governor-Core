@@ -39,11 +39,9 @@ jobs:
         submodules: recursive
       
     - name: Setup Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
         components: rustfmt, clippy
-        override: true
 
     - name: Cache Rust toolchain and tools
       uses: actions/cache@v4
@@ -157,11 +155,9 @@ jobs:
         submodules: recursive
       
     - name: Setup Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        target: aarch64-linux-android
-        override: true
+        targets: aarch64-linux-android
 
     - name: Cache Rust toolchain
       uses: actions/cache@v4
@@ -329,11 +325,9 @@ jobs:
         submodules: recursive
         
     - name: Setup Rust
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@stable
       with:
-        toolchain: stable
-        target: aarch64-linux-android
-        override: true
+        targets: aarch64-linux-android
 
     - name: Cache Rust toolchain
       uses: actions/cache@v4
