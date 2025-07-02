@@ -495,7 +495,7 @@ jobs:
         fi
         
         # Create output directory
-        mkdir -p output/.temp
+        mkdir -p output
         
         # Verify the build output exists
         if [ ! -f "target/aarch64-linux-android/debug/gpugovernor" ]; then
@@ -506,30 +506,30 @@ jobs:
         fi
         
         # Copy module files
-        cp -rf module/* output/.temp/
+        cp -rf module/* output/
         
         # Verify module files were copied
-        if [ ! -d "output/.temp" ] || [ ! "$(ls -A output/.temp)" ]; then
-          echo "❌ Failed to copy module files to output/.temp"
+        if [ ! -d "output" ] || [ ! "$(ls -A output)" ]; then
+          echo "❌ Failed to copy module files to output"
           echo "📁 Available files in module/:"
           ls -la module/ || echo "Module directory not found"
           exit 1
         fi
         
         # Copy the binary and overwrite the placeholder
-        cp -f target/aarch64-linux-android/debug/gpugovernor output/.temp/bin/gpugovernor
-        chmod +x output/.temp/bin/gpugovernor
+        cp -f target/aarch64-linux-android/debug/gpugovernor output/bin/gpugovernor
+        chmod +x output/bin/gpugovernor
         
         # Verify the final structure
         echo "📦 Debug module files prepared:"
-        ls -la output/.temp/
-        ls -la output/.temp/bin/
-        echo "Binary size: $(stat -c%s output/.temp/bin/gpugovernor) bytes"
+        ls -la output/
+        ls -la output/bin/
+        echo "Binary size: $(stat -c%s output/bin/gpugovernor) bytes"
         
         # Final verification before upload
-        file_count=$(find output/.temp -type f | wc -l)
+        file_count=$(find output -type f | wc -l)
         if [ "$file_count" -eq 0 ]; then
-          echo "❌ No files found in output/.temp directory!"
+          echo "❌ No files found in output directory!"
           exit 1
         fi
         echo "✅ Found $file_count files ready for upload"
@@ -538,21 +538,21 @@ jobs:
       run: |
         echo "🔍 Verifying artifact structure before upload:"
         echo "Current directory: $(pwd)"
-        echo "output/.temp exists: $(test -d output/.temp && echo 'YES' || echo 'NO')"
+        echo "output exists: $(test -d output && echo 'YES' || echo 'NO')"
         
-        if [ -d "output/.temp" ]; then
-          echo "Contents of output/.temp:"
-          find output/.temp -type f | head -20
-          total_files=$(find output/.temp -type f | wc -l)
-          echo "Total files in output/.temp: $total_files"
+        if [ -d "output" ]; then
+          echo "Contents of output:"
+          find output -type f | head -20
+          total_files=$(find output -type f | wc -l)
+          echo "Total files in output: $total_files"
           
           if [ "$total_files" -eq 0 ]; then
-            echo "❌ ERROR: No files found in output/.temp!"
+            echo "❌ ERROR: No files found in output!"
             echo "This will cause the artifact upload to fail."
             exit 1
           fi
         else
-          echo "❌ ERROR: output/.temp directory not found!"
+          echo "❌ ERROR: output directory not found!"
           echo "Available directories:"
           ls -la
           echo "This will cause the artifact upload to fail."
@@ -563,7 +563,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Mediatek_Mali_GPU_Governor-debug-${{ github.run_number }}
-        path: output/.temp
+        path: output
         if-no-files-found: error
         retention-days: 30
 
@@ -575,11 +575,11 @@ jobs:
         echo "Files in current directory:"
         ls -la
         echo ""
-        echo "output/.temp directory status:"
-        if [ -d "output/.temp" ]; then
+        echo "output directory status:"
+        if [ -d "output" ]; then
           echo "Directory exists. Contents:"
-          find output/.temp -type f | head -10
-          echo "Total files: $(find output/.temp -type f | wc -l)"
+          find output -type f | head -10
+          echo "Total files: $(find output -type f | wc -l)"
         else
           echo "Directory does not exist!"
         fi
@@ -760,7 +760,7 @@ jobs:
         fi
         
         # Create output directory
-        mkdir -p output/.temp
+        mkdir -p output
         
         # Verify the build output exists
         if [ ! -f "target/aarch64-linux-android/release/gpugovernor" ]; then
@@ -771,33 +771,33 @@ jobs:
         fi
         
         # Copy module files
-        cp -rf module/* output/.temp/
+        cp -rf module/* output/
         
         # Verify module files were copied
-        if [ ! -d "output/.temp" ] || [ ! "$(ls -A output/.temp)" ]; then
-          echo "❌ Failed to copy module files to output/.temp"
+        if [ ! -d "output" ] || [ ! "$(ls -A output)" ]; then
+          echo "❌ Failed to copy module files to output"
           echo "📁 Available files in module/:"
           ls -la module/ || echo "Module directory not found"
           exit 1
         fi
         
         # Copy the binary and overwrite the placeholder
-        cp -f target/aarch64-linux-android/release/gpugovernor output/.temp/bin/gpugovernor
-        chmod +x output/.temp/bin/gpugovernor
+        cp -f target/aarch64-linux-android/release/gpugovernor output/bin/gpugovernor
+        chmod +x output/bin/gpugovernor
         
         # Strip the binary
-        ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip output/.temp/bin/gpugovernor
+        ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip output/bin/gpugovernor
         
         # Verify the final structure
         echo "📦 Release module files prepared:"
-        ls -la output/.temp/
-        ls -la output/.temp/bin/
-        echo "Binary size: $(stat -c%s output/.temp/bin/gpugovernor) bytes"
+        ls -la output/
+        ls -la output/bin/
+        echo "Binary size: $(stat -c%s output/bin/gpugovernor) bytes"
         
         # Final verification before upload
-        file_count=$(find output/.temp -type f | wc -l)
+        file_count=$(find output -type f | wc -l)
         if [ "$file_count" -eq 0 ]; then
-          echo "❌ No files found in output/.temp directory!"
+          echo "❌ No files found in output directory!"
           exit 1
         fi
         echo "✅ Found $file_count files ready for upload"
@@ -806,21 +806,21 @@ jobs:
       run: |
         echo "🔍 Verifying artifact structure before upload:"
         echo "Current directory: $(pwd)"
-        echo "output/.temp exists: $(test -d output/.temp && echo 'YES' || echo 'NO')"
+        echo "output exists: $(test -d output && echo 'YES' || echo 'NO')"
         
-        if [ -d "output/.temp" ]; then
-          echo "Contents of output/.temp:"
-          find output/.temp -type f | head -20
-          total_files=$(find output/.temp -type f | wc -l)
-          echo "Total files in output/.temp: $total_files"
+        if [ -d "output" ]; then
+          echo "Contents of output:"
+          find output -type f | head -20
+          total_files=$(find output -type f | wc -l)
+          echo "Total files in output: $total_files"
           
           if [ "$total_files" -eq 0 ]; then
-            echo "❌ ERROR: No files found in output/.temp!"
+            echo "❌ ERROR: No files found in output!"
             echo "This will cause the artifact upload to fail."
             exit 1
           fi
         else
-          echo "❌ ERROR: output/.temp directory not found!"
+          echo "❌ ERROR: output directory not found!"
           echo "Available directories:"
           ls -la
           echo "This will cause the artifact upload to fail."
@@ -831,7 +831,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Mediatek_Mali_GPU_Governor-release-${{ github.run_number }}
-        path: output/.temp
+        path: output
         if-no-files-found: error
         retention-days: 30
 
@@ -843,11 +843,11 @@ jobs:
         echo "Files in current directory:"
         ls -la
         echo ""
-        echo "output/.temp directory status:"
-        if [ -d "output/.temp" ]; then
+        echo "output directory status:"
+        if [ -d "output" ]; then
           echo "Directory exists. Contents:"
-          find output/.temp -type f | head -10
-          echo "Total files: $(find output/.temp -type f | wc -l)"
+          find output -type f | head -10
+          echo "Total files: $(find output -type f | wc -l)"
         else
           echo "Directory does not exist!"
         fi
