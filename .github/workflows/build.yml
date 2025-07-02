@@ -475,18 +475,13 @@ jobs:
         # Copy the binary and rename it
         cp -f target/aarch64-linux-android/debug/gpugovernor output/.temp/bin/gpugovernor
         
-        # Create zip package
-        cd output/.temp
-        zip -9 -rq "../Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip" .
-        cd ../..
-        
-        echo "Debug module packaged: output/Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip"
+        echo "Debug module files prepared in output/.temp"
         
     - name: Upload debug artifact
       uses: actions/upload-artifact@v4
       with:
         name: Mediatek_Mali_GPU_Governor-debug-${{ github.run_number }}
-        path: output/Mediatek_Mali_GPU_Governor_debug_v${{ github.run_number }}.zip
+        path: output/.temp
 
   build-release:
     name: Build Module (release)
@@ -647,18 +642,13 @@ jobs:
         # Strip the binary
         ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip output/.temp/bin/gpugovernor
         
-        # Create zip package
-        cd output/.temp
-        zip -9 -rq "../Mediatek_Mali_GPU_Governor_release_v${{ github.run_number }}.zip" .
-        cd ../..
-        
-        echo "Release module packaged: output/Mediatek_Mali_GPU_Governor_release_v${{ github.run_number }}.zip"
+        echo "Release module files prepared in output/.temp"
         
     - name: Upload release artifact
       uses: actions/upload-artifact@v4
       with:
         name: Mediatek_Mali_GPU_Governor-release-${{ github.run_number }}
-        path: output/Mediatek_Mali_GPU_Governor_release_v${{ github.run_number }}.zip
+        path: output/.temp
 
   cleanup:
     name: Cache Cleanup (Optional)
