@@ -8,8 +8,6 @@ name: Build and Package Mediatek Mali GPU Governor
 # 5. 工具二进制缓存 - cargo-ndk, shfmt等
 
 on:
-  push:
-    branches: [ master ]
   pull_request:
     branches: [ master ]
   workflow_dispatch:
