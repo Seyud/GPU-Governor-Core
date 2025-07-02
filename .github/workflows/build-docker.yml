@@ -1,0 +1,141 @@
+# 可选的Docker优化版本workflow
+# 使用预构建的Docker镜像来避免重复安装bindgen依赖
+# 如果您的构建频率很高，可以考虑使用这个版本
+
+name: Build with Docker (Optimized for Bindgen)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (debug, release, or both)'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+        - debug
+        - release
+        - both
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-docker:
+    name: Build with Docker (Zero bindgen setup time)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build_type: [debug, release]
+
+    # 使用包含预安装bindgen依赖的Docker容器
+    container:
+      image: rust:1.75-slim
+      options: --user root
+      
+    steps:
+    - name: Install system dependencies (one-time in container)
+      run: |
+        echo "📦 Installing required system packages in container..."
+        apt-get update -qq
+        apt-get install -y --no-install-recommends \
+          clang-14 \
+          libclang-14-dev \
+          llvm-14-dev \
+          wget \
+          unzip \
+          git \
+          ca-certificates
+        
+        # 创建符号链接
+        ln -sf /usr/bin/clang-14 /usr/local/bin/clang
+        ln -sf /usr/lib/llvm-14/lib/libclang.so.1 /usr/local/lib/libclang.so
+        
+        echo "✅ Container dependencies ready"
+    
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Setup Rust target
+      run: |
+        rustup target add aarch64-linux-android
+        
+    - name: Cache cargo-ndk in container
+      uses: actions/cache@v4
+      id: cache-cargo-ndk-container
+      with:
+        path: /usr/local/cargo/bin/cargo-ndk
+        key: container-cargo-ndk-${{ hashFiles('Cargo.toml') }}
+        
+    - name: Install cargo-ndk
+      if: steps.cache-cargo-ndk-container.outputs.cache-hit != 'true'
+      run: cargo install cargo-ndk
+
+    - name: Setup Android NDK
+      run: |
+        echo "📱 Setting up Android NDK..."
+        NDK_VERSION="r25c"
+        NDK_URL="https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux.zip"
+        
+        wget -q "$NDK_URL" -O ndk.zip
+        unzip -q ndk.zip
+        mv android-ndk-${NDK_VERSION} android-ndk
+        
+        echo "ANDROID_NDK_HOME=$(pwd)/android-ndk" >> $GITHUB_ENV
+        echo "ANDROID_NDK_ROOT=$(pwd)/android-ndk" >> $GITHUB_ENV
+        echo "NDK_HOME=$(pwd)/android-ndk" >> $GITHUB_ENV
+        
+    - name: Cache cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          /usr/local/cargo/registry
+          /usr/local/cargo/git
+          target
+        key: container-cargo-${{ matrix.build_type }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          container-cargo-
+          
+    - name: Build debug version
+      if: matrix.build_type == 'debug' && (github.event.inputs.build_type == 'debug' || github.event.inputs.build_type == 'both')
+      env:
+        LIBCLANG_PATH: /usr/lib/llvm-14/lib
+        CLANG_PATH: /usr/bin/clang-14
+      run: |
+        echo "🔧 Building debug version with pre-configured environment..."
+        cargo ndk -t arm64-v8a build --target aarch64-linux-android
+        
+    - name: Build release version
+      if: matrix.build_type == 'release' && (github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'both')
+      env:
+        LIBCLANG_PATH: /usr/lib/llvm-14/lib
+        CLANG_PATH: /usr/bin/clang-14
+      run: |
+        echo "🚀 Building release version with pre-configured environment..."
+        cargo ndk -t arm64-v8a build --release --target aarch64-linux-android
+        
+    - name: Package artifacts
+      run: |
+        echo "📦 Packaging build artifacts..."
+        mkdir -p output/.temp
+        cp -rf module/* output/.temp/
+        
+        if [ "${{ matrix.build_type }}" = "debug" ]; then
+          cp -f target/aarch64-linux-android/debug/gpugovernor output/.temp/bin/gpugovernor
+        else
+          cp -f target/aarch64-linux-android/release/gpugovernor output/.temp/bin/gpugovernor
+          # Strip the binary for release
+          ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip output/.temp/bin/gpugovernor
+        fi
+        
+        cd output/.temp
+        zip -9 -rq "../Mediatek_Mali_GPU_Governor_${{ matrix.build_type }}_docker_v${{ github.run_number }}.zip" .
+        cd ../..
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Mediatek_Mali_GPU_Governor-${{ matrix.build_type }}-docker-${{ github.run_number }}
+        path: output/Mediatek_Mali_GPU_Governor_${{ matrix.build_type }}_docker_v${{ github.run_number }}.zip

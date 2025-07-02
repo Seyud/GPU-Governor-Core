@@ -182,55 +182,60 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-ndk-
 
-    - name: Cache installed packages list
+    # 使用更高效的系统依赖缓存策略
+    - name: Cache system packages (bindgen dependencies)
       uses: actions/cache@v4
-      id: cache-apt-packages
+      id: cache-system-deps
       with:
-        path: ~/.cache/apt-packages
-        key: ${{ runner.os }}-apt-bindgen-${{ hashFiles('.github/workflows/build.yml') }}-v2
+        path: |
+          /var/cache/apt/archives
+          /var/lib/dpkg/status
+          ~/.cache/bindgen-deps
+        key: ${{ runner.os }}-bindgen-system-deps-v3-${{ hashFiles('.github/workflows/build.yml') }}
         restore-keys: |
-          ${{ runner.os }}-apt-bindgen-
+          ${{ runner.os }}-bindgen-system-deps-v3-
+          ${{ runner.os }}-bindgen-system-deps-
         
-    - name: Install system dependencies for bindgen
-      if: steps.cache-apt-packages.outputs.cache-hit != 'true'
+    - name: Install system dependencies for bindgen (optimized)
+      if: steps.cache-system-deps.outputs.cache-hit != 'true'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y clang llvm-dev libclang-dev
-        # 创建缓存标记文件
-        mkdir -p ~/.cache/apt-packages
-        echo "bindgen-deps-installed-$(date)" > ~/.cache/apt-packages/installed
+        echo "📦 Installing bindgen system dependencies..."
         
-        # 验证 clang 安装
-        clang --version
-        which clang
+        # 预先下载package列表，避免重复update
+        sudo apt-get update -qq
         
-        # 确保 libclang 库可用
-        find /usr -name "libclang*.so*" 2>/dev/null | head -5 || echo "No libclang found"
-        ldconfig -p | grep clang || true
+        # 使用最小化安装和指定版本避免依赖解析时间
+        sudo apt-get install -y --no-install-recommends \
+          clang-14 \
+          libclang-14-dev \
+          llvm-14-dev
         
-    - name: Setup libclang environment  
+        # 创建缓存标记和符号链接以提高兼容性
+        mkdir -p ~/.cache/bindgen-deps
+        echo "bindgen-deps-v3-$(date +%Y%m%d)" > ~/.cache/bindgen-deps/installed
+        
+        # 创建通用符号链接避免路径查找时间
+        sudo ln -sf /usr/bin/clang-14 /usr/local/bin/clang
+        sudo ln -sf /usr/lib/llvm-14/lib/libclang.so.1 /usr/local/lib/libclang.so
+        
+        # 验证安装，但减少输出
+        echo "✅ Clang version: $(clang --version | head -1)"
+        echo "✅ LibClang path: $(find /usr/lib/llvm-14 -name 'libclang.so*' | head -1)"
+        
+    - name: Setup libclang environment (optimized)
       run: |
-        # 查找系统中的 libclang 库并设置正确的路径
-        LIBCLANG_LOCATIONS=(
-          "/usr/lib/llvm-*/lib"
-          "/usr/lib/x86_64-linux-gnu"
-          "/usr/lib"
-        )
+        # 使用预设的libclang路径，避免动态查找
+        echo "LIBCLANG_PATH=/usr/lib/llvm-14/lib" >> $GITHUB_ENV
+        echo "CLANG_PATH=/usr/bin/clang-14" >> $GITHUB_ENV
         
-        for location in "${LIBCLANG_LOCATIONS[@]}"; do
-          if find $location -name "libclang.so*" 2>/dev/null | grep -q .; then
-            echo "Found libclang in: $location"
-            echo "LIBCLANG_PATH=$location" >> $GITHUB_ENV
-            break
-          fi
-        done
+        # 设置bindgen优化环境变量
+        echo "BINDGEN_EXTRA_CLANG_ARGS=-I/usr/lib/llvm-14/lib/clang/14.0.0/include" >> $GITHUB_ENV
         
-        # 设置其他必要的 bindgen 环境变量
-        echo "CLANG_PATH=/usr/bin/clang" >> $GITHUB_ENV
-        
-        # 显示最终的 libclang 配置
-        echo "Final LIBCLANG_PATH configuration:"
-        find /usr -name 'libclang.so*' 2>/dev/null | head -3
+        # 快速验证（仅在非缓存情况下）
+        if [ "${{ steps.cache-system-deps.outputs.cache-hit }}" != "true" ]; then
+          echo "🔍 Verifying libclang setup:"
+          ls -la /usr/lib/llvm-14/lib/libclang.so* 2>/dev/null || echo "⚠️ Libclang not found in expected location"
+        fi
         
     - name: Cache cargo-ndk for tests
       uses: actions/cache@v4
@@ -271,8 +276,8 @@ jobs:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
-        CLANG_PATH: /usr/bin/clang
+        LIBCLANG_PATH: /usr/lib/llvm-14/lib
+        CLANG_PATH: /usr/bin/clang-14
         BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
         CC_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
         CXX_aarch64_linux_android: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang++
@@ -281,23 +286,21 @@ jobs:
         CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android33-clang
         RUST_LOG: debug
       run: |
-        # Verify environment setup
-        echo "🔍 Environment verification:"
-        echo "NDK Path: $ANDROID_NDK_HOME"
-        echo "LibClang Path: $LIBCLANG_PATH"
-        echo "Clang Path: $CLANG_PATH"
-        echo "Available targets:"
-        rustup target list --installed
+        # 精简的环境验证，仅在必要时输出
+        if [ "${{ steps.cache-system-deps.outputs.cache-hit }}" != "true" ]; then
+          echo "🔍 Environment verification:"
+          echo "NDK Path: $ANDROID_NDK_HOME"
+          echo "LibClang Path: $LIBCLANG_PATH" 
+          echo "Clang Path: $CLANG_PATH"
+          clang-14 --version | head -1
+        fi
         
-        # Check clang and libclang availability
-        echo "🔧 Checking clang setup:"
-        clang --version || echo "Clang not found"
-        echo "LibClang libraries:"
-        find /usr -name "libclang*.so*" 2>/dev/null | head -5 || echo "No libclang found"
-        
-        # Verify NDK tools
-        echo "🛠️ Checking NDK tools:"
-        ls -la "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/" | grep aarch64 | head -3
+        # 验证NDK工具（仅第一次）
+        if [ ! -f ~/.cache/ndk-verified ]; then
+          echo "🛠️ NDK tools verification:"
+          ls -la "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/" | grep aarch64 | head -2
+          touch ~/.cache/ndk-verified
+        fi
         
         # First, verify that the code compiles for Android target
         echo "🔧 Checking Android target compilation..."
@@ -352,55 +355,55 @@ jobs:
       if: steps.cache-cargo-ndk-build.outputs.cache-hit != 'true'
       run: cargo install cargo-ndk
 
-    - name: Cache installed packages list
+    - name: Cache system packages for build (bindgen dependencies)
       uses: actions/cache@v4
-      id: cache-apt-packages-build
+      id: cache-system-deps-build
       with:
-        path: ~/.cache/apt-packages-build
-        key: ${{ runner.os }}-apt-bindgen-${{ hashFiles('.github/workflows/build.yml') }}-v2
+        path: |
+          /var/cache/apt/archives
+          /var/lib/dpkg/status
+          ~/.cache/bindgen-deps-build
+        key: ${{ runner.os }}-bindgen-system-deps-build-v3-${{ hashFiles('.github/workflows/build.yml') }}
         restore-keys: |
-          ${{ runner.os }}-apt-bindgen-
+          ${{ runner.os }}-bindgen-system-deps-v3-
+          ${{ runner.os }}-bindgen-system-deps-build-
       
-    - name: Install system dependencies for bindgen
-      if: steps.cache-apt-packages-build.outputs.cache-hit != 'true'
+    - name: Install system dependencies for bindgen (build optimized)
+      if: steps.cache-system-deps-build.outputs.cache-hit != 'true'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y clang llvm-dev libclang-dev
-        # 创建缓存标记文件
-        mkdir -p ~/.cache/apt-packages-build
-        echo "bindgen-deps-installed-$(date)" > ~/.cache/apt-packages-build/installed
+        echo "📦 Installing bindgen dependencies for build job..."
         
-        # 验证 clang 安装
-        clang --version
-        which clang
+        # 快速安装，复用test job的优化
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends \
+          clang-14 \
+          libclang-14-dev \
+          llvm-14-dev
         
-        # 确保 libclang 库可用
-        find /usr -name "libclang.so*" 2>/dev/null || true
-        ldconfig -p | grep clang || true
+        # 创建缓存标记和符号链接
+        mkdir -p ~/.cache/bindgen-deps-build
+        echo "bindgen-deps-build-v3-$(date +%Y%m%d)" > ~/.cache/bindgen-deps-build/installed
         
-    - name: Setup libclang environment for build
+        # 创建通用符号链接
+        sudo ln -sf /usr/bin/clang-14 /usr/local/bin/clang
+        sudo ln -sf /usr/lib/llvm-14/lib/libclang.so.1 /usr/local/lib/libclang.so
+        
+        echo "✅ Bindgen dependencies installed for build"
+        
+    - name: Setup libclang environment for build (optimized)
       run: |
-        # 查找系统中的 libclang 库并设置正确的路径
-        LIBCLANG_LOCATIONS=(
-          "/usr/lib/llvm-*/lib"
-          "/usr/lib/x86_64-linux-gnu"
-          "/usr/lib"
-        )
+        # 使用固定路径，避免动态查找开销
+        echo "LIBCLANG_PATH=/usr/lib/llvm-14/lib" >> $GITHUB_ENV
+        echo "CLANG_PATH=/usr/bin/clang-14" >> $GITHUB_ENV
         
-        for location in "${LIBCLANG_LOCATIONS[@]}"; do
-          if find $location -name "libclang.so*" 2>/dev/null | grep -q .; then
-            echo "Found libclang in: $location"
-            echo "LIBCLANG_PATH=$location" >> $GITHUB_ENV
-            break
-          fi
-        done
+        # 设置bindgen优化环境变量
+        echo "BINDGEN_EXTRA_CLANG_ARGS=-I/usr/lib/llvm-14/lib/clang/14.0.0/include" >> $GITHUB_ENV
         
-        # 设置其他必要的 bindgen 环境变量
-        echo "CLANG_PATH=/usr/bin/clang" >> $GITHUB_ENV
-        
-        # 显示最终的 libclang 配置
-        echo "Final LIBCLANG_PATH configuration:"
-        find /usr -name 'libclang.so*' 2>/dev/null | head -3
+        # 仅在新安装时验证
+        if [ "${{ steps.cache-system-deps-build.outputs.cache-hit }}" != "true" ]; then
+          echo "🔍 Build environment libclang verification:"
+          ls -la /usr/lib/llvm-14/lib/libclang.so* 2>/dev/null || echo "⚠️ Libclang verification failed"
+        fi
       
     - name: Setup Android NDK
       uses: nttld/setup-ndk@v1
@@ -434,18 +437,18 @@ jobs:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
-        CLANG_PATH: /usr/bin/clang
+        LIBCLANG_PATH: /usr/lib/llvm-14/lib
+        CLANG_PATH: /usr/bin/clang-14
         BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
       run: |
-        # Verify environment setup for debug build
-        echo "🔍 Debug build environment verification:"
-        echo "NDK Path: $ANDROID_NDK_HOME"
-        echo "LibClang Path: $LIBCLANG_PATH"
-        echo "Clang Path: $CLANG_PATH"
-        clang --version || echo "Clang not found"
-        echo "LibClang libraries:"
-        find /usr -name "libclang*.so*" 2>/dev/null | head -3 || echo "No libclang found"
+        # 精简的环境验证，仅在非缓存情况下输出详细信息
+        if [ "${{ steps.cache-system-deps-build.outputs.cache-hit }}" != "true" ]; then
+          echo "🔍 Debug build environment verification:"
+          echo "NDK Path: $ANDROID_NDK_HOME"
+          echo "LibClang Path: $LIBCLANG_PATH"
+          echo "Clang Path: $CLANG_PATH"
+          clang-14 --version | head -1
+        fi
         
         cargo ndk -t arm64-v8a build --target aarch64-linux-android
         
@@ -455,18 +458,18 @@ jobs:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
         ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-        LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
-        CLANG_PATH: /usr/bin/clang
+        LIBCLANG_PATH: /usr/lib/llvm-14/lib
+        CLANG_PATH: /usr/bin/clang-14
         BINDGEN_EXTRA_CLANG_ARGS: "--target=aarch64-linux-android33 --sysroot=${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include -I${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/aarch64-linux-android"
       run: |
-        # Verify environment setup for release build
-        echo "🔍 Release build environment verification:"
-        echo "NDK Path: $ANDROID_NDK_HOME"
-        echo "LibClang Path: $LIBCLANG_PATH"
-        echo "Clang Path: $CLANG_PATH"
-        clang --version || echo "Clang not found"
-        echo "LibClang libraries:"
-        find /usr -name "libclang*.so*" 2>/dev/null | head -3 || echo "No libclang found"
+        # 精简的环境验证，仅在非缓存情况下输出详细信息
+        if [ "${{ steps.cache-system-deps-build.outputs.cache-hit }}" != "true" ]; then
+          echo "🔍 Release build environment verification:"
+          echo "NDK Path: $ANDROID_NDK_HOME"
+          echo "LibClang Path: $LIBCLANG_PATH"
+          echo "Clang Path: $CLANG_PATH"
+          clang-14 --version | head -1
+        fi
         
         cargo ndk -t arm64-v8a build --release --target aarch64-linux-android
         
