@@ -464,6 +464,17 @@ jobs:
         
         cargo ndk -t arm64-v8a build --target aarch64-linux-android
         
+        # Verify build success
+        if [ ! -f "target/aarch64-linux-android/debug/gpugovernor" ]; then
+          echo "❌ Build failed - output binary not found"
+          echo "📁 Checking target directory structure:"
+          find target -name "gpugovernor" -type f 2>/dev/null || echo "No gpugovernor binary found anywhere"
+          exit 1
+        fi
+        
+        echo "✅ Debug build completed successfully"
+        ls -la target/aarch64-linux-android/debug/gpugovernor
+        
     - name: Package debug module
       run: |
         # Create output directory
@@ -472,16 +483,46 @@ jobs:
         # Copy module files
         cp -rf module/* output/.temp/
         
-        # Copy the binary and rename it
-        cp -f target/aarch64-linux-android/debug/gpugovernor output/.temp/bin/gpugovernor
+        # Verify the build output exists
+        if [ ! -f "target/aarch64-linux-android/debug/gpugovernor" ]; then
+          echo "❌ Build output not found: target/aarch64-linux-android/debug/gpugovernor"
+          echo "📁 Available files in target/aarch64-linux-android/debug/:"
+          ls -la target/aarch64-linux-android/debug/ || echo "Directory not found"
+          exit 1
+        fi
         
-        echo "Debug module files prepared in output/.temp"
+        # Copy the binary and overwrite the placeholder
+        cp -f target/aarch64-linux-android/debug/gpugovernor output/.temp/bin/gpugovernor
+        chmod +x output/.temp/bin/gpugovernor
+        
+        # Verify the final structure
+        echo "📦 Debug module files prepared:"
+        ls -la output/.temp/
+        ls -la output/.temp/bin/
+        echo "Binary size: $(stat -c%s output/.temp/bin/gpugovernor) bytes"
+        
+    - name: Debug artifact structure
+      run: |
+        echo "🔍 Verifying artifact structure before upload:"
+        echo "Current directory: $(pwd)"
+        echo "output/.temp exists: $(test -d output/.temp && echo 'YES' || echo 'NO')"
+        if [ -d "output/.temp" ]; then
+          echo "Contents of output/.temp:"
+          find output/.temp -type f | head -20
+          echo "Total files in output/.temp: $(find output/.temp -type f | wc -l)"
+        else
+          echo "❌ output/.temp directory not found!"
+          echo "Available directories:"
+          ls -la
+        fi
         
     - name: Upload debug artifact
       uses: actions/upload-artifact@v4
       with:
         name: Mediatek_Mali_GPU_Governor-debug-${{ github.run_number }}
         path: output/.temp
+        if-no-files-found: error
+        retention-days: 30
 
   build-release:
     name: Build Module (release)
@@ -628,6 +669,17 @@ jobs:
         
         cargo ndk -t arm64-v8a build --release --target aarch64-linux-android
         
+        # Verify build success
+        if [ ! -f "target/aarch64-linux-android/release/gpugovernor" ]; then
+          echo "❌ Build failed - output binary not found"
+          echo "📁 Checking target directory structure:"
+          find target -name "gpugovernor" -type f 2>/dev/null || echo "No gpugovernor binary found anywhere"
+          exit 1
+        fi
+        
+        echo "✅ Release build completed successfully"
+        ls -la target/aarch64-linux-android/release/gpugovernor
+        
     - name: Package release module
       run: |
         # Create output directory
@@ -636,19 +688,49 @@ jobs:
         # Copy module files
         cp -rf module/* output/.temp/
         
-        # Copy the binary and rename it
+        # Verify the build output exists
+        if [ ! -f "target/aarch64-linux-android/release/gpugovernor" ]; then
+          echo "❌ Build output not found: target/aarch64-linux-android/release/gpugovernor"
+          echo "📁 Available files in target/aarch64-linux-android/release/:"
+          ls -la target/aarch64-linux-android/release/ || echo "Directory not found"
+          exit 1
+        fi
+        
+        # Copy the binary and overwrite the placeholder
         cp -f target/aarch64-linux-android/release/gpugovernor output/.temp/bin/gpugovernor
+        chmod +x output/.temp/bin/gpugovernor
         
         # Strip the binary
         ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip output/.temp/bin/gpugovernor
         
-        echo "Release module files prepared in output/.temp"
+        # Verify the final structure
+        echo "📦 Release module files prepared:"
+        ls -la output/.temp/
+        ls -la output/.temp/bin/
+        echo "Binary size: $(stat -c%s output/.temp/bin/gpugovernor) bytes"
+        
+    - name: Debug artifact structure
+      run: |
+        echo "🔍 Verifying artifact structure before upload:"
+        echo "Current directory: $(pwd)"
+        echo "output/.temp exists: $(test -d output/.temp && echo 'YES' || echo 'NO')"
+        if [ -d "output/.temp" ]; then
+          echo "Contents of output/.temp:"
+          find output/.temp -type f | head -20
+          echo "Total files in output/.temp: $(find output/.temp -type f | wc -l)"
+        else
+          echo "❌ output/.temp directory not found!"
+          echo "Available directories:"
+          ls -la
+        fi
         
     - name: Upload release artifact
       uses: actions/upload-artifact@v4
       with:
         name: Mediatek_Mali_GPU_Governor-release-${{ github.run_number }}
         path: output/.temp
+        if-no-files-found: error
+        retention-days: 30
 
   cleanup:
     name: Cache Cleanup (Optional)
