@@ -507,6 +507,10 @@ jobs:
         
         # Copy module files
         cp -rf module/* output/
+
+        # Remove unwanted files
+        rm -f output/pack.py
+        rm -f output/Update.json
         
         # Verify module files were copied
         if [ ! -d "output" ] || [ ! "$(ls -A output)" ]; then
