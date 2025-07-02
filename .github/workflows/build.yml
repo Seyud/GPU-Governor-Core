@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: 'Build type (debug, release, or both)'
+        description: 'Build type (debug, release, both, or cleanup)'
         required: true
         default: 'both'
         type: choice
@@ -21,6 +21,7 @@ on:
         - debug
         - release
         - both
+        - cleanup
 
 env:
   CARGO_TERM_COLOR: always
@@ -859,7 +860,7 @@ jobs:
   cleanup:
     name: Cache Cleanup (Optional)
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && contains(github.event.inputs.build_type, 'cleanup')
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'cleanup'
     
     steps:
     - name: Cleanup old cache entries
