@@ -1,4 +1,4 @@
-name: Build and Package Mediatek Mali GPU Governor
+name: Build and Package
 
 # 缓存策略说明:
 # 1. Rust工具链和组件缓存 - 跨job共享
