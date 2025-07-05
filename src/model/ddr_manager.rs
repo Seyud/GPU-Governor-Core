@@ -145,7 +145,9 @@ impl DdrManager {
             }
 
             if !path_written {
-                debug!("Failed to write DDR frequency to any v2 driver path (continuing execution)");
+                debug!(
+                    "Failed to write DDR frequency to any v2 driver path (continuing execution)"
+                );
             }
         } else {
             // v1 driver
