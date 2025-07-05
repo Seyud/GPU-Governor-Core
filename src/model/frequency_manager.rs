@@ -218,14 +218,14 @@ impl FrequencyManager {
     ) -> Result<()> {
         debug!("Writing in idle mode");
         if self.gpuv2 {
-            FileHelper::write_string(volt_path, volt_reset)?;
-            let result = FileHelper::write_string(opp_path, "-1");
-            if result.is_err() {
-                FileHelper::write_string(opp_path, opp_reset_zero)?;
+            FileHelper::write_string_safe(volt_path, volt_reset);
+            let result = FileHelper::write_string_safe(opp_path, "-1");
+            if !result {
+                FileHelper::write_string_safe(opp_path, opp_reset_zero);
             }
         } else {
-            FileHelper::write_string(volt_path, volt_reset)?;
-            FileHelper::write_string(opp_path, opp_reset_zero)?;
+            FileHelper::write_string_safe(volt_path, volt_reset);
+            FileHelper::write_string_safe(opp_path, opp_reset_zero);
         }
         Ok(())
     }
@@ -240,10 +240,10 @@ impl FrequencyManager {
         opp_reset_zero: &str,
     ) -> Result<()> {
         debug!("Writing in DCS mode");
-        FileHelper::write_string(volt_path, volt_reset)?;
-        let result = FileHelper::write_string(opp_path, opp_reset_minus_one);
-        if result.is_err() {
-            FileHelper::write_string(opp_path, opp_reset_zero)?;
+        FileHelper::write_string_safe(volt_path, volt_reset);
+        let result = FileHelper::write_string_safe(opp_path, opp_reset_minus_one);
+        if !result {
+            FileHelper::write_string_safe(opp_path, opp_reset_zero);
         }
         Ok(())
     }
@@ -257,8 +257,8 @@ impl FrequencyManager {
         content: &str,
     ) -> Result<()> {
         debug!("Writing in no-volt mode");
-        FileHelper::write_string(volt_path, volt_reset)?;
-        FileHelper::write_string(opp_path, content)?;
+        FileHelper::write_string_safe(volt_path, volt_reset);
+        FileHelper::write_string_safe(opp_path, content);
         Ok(())
     }
 
@@ -274,16 +274,16 @@ impl FrequencyManager {
     ) -> Result<()> {
         debug!("Writing in normal mode");
         if self.gpuv2 {
-            FileHelper::write_string(volt_path, volt_reset)?;
-            let result = FileHelper::write_string(opp_path, opp_reset_minus_one);
-            if result.is_err() {
-                FileHelper::write_string(opp_path, opp_reset_zero)?;
+            FileHelper::write_string_safe(volt_path, volt_reset);
+            let result = FileHelper::write_string_safe(opp_path, opp_reset_minus_one);
+            if !result {
+                FileHelper::write_string_safe(opp_path, opp_reset_zero);
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
-            FileHelper::write_string(volt_path, volt_content)?;
+            FileHelper::write_string_safe(volt_path, volt_content);
         } else {
-            FileHelper::write_string(opp_path, opp_reset_zero)?;
-            FileHelper::write_string(volt_path, volt_content)?;
+            FileHelper::write_string_safe(opp_path, opp_reset_zero);
+            FileHelper::write_string_safe(volt_path, volt_content);
         }
         Ok(())
     }

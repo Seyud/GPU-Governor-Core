@@ -101,7 +101,7 @@ impl DdrManager {
                     if Path::new(path).exists() {
                         let auto_mode_str = DDR_AUTO_MODE_V2.to_string();
                         debug!("Writing {auto_mode_str} to v2 DDR path: {path}");
-                        if FileHelper::write_string(path, &auto_mode_str).is_ok() {
+                        if FileHelper::write_string_safe(path, &auto_mode_str) {
                             path_written = true;
                             break;
                         }
@@ -109,23 +109,16 @@ impl DdrManager {
                 }
 
                 if !path_written {
-                    warn!("Failed to write DDR_AUTO_MODE_V2 to any v2 driver path");
-                    return Err(anyhow::anyhow!(
-                        "Failed to write DDR_AUTO_MODE_V2 to any v2 driver path"
-                    ));
+                    debug!("Failed to write DDR_AUTO_MODE_V2 to any v2 driver path (continuing execution)");
                 }
             } else {
                 // v1 driver，使用DDR_AUTO_MODE_V1（-1）表示自动模式
                 if Path::new(DVFSRC_V1_PATH).exists() {
                     let auto_mode_str = DDR_AUTO_MODE_V1.to_string();
                     debug!("Writing {auto_mode_str} to v1 DDR path: {DVFSRC_V1_PATH}");
-                    FileHelper::write_string(DVFSRC_V1_PATH, &auto_mode_str)?;
+                    FileHelper::write_string_safe(DVFSRC_V1_PATH, &auto_mode_str);
                 } else {
-                    warn!("V1 DDR path does not exist: {DVFSRC_V1_PATH}");
-                    return Err(anyhow::anyhow!(
-                        "V1 DDR path does not exist: {}",
-                        DVFSRC_V1_PATH
-                    ));
+                    debug!("V1 DDR path does not exist: {DVFSRC_V1_PATH} (continuing execution)");
                 }
             }
 
@@ -144,7 +137,7 @@ impl DdrManager {
             for path in &paths {
                 if Path::new(path).exists() {
                     debug!("Writing {freq_str} to v2 DDR path: {path}");
-                    if FileHelper::write_string(path, &freq_str).is_ok() {
+                    if FileHelper::write_string_safe(path, &freq_str) {
                         path_written = true;
                         break;
                     }
@@ -152,22 +145,15 @@ impl DdrManager {
             }
 
             if !path_written {
-                warn!("Failed to write DDR frequency to any v2 driver path");
-                return Err(anyhow::anyhow!(
-                    "Failed to write DDR frequency to any v2 driver path"
-                ));
+                debug!("Failed to write DDR frequency to any v2 driver path (continuing execution)");
             }
         } else {
             // v1 driver
             if Path::new(DVFSRC_V1_PATH).exists() {
                 debug!("Writing {freq_str} to v1 DDR path: {DVFSRC_V1_PATH}");
-                FileHelper::write_string(DVFSRC_V1_PATH, &freq_str)?;
+                FileHelper::write_string_safe(DVFSRC_V1_PATH, &freq_str);
             } else {
-                warn!("V1 DDR path does not exist: {DVFSRC_V1_PATH}");
-                return Err(anyhow::anyhow!(
-                    "V1 DDR path does not exist: {}",
-                    DVFSRC_V1_PATH
-                ));
+                debug!("V1 DDR path does not exist: {DVFSRC_V1_PATH} (continuing execution)");
             }
         }
 

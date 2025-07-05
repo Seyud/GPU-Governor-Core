@@ -73,14 +73,16 @@ pub fn write_file<P: AsRef<Path>, C: AsRef<[u8]>>(
     let bytes_written = match file.write(&content_ref[..len]) {
         Ok(n) => n,
         Err(e) => {
-            // 检查是否是特定文件路径，如果是则使用debug级别记录错误
+            // 检查是否是特定文件路径，如果是则使用debug级别记录错误并返回成功
             let path_str = path_ref.to_str().unwrap_or("");
             if path_str == GPUFREQV2_OPP || path_str == GPUFREQ_OPP {
                 debug!(
-                    "Failed to write to file: {}. Error: {}",
+                    "Failed to write to file: {}. Error: {} (continuing execution)",
                     path_ref.display(),
                     e
                 );
+                // 对于GPU频率文件，即使写入失败也返回成功，避免程序终止
+                return Ok(len);
             } else {
                 error!(
                     "Failed to write to file: {}. Error: {}",
