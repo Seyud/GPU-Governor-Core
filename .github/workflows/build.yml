@@ -22,6 +22,16 @@ on:
         - release
         - both
         - cleanup
+      cleanup_scope:
+        description: 'Cache cleanup scope (only used when build_type is cleanup)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - rust-only
+        - ndk-only
+        - dependencies-only
 
 env:
   CARGO_TERM_COLOR: always
@@ -1218,10 +1228,142 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.build_type == 'cleanup'
     
     steps:
-    - name: Cleanup old cache entries
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup GitHub CLI
       run: |
-        echo "🧹 Cache cleanup job - manual trigger only"
-        echo "This job can be extended to clean up old cache entries if needed"
-        echo "Current caches will be automatically managed by GitHub Actions"
+        # GitHub CLI is pre-installed on GitHub Actions runners
+        gh --version
+        
+    - name: Cache statistics (before cleanup)
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "📊 Cache statistics before cleanup:"
+        
+        total_caches=$(gh cache list --json key --jq '. | length' 2>/dev/null || echo "0")
+        echo "Total caches: $total_caches"
+        
+        if [ "$total_caches" -gt 0 ]; then
+          echo ""
+          echo "📋 Cache breakdown:"
+          gh cache list --json key,sizeInBytes --jq '.[] | "\(.key): \(.sizeInBytes) bytes"' | head -10
+          
+          total_size=$(gh cache list --json sizeInBytes --jq '[.[].sizeInBytes] | add' 2>/dev/null || echo "0")
+          echo ""
+          echo "Total cache size: $total_size bytes (~$((total_size / 1024 / 1024)) MB)"
+        fi
+        echo ""
+        
+    - name: List and cleanup Actions caches
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "🧹 Starting GitHub Actions cache cleanup..."
+        echo "Repository: ${{ github.repository }}"
+        echo "Cleanup scope: ${{ github.event.inputs.cleanup_scope || 'all' }}"
+        echo ""
+        
+        # 获取当前仓库的所有缓存
+        echo "📋 Current caches in repository:"
+        gh cache list --limit 100 || echo "No caches found or error listing caches"
+        echo ""
+        
+        CLEANUP_SCOPE="${{ github.event.inputs.cleanup_scope || 'all' }}"
+        
+        # 根据清理范围选择性删除缓存
+        echo "🗑️  Deleting caches (scope: $CLEANUP_SCOPE)..."
+        
+        case "$CLEANUP_SCOPE" in
+          "rust-only")
+            echo "Cleaning Rust-related caches only..."
+            gh cache list --json key --jq '.[].key' | grep -E "(rust|cargo|toolchain)" | while read -r key; do
+              if [ -n "$key" ]; then
+                echo "Deleting Rust cache: $key"
+                gh cache delete "$key" --confirm 2>/dev/null || echo "Failed to delete cache: $key"
+              fi
+            done
+            ;;
+          "ndk-only")
+            echo "Cleaning NDK-related caches only..."
+            gh cache list --json key --jq '.[].key' | grep -i "ndk" | while read -r key; do
+              if [ -n "$key" ]; then
+                echo "Deleting NDK cache: $key"
+                gh cache delete "$key" --confirm 2>/dev/null || echo "Failed to delete cache: $key"
+              fi
+            done
+            ;;
+          "dependencies-only")
+            echo "Cleaning dependency caches only..."
+            gh cache list --json key --jq '.[].key' | grep -E "(pip|cargo|dep)" | while read -r key; do
+              if [ -n "$key" ]; then
+                echo "Deleting dependency cache: $key"
+                gh cache delete "$key" --confirm 2>/dev/null || echo "Failed to delete cache: $key"
+              fi
+            done
+            ;;
+          "all"|*)
+            echo "Cleaning all caches..."
+            cache_keys=$(gh cache list --json key --jq '.[].key' 2>/dev/null || echo "")
+            if [ -n "$cache_keys" ]; then
+              echo "$cache_keys" | while read -r key; do
+                if [ -n "$key" ]; then
+                  echo "Deleting cache: $key"
+                  gh cache delete "$key" --confirm 2>/dev/null || echo "Failed to delete cache: $key"
+                fi
+              done
+            else
+              echo "No cache keys found to delete"
+            fi
+            ;;
+        esac
+        
+        echo ""
+        echo "🧹 Cache cleanup completed!"
+        echo ""
+        echo "📋 Remaining caches after cleanup:"
+        gh cache list --limit 10 || echo "No caches remaining"
+        
+    - name: Cache statistics (after cleanup)
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo ""
+        echo "📊 Cache statistics after cleanup:"
+        
+        remaining_caches=$(gh cache list --json key --jq '. | length' 2>/dev/null || echo "0")
+        echo "Remaining caches: $remaining_caches"
+        
+        if [ "$remaining_caches" -gt 0 ]; then
+          remaining_size=$(gh cache list --json sizeInBytes --jq '[.[].sizeInBytes] | add' 2>/dev/null || echo "0")
+          echo "Remaining cache size: $remaining_size bytes (~$((remaining_size / 1024 / 1024)) MB)"
+        else
+          echo "✅ All selected caches have been successfully removed!"
+        fi
+        
+    - name: Cleanup local build artifacts (optional)
+      run: |
+        echo "🧽 Cleaning up local build artifacts..."
+        
+        # 清理 target 目录
+        if [ -d "target" ]; then
+          echo "Removing target/ directory..."
+          rm -rf target/
+        fi
+        
+        # 清理 output 目录
+        if [ -d "output" ]; then
+          echo "Removing output/ directory..."
+          rm -rf output/
+        fi
+        
+        # 清理日志文件
+        if [ -d "log" ]; then
+          echo "Cleaning log files..."
+          find log/ -name "*.log" -type f -delete 2>/dev/null || true
+        fi
+        
+        echo "✅ Local cleanup completed!"
 
 
