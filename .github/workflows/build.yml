@@ -55,7 +55,7 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          COMMIT_MESSAGE: >
+          COMMIT_MESSAGE: |+
             🚀 **Mediatek Mali GPU Governor Build #${{ github.run_number }}**
             📋 **Build Info:**
             Version: `v${CARGO_VERSION}`
@@ -72,10 +72,7 @@ jobs:
         run: |
           MSG="${COMMIT_MESSAGE}"
 
-          ESCAPED=$(python3 -c 'import sys, re; msg = sys.argv[1]; msg =
-          re.sub(r"([_*\[\]()~`>#+\-=|{}.!])", r"\\\1", msg); msg =
-          msg.replace("\n", "\\n"); print(msg)' "$MSG")
-
+          ESCAPED=$(python3 -c 'import sys, re; msg = sys.argv[1]; msg = re.sub(r"([_*\[\]()~`>#+\-=|{}.!])", r"\\\1", msg); msg = msg.replace("\n", "\\n"); print(msg)' "$MSG")
           curl -v "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup" \
                -F "chat_id=${CHAT_ID}" \
                -F "message_thread_id=15" \
