@@ -13,7 +13,7 @@ jobs:
         with:
           submodules: recursive
       - name: Setup ndk
-        run: >
+        run: |
           ndk_url=$(wget -qO- https://github.com/android/ndk/releases/latest | grep -e 'https://dl.google.com/android/repository/android-ndk-.*-linux.zip' | sed -n 's/.*<a href="\([^"]*\)".*/\1/p')
           wget -O ndk.zip $ndk_url -nv
           mkdir -p ~/ndk_temp
