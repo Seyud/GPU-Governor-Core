@@ -646,6 +646,7 @@ jobs:
         # Remove unwanted files immediately after copying
         rm -f output/pack.py
         rm -f output/Update.json
+        rm -f output/format_scripts.sh
         
         # Verify unwanted files were removed
         if [ -f "output/pack.py" ]; then
@@ -660,6 +661,13 @@ jobs:
           ls -la output/Update.json
         else
           echo "✅ Update.json successfully removed"
+        fi
+        
+        if [ -f "output/format_scripts.sh" ]; then
+          echo "⚠️ Warning: format_scripts.sh still exists in output directory"
+          ls -la output/format_scripts.sh
+        else
+          echo "✅ format_scripts.sh successfully removed"
         fi
         
         # Verify module files were copied
@@ -1003,6 +1011,7 @@ jobs:
         # Remove unwanted files immediately after copying
         rm -f output/pack.py
         rm -f output/Update.json
+        rm -f output/format_scripts.sh
         
         # Verify unwanted files were removed
         if [ -f "output/pack.py" ]; then
@@ -1017,6 +1026,13 @@ jobs:
           ls -la output/Update.json
         else
           echo "✅ Update.json successfully removed"
+        fi
+        
+        if [ -f "output/format_scripts.sh" ]; then
+          echo "⚠️ Warning: format_scripts.sh still exists in output directory"
+          ls -la output/format_scripts.sh
+        else
+          echo "✅ format_scripts.sh successfully removed"
         fi
         
         # Verify module files were copied
