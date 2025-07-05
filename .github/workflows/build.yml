@@ -880,6 +880,104 @@ jobs:
           echo "Directory does not exist!"
         fi
 
+  telegram-notify:
+    name: Send to Telegram
+    runs-on: ubuntu-latest
+    needs: [build-debug, build-release]
+    if: always() && (needs.build-debug.result == 'success' || needs.build-release.result == 'success')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Download debug artifact
+      if: needs.build-debug.result == 'success'
+      uses: actions/download-artifact@v4
+      with:
+        name: Mediatek_Mali_GPU_Governor-debug-${{ github.run_number }}
+        path: ./artifacts/debug/
+
+    - name: Download release artifact
+      if: needs.build-release.result == 'success'
+      uses: actions/download-artifact@v4
+      with:
+        name: Mediatek_Mali_GPU_Governor-release-${{ github.run_number }}
+        path: ./artifacts/release/
+
+    - name: Prepare files for upload
+      run: |
+        echo "📦 Preparing files for Telegram upload..."
+        
+        # Create upload directory
+        mkdir -p upload
+        
+        # Check and prepare debug build
+        if [ -d "./artifacts/debug" ] && [ "$(ls -A ./artifacts/debug)" ]; then
+          echo "✅ Debug artifacts found"
+          cd ./artifacts/debug
+          zip -r ../../upload/Mediatek_Mali_GPU_Governor-debug-${{ github.run_number }}.zip .
+          cd ../..
+        fi
+        
+        # Check and prepare release build
+        if [ -d "./artifacts/release" ] && [ "$(ls -A ./artifacts/release)" ]; then
+          echo "✅ Release artifacts found"
+          cd ./artifacts/release
+          zip -r ../../upload/Mediatek_Mali_GPU_Governor-release-${{ github.run_number }}.zip .
+          cd ../..
+        fi
+        
+        echo "📁 Files prepared for upload:"
+        ls -la upload/
+
+    - name: Send to Telegram
+      env:
+        BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        # Get version info
+        CARGO_VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "//' | sed 's/"//')
+        
+        # Prepare commit message
+        COMMIT_MESSAGE="🚀 **Mediatek Mali GPU Governor Build #${{ github.run_number }}**
+
+        📋 **Build Info:**
+        Version: \`v${CARGO_VERSION}\`
+        Commit: \`${{ github.sha }}\`
+        Branch: \`${{ github.ref_name }}\`
+        
+        📝 **Commit Message:**
+        \`\`\`
+        ${{ github.event.head_commit.message }}
+        \`\`\`
+        by \`${{ github.event.head_commit.author.name }}\`
+        
+        🔗 [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        
+        # Escape special characters for MarkdownV2
+        ESCAPED=$(python3 -c 'import sys, re; msg = sys.argv[1]; msg = re.sub(r"([_*\[\]()~`>#+\-=|{}.!])", r"\\\1", msg); msg = msg.replace("\n", "\\n"); print(msg)' "$COMMIT_MESSAGE")
+        
+        # Send files to Telegram
+        cd upload
+        for file in *.zip; do
+          if [ -f "$file" ]; then
+            echo "📤 Uploading: $file"
+            curl -v "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+                 -F "chat_id=${CHAT_ID}" \
+                 -F "message_thread_id=15" \
+                 -F "document=@${file}" \
+                 -F "parse_mode=MarkdownV2" \
+                 -F "caption=${ESCAPED}"
+          fi
+        done
+
   cleanup:
     name: Cache Cleanup (Optional)
     runs-on: ubuntu-latest
