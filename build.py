@@ -151,6 +151,65 @@ class GPUGovernorBuilder:
         if not self._check_dependencies():
             return False
 
+        # 执行cargo fmt --check命令
+        print("检查代码格式...")
+        fmt_cmd = ["cargo", "fmt", "--check"]
+        print(f"执行命令: {' '.join(fmt_cmd)}")
+
+        try:
+            result = subprocess.run(
+                fmt_cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+            )
+            print("代码格式检查通过！")
+            if result.stdout:
+                print(result.stdout)
+        except subprocess.CalledProcessError as e:
+            print(f"代码格式检查失败：{e}")
+            if hasattr(e, "stderr") and e.stderr:
+                print(f"错误输出：{e.stderr}")
+            
+            # 自动修复代码格式
+            print("正在自动修复代码格式...")
+            fmt_fix_cmd = ["cargo", "fmt"]
+            print(f"执行命令: {' '.join(fmt_fix_cmd)}")
+            
+            try:
+                fix_result = subprocess.run(
+                    fmt_fix_cmd,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore",
+                )
+                print("代码格式修复成功！")
+                if fix_result.stdout:
+                    print(fix_result.stdout)
+                    
+                # 再次检查格式是否正确
+                print("再次检查代码格式...")
+                recheck_result = subprocess.run(
+                    fmt_cmd,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="ignore",
+                )
+                print("代码格式检查通过！")
+                
+            except subprocess.CalledProcessError as fix_e:
+                print(f"代码格式修复失败：{fix_e}")
+                if hasattr(fix_e, "stderr") and fix_e.stderr:
+                    print(f"错误输出：{fix_e.stderr}")
+                print("请手动运行 'cargo fmt' 来格式化代码")
+                return False
+
         # 执行cargo build命令
         cmd = ["cargo", "build", "--release", "--target", self.target]
         print(f"执行命令: {' '.join(cmd)}")
