@@ -210,6 +210,32 @@ class GPUGovernorBuilder:
                 print("请手动运行 'cargo fmt' 来格式化代码")
                 return False
 
+        # 执行cargo clippy代码检查
+        print("执行代码质量检查...")
+        clippy_cmd = ["cargo", "clippy", "--", "-D", "warnings"]
+        print(f"执行命令: {' '.join(clippy_cmd)}")
+
+        try:
+            result = subprocess.run(
+                clippy_cmd,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+            )
+            print("代码质量检查通过！")
+            if result.stdout:
+                print(result.stdout)
+        except subprocess.CalledProcessError as e:
+            print(f"代码质量检查失败：{e}")
+            if hasattr(e, "stderr") and e.stderr:
+                print(f"错误输出：{e.stderr}")
+            if hasattr(e, "stdout") and e.stdout:
+                print(f"标准输出：{e.stdout}")
+            print("请修复上述警告和错误后重新编译")
+            return False
+
         # 执行cargo build命令
         cmd = ["cargo", "build", "--release", "--target", self.target]
         print(f"执行命令: {' '.join(cmd)}")
