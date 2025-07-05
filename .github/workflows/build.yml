@@ -63,12 +63,11 @@ jobs:
             Branch: `${{ github.ref_name }}`
             📝 **Commit Message:**
             ```
-            ${{ github.event.head_commit.message  }}
+            ${{ format('{0}', github.event.head_commit.message) }}
             ```
             by `${{ github.event.head_commit.author.name }}`
             
-            🔗 [View Workflow](${{ github.server_url }}/${{ github.repository
-            }}/actions/runs/${{ github.run_id }})
+            🔗 [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
         run: |
           MSG="${COMMIT_MESSAGE}"
           ESCAPED=$(python3 -c 'import sys, re; msg = sys.argv[1]; msg = re.sub(r"([_*\[\]()~`>#+\-=|{}.!])", r"\\\1", msg); msg = msg.replace("\n", "\\n"); print(msg)' "$MSG")
