@@ -47,9 +47,28 @@ jobs:
           # 构建发布版本
           cargo ndk -t arm64-v8a build -r
           # 准备模块包
-          cp target/aarch64-linux-android/release/gpugovernor module/
+          cp target/aarch64-linux-android/release/gpugovernor module/bin/
           rm -rf module/.git
-          cd module/
+          # 创建临时目录用于打包
+          mkdir -p temp_package
+          # 复制指定的文件夹
+          cp -r module/bin temp_package/
+          cp -r module/config temp_package/
+          cp -r module/docs temp_package/
+          cp -r module/META-INF temp_package/
+          cp -r module/script temp_package/
+          cp -r module/webroot temp_package/
+          # 复制指定的文件
+          cp module/action.sh temp_package/
+          cp module/customize.sh temp_package/
+          cp module/gpu_freq_table.conf temp_package/
+          cp module/module.prop temp_package/
+          cp module/post-fs-data.sh temp_package/
+          cp module/service.sh temp_package/
+          cp module/uninstall.sh temp_package/
+          cp module/volt_list.txt temp_package/
+          # 创建 zip 文件
+          cd temp_package/
           zip -r ../Mediatek_Mali_GPU_Governor.zip .
       - name: Prepare Upload Info
         id: prep
