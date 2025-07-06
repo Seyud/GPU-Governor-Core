@@ -75,11 +75,11 @@ jobs:
             
             🔗 [View Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
         run: |
-          MSG="${COMMIT_MESSAGE}"
-          ESCAPED=$(python3 -c 'import sys, re; msg = sys.argv[1]; msg = re.sub(r"([_*\[\]()~`>#+\-=|{}.!])", r"\\\1", msg); msg = msg.replace("\n", "\\n"); print(msg)' "$MSG")
-
+          sudo apt-get update && sudo apt-get install -y jq
+          ESCAPED_MESSAGE=$(echo "${COMMIT_MESSAGE}" | jq -R -s '.')
+          
           curl -v "https://api.telegram.org/bot${BOT_TOKEN}/sendMediaGroup" \
                -F "chat_id=${CHAT_ID}" \
                -F "message_thread_id=15" \
-               -F "media=[{\"type\":\"document\",\"media\":\"attach://file\",\"parse_mode\":\"MarkdownV2\",\"caption\":\"${ESCAPED}\"}]" \
+               -F "media=[{\"type\":\"document\",\"media\":\"attach://file\",\"parse_mode\":\"MarkdownV2\",\"caption\":${ESCAPED_MESSAGE}}]" \
                -F "file=@Mediatek_Mali_GPU_Governor.zip"
