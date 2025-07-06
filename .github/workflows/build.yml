@@ -65,7 +65,7 @@ jobs:
             🚀 **Mediatek Mali GPU Governor Build \#${{ github.run_number }}**
             📋 **Build Info:**
             Version: `v${{ env.CARGO_VERSION }}`
-            Commit: `[${{ steps.prep.outputs.SHORT_SHA }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})`
+            Commit: `${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}`
             Branch: `${{ github.ref_name }}`
             📝 **Commit Message:**
             ```
