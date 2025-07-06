@@ -51,15 +51,21 @@ jobs:
           rm -rf module/.git
           cd module/
           zip -r ../Mediatek_Mali_GPU_Governor.zip .
+      - name: Prepare Upload Info
+        id: prep
+        run: |
+          echo "CARGO_VERSION=$(grep '^version' Cargo.toml | sed 's/version = "\\(.*\\)"/\\1/')" >> $GITHUB_ENV
+          echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
       - name: Upload
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CARGO_VERSION: ${{ env.CARGO_VERSION }}
           COMMIT_MESSAGE: |+
             🚀 **Mediatek Mali GPU Governor Build \#${{ github.run_number }}**
             📋 **Build Info:**
-            Version: `v${CARGO_VERSION}`
-            Commit: `${{ github.sha }}`
+            Version: `v${{ env.CARGO_VERSION }}`
+            Commit: `[${{ steps.prep.outputs.SHORT_SHA }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})`
             Branch: `${{ github.ref_name }}`
             📝 **Commit Message:**
             ```
