@@ -175,7 +175,7 @@ pub fn monitor_foreground_app() -> Result<()> {
     let mut app_cache = ForegroundAppCache::new();
     let cache_ttl = Duration::from_millis(1000); // 缓存有效期1秒
                                                  // 初始化警告限流器，设置60秒的限流时间
-    let mut warning_throttler = WarningThrottler::new(60);
+    let mut warning_throttler = WarningThrottler::new(43200); // 12小时限流
 
     // 读取游戏列表
     let mut games = read_games_list(GAMES_CONF_PATH)?;
