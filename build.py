@@ -57,7 +57,7 @@ class GPUGovernorBuilder:
         self._clean_system_path()
 
         # 配置路径（确保没有双引号字符）
-        self.android_ndk_home = clean_path_string("D:/android-ndk-r27c")
+        self.android_ndk_home = clean_path_string("D:/android-ndk-r28b")
         self.llvm_path = clean_path_string("D:/LLVM")
         self.upx_path = clean_path_string("D:/upx/upx.exe")
 
