@@ -30,6 +30,7 @@ pub const LOG_LEVEL_PATH: &str = "/data/adb/gpu_governor/log/log_level";
 pub const GAMES_CONF_PATH: &str = "/data/adb/gpu_governor/game/games.conf";
 
 // Mali GPU DVFS控制相关路径
+pub const MALI_DVFS_ENABLE: &str = "/proc/mali/dvfs_enable";
 
 // 内存频率相关路径 - v1 driver
 pub const DVFSRC_V1_PATH: &str =

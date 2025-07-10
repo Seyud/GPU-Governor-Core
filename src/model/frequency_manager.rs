@@ -1,6 +1,7 @@
 use anyhow::Result;
-use log::debug;
+use log::{debug, warn};
 use std::collections::HashMap;
+use std::path::Path;
 
 use crate::datasource::file_path::*;
 use crate::utils::file_helper::FileHelper;
@@ -150,8 +151,30 @@ impl FrequencyManager {
         self.cur_volt
     }
 
+    /// 确保DVFS处于关闭状态
+    fn ensure_dvfs_disabled(&self) -> Result<()> {
+        if !Path::new(MALI_DVFS_ENABLE).exists() {
+            debug!("DVFS control file does not exist: {MALI_DVFS_ENABLE}");
+            return Ok(());
+        }
+
+        // 尝试关闭DVFS
+        if !FileHelper::write_string_safe(MALI_DVFS_ENABLE, "0") {
+            warn!("Failed to disable DVFS at {MALI_DVFS_ENABLE}");
+        } else {
+            debug!("DVFS disabled successfully");
+        }
+
+        Ok(())
+    }
+
     /// 写入频率到系统文件
     pub fn write_freq(&self, need_dcs: bool, is_idle: bool) -> Result<()> {
+        // 第一步：确保DVFS处于关闭状态（仅对v1驱动）
+        if !self.gpuv2 {
+            self.ensure_dvfs_disabled()?;
+        }
+
         // 根据驱动类型获取要使用的频率
         let freq_to_use = if self.gpuv2 {
             self.get_closest_v2_supported_freq(self.cur_freq)
