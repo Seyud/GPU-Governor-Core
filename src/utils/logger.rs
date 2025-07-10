@@ -184,5 +184,3 @@ pub fn init_logger() -> Result<()> {
 
     Ok(())
 }
-
-

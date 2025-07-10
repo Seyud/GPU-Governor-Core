@@ -13,4 +13,3 @@ pub mod strategy {
     pub const SAMPLING_INTERVAL_120HZ: u64 = 8; // 8ms = ~120Hz
     pub const FOREGROUND_APP_STARTUP_DELAY: u64 = 60; // seconds
 }
-
