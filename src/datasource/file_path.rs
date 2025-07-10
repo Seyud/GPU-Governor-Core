@@ -2,8 +2,8 @@
 pub const MAIN_THREAD: &str = "LoadMonitor";
 pub const GAME_THREAD: &str = "GameModeWatcher";
 pub const CONF_THREAD: &str = "ConfigWatcher";
-
 pub const FOREGROUND_APP_THREAD: &str = "ForegroundAppWatcher";
+pub const LOG_LEVEL_MONITOR_THREAD: &str = "LogLevelMonitor";
 
 // File paths
 pub const GPU_GOVERNOR_GAME_MODE_PATH: &str = "/data/adb/gpu_governor/game/game_mode";
