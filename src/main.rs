@@ -3,7 +3,7 @@ mod datasource;
 mod model;
 mod utils;
 
-use std::{env, path::Path, thread, time::Duration};
+use std::{path::Path, thread, time::Duration};
 
 use anyhow::Result;
 use log::{error, info, warn};
@@ -19,36 +19,10 @@ use crate::{
     },
     model::gpu::GPU,
     utils::{
-        constants::{strategy, InfoDisplay},
-        file_status::get_status,
-        log_monitor::monitor_log_level,
-        logger::init_logger,
+        constants::strategy, file_status::get_status,
+        log_level_manager::start_unified_log_level_monitor, logger::init_logger,
     },
 };
-
-/// 处理命令行参数
-fn handle_command_line_args() -> Result<()> {
-    let args: Vec<String> = env::args().collect();
-
-    if args.len() > 1 {
-        match args[1].as_str() {
-            "-h" => {
-                InfoDisplay::print_usage();
-                std::process::exit(0);
-            }
-            "-v" => {
-                InfoDisplay::print_header();
-                std::process::exit(0);
-            }
-            unknown => {
-                println!("Unknown argument: {unknown}");
-                println!("Use -h for help");
-                std::process::exit(1);
-            }
-        }
-    }
-    Ok(())
-}
 
 /// 初始化GPU配置
 fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
@@ -78,40 +52,52 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
 fn start_monitoring_threads(gpu: GPU) {
     // 游戏监控线程
     let gpu_clone1 = gpu.clone();
-    thread::spawn(move || {
-        if let Err(e) = monitor_gaming(gpu_clone1) {
-            error!("Gaming monitor error: {e}");
-        }
-    });
+    thread::Builder::new()
+        .name(GAME_THREAD.to_string())
+        .spawn(move || {
+            if let Err(e) = monitor_gaming(gpu_clone1) {
+                error!("Gaming monitor error: {e}");
+            }
+        })
+        .expect("Failed to spawn gaming monitor thread");
 
     // 配置监控线程
     let gpu_clone2 = gpu.clone();
-    thread::spawn(move || {
-        if let Err(e) = monitor_config(gpu_clone2) {
-            error!("Config monitor error: {e}");
-        }
-    });
+    thread::Builder::new()
+        .name(CONF_THREAD.to_string())
+        .spawn(move || {
+            if let Err(e) = monitor_config(gpu_clone2) {
+                error!("Config monitor error: {e}");
+            }
+        })
+        .expect("Failed to spawn config monitor thread");
 
     // 前台应用监控线程（延迟启动）
-    thread::spawn(move || {
-        info!(
-            "Foreground app monitor will start in {} seconds",
-            strategy::FOREGROUND_APP_STARTUP_DELAY
-        );
-        thread::sleep(Duration::from_secs(strategy::FOREGROUND_APP_STARTUP_DELAY));
-        info!("Starting foreground app monitor now");
+    thread::Builder::new()
+        .name(FOREGROUND_APP_THREAD.to_string())
+        .spawn(move || {
+            info!(
+                "Foreground app monitor will start in {} seconds",
+                strategy::FOREGROUND_APP_STARTUP_DELAY
+            );
+            thread::sleep(Duration::from_secs(strategy::FOREGROUND_APP_STARTUP_DELAY));
+            info!("Starting foreground app monitor now");
 
-        if let Err(e) = monitor_foreground_app() {
-            error!("Foreground app monitor error: {e}");
-        }
-    });
+            if let Err(e) = monitor_foreground_app() {
+                error!("Foreground app monitor error: {e}");
+            }
+        })
+        .expect("Failed to spawn foreground app monitor thread");
 
-    // 日志等级监控线程
-    thread::spawn(move || {
-        if let Err(e) = monitor_log_level() {
-            error!("Log level monitor error: {e}");
-        }
-    });
+    // 统一的日志等级监控线程（包含日志轮转功能）
+    thread::Builder::new()
+        .name(LOG_LEVEL_MONITOR_THREAD.to_string())
+        .spawn(move || {
+            if let Err(e) = start_unified_log_level_monitor() {
+                error!("Unified log level monitor error: {e}");
+            }
+        })
+        .expect("Failed to spawn log level monitor thread");
 }
 
 /// 配置GPU策略
@@ -220,12 +206,23 @@ fn display_ddr_info(gpu: &GPU) {
 }
 
 fn main() -> Result<()> {
-    // 处理命令行参数
-    handle_command_line_args()?;
+    // 设置主线程名称（使用pthread_setname_np）
+    unsafe {
+        let name = std::ffi::CString::new(MAIN_THREAD).unwrap();
+        let result = libc::pthread_setname_np(libc::pthread_self(), name.as_ptr());
+        if result != 0 {
+            eprintln!("Warning: Failed to set main thread name: {result}");
+        }
+    }
 
     // 初始化日志
     init_logger()?;
-    InfoDisplay::print_header();
+
+    // 版本信息写入到日志文件
+    info!("{}", crate::utils::constants::NOTES);
+    info!("{}", crate::utils::constants::AUTHOR);
+    info!("{}", crate::utils::constants::SPECIAL);
+    info!("{}", crate::utils::constants::VERSION);
 
     // 初始化GPU
     let mut gpu = GPU::new();

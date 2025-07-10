@@ -14,23 +14,3 @@ pub mod strategy {
     pub const FOREGROUND_APP_STARTUP_DELAY: u64 = 60; // seconds
 }
 
-/// 输出信息格式化
-pub struct InfoDisplay;
-
-impl InfoDisplay {
-    pub fn print_header() {
-        println!("{NOTES}");
-        println!("{AUTHOR}");
-        println!("{SPECIAL}");
-        println!("{VERSION}");
-    }
-
-    pub fn print_usage() {
-        println!("{NOTES}");
-        println!("{AUTHOR}");
-        println!("{SPECIAL}");
-        println!("Usage:");
-        println!("\t-v show version");
-        println!("\t-h show help");
-    }
-}
