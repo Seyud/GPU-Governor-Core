@@ -59,7 +59,8 @@ impl FrequencyAdjustmentEngine {
     fn update_current_frequency(gpu: &mut GPU) -> Result<()> {
         use crate::datasource::load_monitor::get_gpu_current_freq;
 
-        match get_gpu_current_freq() {
+        // 传递驱动类型信息：!gpu.is_gpuv2() 表示是v1驱动
+        match get_gpu_current_freq(!gpu.is_gpuv2()) {
             Ok(current_freq) => {
                 if current_freq > 0 {
                     gpu.set_cur_freq(current_freq);
