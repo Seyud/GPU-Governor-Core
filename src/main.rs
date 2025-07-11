@@ -102,7 +102,7 @@ fn start_monitoring_threads(gpu: GPU) {
 
 /// 配置GPU策略
 fn configure_gpu_strategy(gpu: &mut GPU) {
-    // 使用超简化的99%升频策略
+    // 使用超简化的90%升频策略
     gpu.configure_strategy(
         0,                                 // 无余量
         1,                                 // 降频阈值
@@ -159,7 +159,7 @@ fn display_system_info(gpu: &GPU) {
     display_ddr_info(gpu);
 
     // 策略信息
-    info!("Using ultra-simplified strategy: Load >= 99% = upgrade, Load < 99% = downscale");
+    info!("Using ultra-simplified strategy: Load >= 90% = upgrade, Load < 90% = downscale");
     info!(
         "Second highest frequency: {}KHz",
         gpu.get_second_highest_freq()

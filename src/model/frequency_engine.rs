@@ -10,7 +10,7 @@ pub struct FrequencyAdjustmentEngine;
 impl FrequencyAdjustmentEngine {
     /// 主要的频率调整循环
     pub fn run_adjustment_loop(gpu: &mut GPU) -> Result<()> {
-        info!("Starting advanced GPU governor with ultra-simplified 99% threshold strategy");
+        info!("Starting advanced GPU governor with ultra-simplified 90% threshold strategy");
 
         debug!(
             "config:{:?}, freq:{}",
@@ -92,7 +92,7 @@ impl FrequencyAdjustmentEngine {
         let max_idx = (gpu.get_config_list().len() - 1) as i64;
 
         let (target_freq, target_idx) = if load >= strategy::ULTRA_SIMPLE_THRESHOLD {
-            // 负载达到99%或以上，升频一级
+            // 负载达到90%或以上，升频一级
             debug!(
                 "Load {}% >= {}%, upgrading frequency",
                 load,
@@ -101,7 +101,7 @@ impl FrequencyAdjustmentEngine {
             let next_idx = (current_idx + 1).min(max_idx);
             (gpu.get_freq_by_index(next_idx), next_idx)
         } else {
-            // 负载低于99%，降频一级
+            // 负载低于90%，降频一级
             debug!(
                 "Load {}% < {}%, downscaling frequency",
                 load,

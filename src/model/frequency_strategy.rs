@@ -37,11 +37,11 @@ pub struct FrequencyStrategy {
 impl FrequencyStrategy {
     pub fn new() -> Self {
         Self {
-            // 超简化：只保留99%阈值，其他阈值不重要
+            // 超简化：只保留90%阈值，其他阈值不重要
             very_low_load_threshold: 0,   // 不使用
             low_load_threshold: 0,        // 不使用
             high_load_threshold: 0,       // 不使用
-            very_high_load_threshold: 99, // 唯一重要的阈值：99%升频
+            very_high_load_threshold: 90, // 唯一重要的阈值：90%升频
 
             // 简化的稳定性设置
             load_stability_threshold: 1, // 立即响应
@@ -71,8 +71,8 @@ impl FrequencyStrategy {
 
     /// 设置游戏模式参数 - 超简化版
     pub fn set_gaming_mode_params(&mut self) {
-        // 游戏模式：99%升频，相对保守的降频
-        self.very_high_load_threshold = 99; // 唯一重要的阈值
+        // 游戏模式：90%升频，相对保守的降频
+        self.very_high_load_threshold = 90; // 唯一重要的阈值
         self.load_stability_threshold = 1; // 立即响应
         self.aggressive_down = false; // 游戏模式较保守的降频
 
@@ -80,13 +80,13 @@ impl FrequencyStrategy {
         self.sampling_interval = 8;
         self.adaptive_sampling = false;
 
-        debug!("Gaming mode: 99% upgrade threshold, conservative downscaling, 120Hz sampling");
+        debug!("Gaming mode: 90% upgrade threshold, conservative downscaling, 120Hz sampling");
     }
 
     /// 设置普通模式参数 - 超简化版
     pub fn set_normal_mode_params(&mut self) {
-        // 普通模式：99%升频，激进降频节省功耗
-        self.very_high_load_threshold = 99; // 唯一重要的阈值
+        // 普通模式：90%升频，激进降频节省功耗
+        self.very_high_load_threshold = 90; // 唯一重要的阈值
         self.load_stability_threshold = 1; // 立即响应
         self.aggressive_down = true; // 激进降频节省功耗
 
@@ -94,7 +94,7 @@ impl FrequencyStrategy {
         self.sampling_interval = 8;
         self.adaptive_sampling = false;
 
-        debug!("Normal mode: 99% upgrade threshold, aggressive downscaling, 120Hz sampling");
+        debug!("Normal mode: 90% upgrade threshold, aggressive downscaling, 120Hz sampling");
     }
 
     /// 设置负载阈值
