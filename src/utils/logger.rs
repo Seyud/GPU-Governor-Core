@@ -167,7 +167,7 @@ pub fn init_logger() -> Result<()> {
     // 设置日志记录器
     log::set_logger(&*LOGGER)
         .map(|()| log::set_max_level(log_level))
-        .with_context(|| "Failed to set logger")?;
+        .map_err(|e| anyhow::anyhow!("Failed to set logger: {e:?}"))?;
 
     // 记录当前使用的日志等级
     log::info!("Logger initialized with level: {log_level}");
