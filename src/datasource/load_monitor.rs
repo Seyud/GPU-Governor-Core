@@ -248,7 +248,13 @@ pub fn get_gpu_load() -> Result<i32> {
     debug_dvfs_load_func()
 }
 
-pub fn get_gpu_current_freq() -> Result<i64> {
+pub fn get_gpu_current_freq(is_v1_driver: bool) -> Result<i64> {
+    // 对于v1驱动设备，只使用gpufreq_var_dump方法读取频率
+    if is_v1_driver {
+        return read_v1_gpu_freq_from_var_dump();
+    }
+
+    // 对于v2驱动设备，使用原有的多路径读取策略
     // 首先尝试从GPU_CURRENT_FREQ_PATH读取频率
     if get_status(GPU_CURRENT_FREQ_PATH) {
         let buf = match read_file(GPU_CURRENT_FREQ_PATH, 64) {
@@ -311,48 +317,86 @@ pub fn get_gpu_current_freq() -> Result<i64> {
         debug!("GPU debug current frequency path not available: {GPU_DEBUG_CURRENT_FREQ_PATH}");
     }
 
-    // 如果无法从前两个路径读取，尝试从GPU_FREQ_LOAD_PATH读取
-    if get_status(GPU_FREQ_LOAD_PATH) {
-        debug!("Trying to read frequency from {GPU_FREQ_LOAD_PATH}");
+    // 如果无法从前两个路径读取，尝试从GPU_FREQ_LOAD_PATH读取（作为v2驱动的备用方案）
+    read_v1_gpu_freq_from_var_dump()
+}
 
-        let file = match File::open(GPU_FREQ_LOAD_PATH) {
-            Ok(file) => file,
+/// 专门用于v1驱动设备的GPU频率读取函数
+/// 只从/proc/gpufreq/gpufreq_var_dump文件读取频率
+fn read_v1_gpu_freq_from_var_dump() -> Result<i64> {
+    if !get_status(GPU_FREQ_LOAD_PATH) {
+        return Err(anyhow!(
+            "V1 driver frequency path not available: {GPU_FREQ_LOAD_PATH}"
+        ));
+    }
+
+    debug!("Reading V1 driver GPU frequency from {GPU_FREQ_LOAD_PATH}");
+
+    let file = match File::open(GPU_FREQ_LOAD_PATH) {
+        Ok(file) => file,
+        Err(e) => {
+            debug!("Failed to open GPU_FREQ_LOAD_PATH: {e}");
+            write_status(GPU_FREQ_LOAD_PATH, false);
+            return Err(anyhow!(
+                "Cannot read V1 driver GPU frequency: file open failed"
+            ));
+        }
+    };
+
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = match line {
+            Ok(l) => l,
             Err(e) => {
-                debug!("Failed to open GPU_FREQ_LOAD_PATH: {e}");
-                write_status(GPU_FREQ_LOAD_PATH, false);
-                // 如果所有路径都不可用，抛出异常
-                return Err(anyhow!(
-                    "Cannot read GPU frequency: all frequency paths are unavailable"
-                ));
+                debug!("Error reading line from GPU_FREQ_LOAD_PATH: {e}");
+                continue;
             }
         };
 
-        let reader = BufReader::new(file);
+        // 跳过长度小于等于3的行
+        if line.len() <= 3 {
+            continue;
+        }
 
-        for line in reader.lines() {
-            let line = match line {
-                Ok(l) => l,
-                Err(e) => {
-                    debug!("Error reading line from GPU_FREQ_LOAD_PATH: {e}");
-                    continue;
+        // 尝试解析v1驱动的两种格式
+        // 格式1：idx: [数字], freq: [频率], vgpu: [电压], vsram_gpu: [电压]
+        if line.contains("idx:") && line.contains("freq:") {
+            if let Some(freq_pos) = line.find("freq:") {
+                let freq_part = &line[freq_pos + 5..];
+                if let Some(comma_pos) = freq_part.find(',') {
+                    let freq_str = freq_part[..comma_pos].trim();
+                    if let Ok(freq) = freq_str.parse::<i64>() {
+                        debug!(
+                            "V1 driver GPU frequency from {GPU_FREQ_LOAD_PATH} (format 1): {freq}"
+                        );
+                        return Ok(freq);
+                    }
                 }
-            };
-
-            // 尝试解析"cur_freq = XX"格式
-            if let Some(pos) = line.find("cur_freq = ") {
-                if let Ok(freq) = line[pos + 11..].trim().parse::<i64>() {
-                    debug!("Current GPU frequency from {GPU_FREQ_LOAD_PATH}: {freq}");
+            }
+        }
+        // 格式2：Freq: [频率], Vgpu: [电压], Vsram_gpu: [电压]
+        else if line.starts_with("Freq:") {
+            if let Some(comma_pos) = line.find(',') {
+                let freq_str = line[5..comma_pos].trim();
+                if let Ok(freq) = freq_str.parse::<i64>() {
+                    debug!("V1 driver GPU frequency from {GPU_FREQ_LOAD_PATH} (format 2): {freq}");
                     return Ok(freq);
                 }
             }
         }
-    } else {
-        debug!("GPU frequency load path not available: {GPU_FREQ_LOAD_PATH}");
+        // 兼容原有的"cur_freq = XX"格式（备用）
+        else if let Some(pos) = line.find("cur_freq = ") {
+            if let Ok(freq) = line[pos + 11..].trim().parse::<i64>() {
+                debug!("V1 driver GPU frequency from {GPU_FREQ_LOAD_PATH} (legacy format): {freq}");
+                return Ok(freq);
+            }
+        }
     }
 
-    // 如果所有路径都不可用，抛出异常
+    // 如果无法解析任何有效频率
     Err(anyhow!(
-        "Cannot read GPU frequency: all frequency paths are unavailable"
+        "Cannot parse V1 driver GPU frequency from {GPU_FREQ_LOAD_PATH}"
     ))
 }
 

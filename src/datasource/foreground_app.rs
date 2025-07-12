@@ -10,7 +10,9 @@ use anyhow::{anyhow, Context, Result};
 use dumpsys_rs::Dumpsys;
 use inotify::WatchMask;
 use log::{debug, info, warn};
+use once_cell::sync::Lazy;
 use regex::Regex;
+use std::sync::Mutex;
 
 use crate::{
     datasource::file_path::*,
@@ -76,6 +78,9 @@ impl WarningThrottler {
 fn get_foreground_app_activity() -> Result<String> {
     debug!("Trying to get foreground app using dumpsys activity lru method");
 
+    // 新增：为error日志添加12小时限流器
+    static ERROR_THROTTLER: Lazy<Mutex<WarningThrottler>> =
+        Lazy::new(|| Mutex::new(WarningThrottler::new(43200)));
     let dumper = loop {
         match Dumpsys::new("activity") {
             Some(s) => break s,
@@ -86,7 +91,15 @@ fn get_foreground_app_activity() -> Result<String> {
         match dumper.dump(&["lru"]) {
             Ok(d) => break d,
             Err(e) => {
-                log::error!("Unable to get foreground application: {e}");
+                // 线程安全的全局限流器
+                {
+                    let mut throttler = ERROR_THROTTLER.lock().unwrap();
+                    if throttler.should_warn() {
+                        log::error!("Unable to get foreground application: {e}");
+                    } else {
+                        log::debug!("Unable to get foreground application (throttled): {e}");
+                    }
+                }
                 std::thread::sleep(Duration::from_secs(1));
             }
         };

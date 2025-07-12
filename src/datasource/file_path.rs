@@ -2,8 +2,8 @@
 pub const MAIN_THREAD: &str = "LoadMonitor";
 pub const GAME_THREAD: &str = "GameModeWatcher";
 pub const CONF_THREAD: &str = "ConfigWatcher";
-
 pub const FOREGROUND_APP_THREAD: &str = "ForegroundAppWatcher";
+pub const LOG_LEVEL_MONITOR_THREAD: &str = "LogLevelMonitor";
 
 // File paths
 pub const GPU_GOVERNOR_GAME_MODE_PATH: &str = "/data/adb/gpu_governor/game/game_mode";
@@ -30,6 +30,7 @@ pub const LOG_LEVEL_PATH: &str = "/data/adb/gpu_governor/log/log_level";
 pub const GAMES_CONF_PATH: &str = "/data/adb/gpu_governor/game/games.conf";
 
 // Mali GPU DVFS控制相关路径
+pub const MALI_DVFS_ENABLE: &str = "/proc/mali/dvfs_enable";
 
 // 内存频率相关路径 - v1 driver
 pub const DVFSRC_V1_PATH: &str =

@@ -4,33 +4,12 @@ pub const NOTES: &str = "Mediatek Mali GPU Governor";
 pub const AUTHOR: &str = "Author: walika @CoolApk, rtools @CoolApk";
 pub const SPECIAL: &str =
     "Special Thanks: HamJin @CoolApk, asto18089 @CoolApk and helloklf @Github";
-pub const VERSION: &str = "Version: v2.7";
+pub const VERSION: &str = "Version: v2.8.0";
 
 /// GPU 调频策略常量
 pub mod strategy {
-    pub const ULTRA_SIMPLE_THRESHOLD: i32 = 99;
+    pub const ULTRA_SIMPLE_THRESHOLD: i32 = 90;
     pub const IDLE_THRESHOLD: i32 = 5;
     pub const SAMPLING_INTERVAL_120HZ: u64 = 8; // 8ms = ~120Hz
     pub const FOREGROUND_APP_STARTUP_DELAY: u64 = 60; // seconds
-}
-
-/// 输出信息格式化
-pub struct InfoDisplay;
-
-impl InfoDisplay {
-    pub fn print_header() {
-        println!("{NOTES}");
-        println!("{AUTHOR}");
-        println!("{SPECIAL}");
-        println!("{VERSION}");
-    }
-
-    pub fn print_usage() {
-        println!("{NOTES}");
-        println!("{AUTHOR}");
-        println!("{SPECIAL}");
-        println!("Usage:");
-        println!("\t-v show version");
-        println!("\t-h show help");
-    }
 }
