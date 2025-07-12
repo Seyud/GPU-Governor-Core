@@ -46,14 +46,14 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
             ) {
                 // 验证电压是否有效
                 if !volt_is_valid(volt) {
-                    error!("{trimmed} is invalid: volt {volt} is not valid");
+                    error!("{line} is invalid: volt {volt} is not valid");
                     continue;
                 }
 
                 // 对于v2 driver设备，验证频率是否在系统支持范围内
                 if gpu.is_gpuv2() && !gpu.is_freq_supported_by_v2_driver(freq) {
                     warn!(
-                        "{trimmed} is not supported by V2 driver: freq {freq} is not in supported range"
+                        "{line} is not supported by V2 driver: freq {freq} is not in supported range"
                     );
                     // 不跳过，仍然添加到配置中，但会发出警告
                 }
