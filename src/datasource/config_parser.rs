@@ -34,7 +34,7 @@ pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
         }
 
         // 解析Margin配置，确保不是注释行
-        if trimmed.starts_with("Margin=") && !trimmed.starts_with("#") {
+        if trimmed.starts_with("Margin=") {
             let margin_str = trimmed.trim_start_matches("Margin=");
             if let Ok(margin) = margin_str.parse::<i64>() {
                 info!("Read Margin value from config file: {margin}%");
