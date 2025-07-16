@@ -161,6 +161,8 @@ impl log::Log for CustomLogger {
 static LOGGER: Lazy<CustomLogger> = Lazy::new(CustomLogger::new);
 
 pub fn init_logger() -> Result<()> {
+    // 启动时清空日志文件，保证每次启动都是新日志
+    let _ = File::create(LOG_PATH)?;
     // 读取日志等级配置
     let log_level = LogLevelManager::read_log_level_config()?;
 
