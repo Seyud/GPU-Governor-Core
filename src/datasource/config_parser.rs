@@ -1,11 +1,10 @@
 use std::{
-    collections::{HashMap, HashSet},
-    fs::{self, File},
-    io::{BufRead, BufReader},
+    collections::HashMap,
+    fs::{self},
 };
 
-use anyhow::{Context, Result};
-use log::{debug, error, info, warn};
+use anyhow::Result;
+use log::{error, info, warn};
 use serde::Deserialize;
 
 use crate::model::gpu::{TabType, GPU};
