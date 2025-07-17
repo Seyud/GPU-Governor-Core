@@ -3,7 +3,7 @@ use inotify::WatchMask;
 use log::{debug, error, info, warn};
 
 use crate::{
-    datasource::{config_parser::config_read, file_path::*},
+    datasource::{file_path::*, freq_table_parser::freq_table_read},
     model::gpu::GPU,
     utils::{
         file_operate::{check_read_simple, read_file},
@@ -214,13 +214,16 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
     // 设置线程名称（在Rust中无法轻易设置当前线程名称）
     info!("{CONF_THREAD} Start");
 
-    // 只使用 CONFIG_FILE_TR 配置文件
-    let config_file = CONFIG_FILE_TR.to_string();
+    // 使用频率表配置文件
+    let config_file = FREQ_TABLE_CONFIG_FILE.to_string();
 
-    // 检查配置文件是否存在
+    // 检查频率表配置文件是否存在
     if !check_read_simple(&config_file) {
         error!("CONFIG NOT FOUND: {}", std::io::Error::last_os_error());
-        return Err(anyhow::anyhow!("Config file not found: {}", config_file));
+        return Err(anyhow::anyhow!(
+            "Frequency table config file not found: {}",
+            config_file
+        ));
     };
 
     info!("Using Config: {config_file}");
@@ -243,11 +246,11 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
     let mut inotify = InotifyWatcher::new()?;
     inotify.add(&config_file, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
 
-    // 初始读取配置
-    config_read(&config_file, &mut gpu)?;
+    // 初始读取频率表配置
+    freq_table_read(&config_file, &mut gpu)?;
 
     loop {
         inotify.wait_and_handle()?;
-        config_read(&config_file, &mut gpu)?;
+        freq_table_read(&config_file, &mut gpu)?;
     }
 }

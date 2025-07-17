@@ -24,7 +24,8 @@ pub const GPUFREQ_OPP: &str = "/proc/gpufreq/gpufreq_opp_freq";
 pub const GPUFREQV2_OPP: &str = "/proc/gpufreqv2/fix_target_opp_index";
 pub const GPUFREQ_VOLT: &str = "/proc/gpufreq/gpufreq_fixed_freq_volt";
 pub const GPUFREQV2_VOLT: &str = "/proc/gpufreqv2/fix_custom_freq_volt";
-pub const CONFIG_FILE_TR: &str = "/data/gpu_freq_table.conf";
+// 频率表配置文件路径
+pub const FREQ_TABLE_CONFIG_FILE: &str = "/data/adb/gpu_governor/config/gpu_freq_table.toml";
 pub const LOG_PATH: &str = "/data/adb/gpu_governor/log/gpu_gov.log";
 pub const LOG_LEVEL_PATH: &str = "/data/adb/gpu_governor/log/log_level";
 pub const GAMES_CONF_PATH: &str = "/data/adb/gpu_governor/game/games.conf";
@@ -54,3 +55,5 @@ pub const DDR_SECOND_FREQ: i64 = 1; // 第二档内存频率和电压
 pub const DDR_THIRD_FREQ: i64 = 2; // 第三档内存频率和电压
 pub const DDR_FOURTH_FREQ: i64 = 3; // 第四档内存频率和电压
 pub const DDR_FIFTH_FREQ: i64 = 4; // 第五档内存频率和电压
+                                   // 策略配置文件路径
+pub const CONFIG_TOML_FILE: &str = "/data/adb/gpu_governor/config/config.toml";

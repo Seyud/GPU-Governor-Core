@@ -1,83 +1,59 @@
-use std::{
-    collections::HashMap,
-    fs::{self},
-};
-
+use crate::datasource::file_path::CONFIG_TOML_FILE;
+use crate::model::gpu::GPU;
 use anyhow::Result;
-use log::{error, info, warn};
+use log::info;
 use serde::Deserialize;
-
-use crate::model::gpu::{TabType, GPU};
+use std::fs;
 
 #[derive(Deserialize)]
-struct Config {
+pub struct Config {
+    global: Global,
+    powersave: ModeParams,
+    balance: ModeParams,
+    performance: ModeParams,
+    fast: ModeParams,
+}
+
+#[derive(Deserialize)]
+pub struct Global {
+    mode: String,
+    idle_threshold: i32,
+}
+
+#[derive(Deserialize)]
+pub struct ModeParams {
+    very_high_load_threshold: i32,
     margin: i64,
-    vec: String,
+    down_threshold: i64,
+    aggressive_down: bool,
+    sampling_interval: u64,
 }
 
-fn volt_is_valid(v: i64) -> bool {
-    v != 0 && v % 625 == 0
-}
+pub fn load_config(gpu: &mut GPU) -> Result<()> {
+    let content = fs::read_to_string(CONFIG_TOML_FILE)?;
+    let config: Config = toml::from_str(&content)?;
 
-pub fn config_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
-    let file = fs::read_to_string(config_file)?;
-    let toml: Config = toml::from_str(&file)?;
-    let mut new_config_list = Vec::new();
-    let mut new_fvtab = HashMap::new();
-    let mut new_fdtab = HashMap::new();
+    gpu.idle_manager_mut()
+        .set_idle_threshold(config.global.idle_threshold);
 
-    gpu.set_margin(toml.margin);
-
-    for line in toml.vec.lines() {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() >= 3 {
-            if let (Ok(freq), Ok(volt), Ok(dram)) = (
-                parts[0].parse::<i64>(),
-                parts[1].parse::<i64>(),
-                parts[2].parse::<i64>(),
-            ) {
-                if !volt_is_valid(volt) {
-                    error!("{line} is invalid: volt {volt} is not valid");
-                    continue;
-                }
-
-                if gpu.is_gpuv2() && !gpu.is_freq_supported_by_v2_driver(freq) {
-                    warn!(
-                        "{line} is not supported by V2 driver: freq {freq} is not in supported range"
-                    );
-                }
-
-                new_config_list.push(freq);
-                new_fvtab.insert(freq, volt);
-                new_fdtab.insert(freq, dram);
-            }
+    let params = match config.global.mode.as_str() {
+        "powersave" => &config.powersave,
+        "balance" => &config.balance,
+        "performance" => &config.performance,
+        "fast" => &config.fast,
+        _ => {
+            info!("Invalid mode '{}', using balance mode", config.global.mode);
+            &config.balance
         }
-    }
+    };
 
-    if new_config_list.is_empty() {
-        error!("No valid frequency entries found in config file");
-        return Err(anyhow::anyhow!(
-            "No valid frequency entries found in config file: {config_file}"
-        ));
-    }
+    let strategy = gpu.frequency_strategy_mut();
+    strategy.very_high_load_threshold = params.very_high_load_threshold;
+    strategy.set_margin(params.margin);
+    strategy.set_down_threshold(params.down_threshold);
+    strategy.set_aggressive_down(params.aggressive_down);
+    strategy.set_sampling_interval(params.sampling_interval);
 
-    info!("Using frequencies directly from config file without system support check");
-
-    info!(
-        "Loaded {} frequency entries from config file (no limit)",
-        new_config_list.len()
-    );
-
-    gpu.set_config_list(new_config_list);
-    gpu.replace_tab(TabType::FreqVolt, new_fvtab);
-    gpu.replace_tab(TabType::FreqDram, new_fdtab);
-
-    info!("Load config succeed");
-
-    for &freq in &gpu.get_config_list() {
-        let volt = gpu.read_tab(TabType::FreqVolt, freq);
-        let dram = gpu.read_tab(TabType::FreqDram, freq);
-        info!("Freq={freq}, Volt={volt}, Dram={dram}");
-    }
+    info!("Loaded config for mode: {}", config.global.mode);
     Ok(())
 }
