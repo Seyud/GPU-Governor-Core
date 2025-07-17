@@ -5,6 +5,8 @@ pub struct IdleManager {
     pub load_zone_counter: i32,
     /// 是否空闲
     pub is_idle: bool,
+    /// 空闲阈值
+    pub idle_threshold: i32,
 }
 
 impl IdleManager {
@@ -12,7 +14,13 @@ impl IdleManager {
         Self {
             load_zone_counter: 0,
             is_idle: false,
+            idle_threshold: crate::utils::constants::strategy::IDLE_THRESHOLD,
         }
+    }
+
+    /// 设置空闲阈值
+    pub fn set_idle_threshold(&mut self, threshold: i32) {
+        self.idle_threshold = threshold;
     }
 
     /// 重置负载区域计数器

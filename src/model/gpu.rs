@@ -242,10 +242,6 @@ impl GPU {
         self.frequency_strategy.get_margin()
     }
 
-    pub fn set_margin(&mut self, margin: i64) {
-        self.frequency_strategy.set_margin(margin);
-    }
-
     pub fn get_down_threshold(&self) -> i64 {
         self.frequency_strategy.get_down_threshold()
     }
@@ -331,5 +327,11 @@ impl GPU {
 impl Default for GPU {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl GPU {
+    pub fn idle_manager_mut(&mut self) -> &mut IdleManager {
+        &mut self.idle_manager
     }
 }

@@ -46,7 +46,7 @@ impl FrequencyAdjustmentEngine {
     /// 处理负载数据
     fn process_load(gpu: &mut GPU, load: i32, current_time: u64) -> Result<()> {
         // 检查空闲状态
-        if load <= strategy::IDLE_THRESHOLD {
+        if load <= gpu.idle_manager.idle_threshold {
             Self::handle_idle_state(gpu);
             return Ok(());
         }
