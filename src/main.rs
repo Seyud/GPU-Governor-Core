@@ -10,10 +10,11 @@ use log::{error, info, warn};
 
 use crate::{
     datasource::{
-        config_parser::config_read,
+        config_parser::load_config,
         file_path::*,
         foreground_app::monitor_foreground_app,
         freq_table::gpufreq_table_init,
+        freq_table_parser::freq_table_read,
         load_monitor::utilization_init,
         node_monitor::{monitor_config, monitor_gaming},
     },
@@ -29,14 +30,27 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
     // 先初始化负载监控
     utilization_init()?;
 
-    // 读取配置文件
-    let config_file = CONFIG_FILE_TR;
+    // 读取频率表配置文件
+    let config_file = FREQ_TABLE_CONFIG_FILE;
     if Path::new(config_file).exists() {
-        info!("Reading config file: {config_file}");
-        config_read(config_file, gpu)
-            .map_err(|e| anyhow::anyhow!("Failed to read config file: {}", e))?;
+        info!("Reading frequency table config file: {config_file}");
+        freq_table_read(config_file, gpu)
+            .map_err(|e| anyhow::anyhow!("Failed to read frequency table config file: {}", e))?;
     } else {
-        return Err(anyhow::anyhow!("Config file not found: {}", config_file));
+        return Err(anyhow::anyhow!(
+            "Frequency table config file not found: {}",
+            config_file
+        ));
+    }
+
+    // 尝试加载TOML策略配置
+    if Path::new(CONFIG_TOML_FILE).exists() {
+        info!("Reading TOML config file: {CONFIG_TOML_FILE}");
+        if let Err(e) = load_config(gpu) {
+            warn!("Failed to load TOML config: {e}, using default settings");
+        }
+    } else {
+        warn!("TOML config file not found: {CONFIG_TOML_FILE}, using default settings");
     }
 
     // 初始化GPU频率表
