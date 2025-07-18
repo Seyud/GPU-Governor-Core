@@ -61,7 +61,7 @@ jobs:
           # 复制指定的文件
           cp module/action.sh temp_package/
           cp module/customize.sh temp_package/
-          cp module/gpu_freq_table.conf temp_package/
+
           cp module/module.prop temp_package/
           cp module/post-fs-data.sh temp_package/
           cp module/service.sh temp_package/
