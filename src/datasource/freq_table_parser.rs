@@ -28,7 +28,10 @@ fn volt_is_valid(v: i64) -> bool {
 
 pub fn freq_table_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
     let file = fs::read_to_string(config_file)?;
-    let toml: FreqTableConfig = toml::from_str(&file)?;
+    let toml: FreqTableConfig = toml::from_str(&file).map_err(|e| {
+        error!("TOML解析失败: {e}");
+        anyhow::anyhow!("Failed to parse frequency table: {}", e)
+    })?;
     let mut new_config_list = Vec::new();
     let mut new_fvtab = HashMap::new();
     let mut new_fdtab = HashMap::new();
