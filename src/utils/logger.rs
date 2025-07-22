@@ -1,6 +1,5 @@
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
-use std::path::Path;
 use std::sync::Mutex;
 
 use anyhow::{Context, Result};
@@ -11,11 +10,8 @@ use once_cell::sync::Lazy;
 use crate::{
     datasource::file_path::{LOG_LEVEL_PATH, LOG_PATH},
     utils::log_level_manager::{get_current_log_level, LogLevelManager},
+    utils::log_rotation::LogRotationManager,
 };
-
-// 日志轮转配置常量
-const MAX_LOG_SIZE_BYTES: u64 = 10 * 1024 * 1024; // 10MB
-const LOG_ROTATION_THRESHOLD: f64 = 0.8; // 80%阈值触发轮转
 
 // 自定义日志实现 - 支持文件写入和轮转
 struct CustomLogger {
@@ -53,60 +49,9 @@ impl CustomLogger {
     }
 
     fn check_and_rotate_log(&self) -> Result<()> {
-        let log_path = Path::new(LOG_PATH);
-
-        // 如果日志文件不存在，无需轮转
-        if !log_path.exists() {
-            return Ok(());
-        }
-
-        // 获取文件大小
-        let metadata = log_path
-            .metadata()
-            .with_context(|| format!("Failed to get metadata for log file: {LOG_PATH}"))?;
-
-        let file_size = metadata.len();
-        let threshold_size = (MAX_LOG_SIZE_BYTES as f64 * LOG_ROTATION_THRESHOLD) as u64;
-
-        // 如果文件大小超过阈值，执行轮转
-        if file_size > threshold_size {
-            self.rotate_log_file()?;
-        }
-
-        Ok(())
-    }
-
-    fn rotate_log_file(&self) -> Result<()> {
-        let log_path = Path::new(LOG_PATH);
-        let backup_path = format!("{LOG_PATH}.bak");
-
-        // 如果备份文件已存在，删除它
-        if Path::new(&backup_path).exists() {
-            std::fs::remove_file(&backup_path)
-                .with_context(|| format!("Failed to remove old backup file: {backup_path}"))?;
-        }
-
-        // 将当前日志文件重命名为备份文件
-        std::fs::rename(log_path, &backup_path)
-            .with_context(|| format!("Failed to rename log file to backup: {backup_path}"))?;
-
-        // 创建新的日志文件并写入轮转信息
-        let mut new_file = File::create(log_path)
-            .with_context(|| format!("Failed to create new log file: {LOG_PATH}"))?;
-
-        let rotation_msg = format!(
-            "{} - Log rotated, previous log backed up to {}\n",
-            Local::now().format("%Y-%m-%d %H:%M:%S"),
-            backup_path
-        );
-        new_file
-            .write_all(rotation_msg.as_bytes())
-            .with_context(|| "Failed to write rotation message to new log file")?;
-
-        new_file
-            .flush()
-            .with_context(|| "Failed to flush new log file")?;
-
+        // 使用统一的日志轮转管理器
+        let rotation_manager = LogRotationManager::default();
+        rotation_manager.check_and_rotate(LOG_PATH)?;
         Ok(())
     }
 
@@ -175,10 +120,14 @@ pub fn init_logger() -> Result<()> {
     log::info!("Logger initialized with level: {log_level}");
     log::info!("Log file path: {LOG_PATH}");
     log::info!("Log level config path: {LOG_LEVEL_PATH}");
-    log::info!("Max log file size: {}MB", MAX_LOG_SIZE_BYTES / 1024 / 1024);
+    let rotation_manager = LogRotationManager::default();
+    log::info!(
+        "Max log file size: {}MB",
+        rotation_manager.max_size_bytes() / 1024 / 1024
+    );
     log::info!(
         "Log rotation threshold: {}%",
-        (LOG_ROTATION_THRESHOLD * 100.0) as u8
+        (rotation_manager.rotation_threshold() * 100.0) as u8
     );
 
     // 在debug级别记录一条消息，说明某些错误只会在debug级别显示

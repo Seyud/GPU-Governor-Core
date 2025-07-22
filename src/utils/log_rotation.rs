@@ -99,35 +99,14 @@ impl LogRotationManager {
         }
     }
 
-    /// 获取日志文件大小（MB）
-    #[allow(dead_code)]
-    pub fn get_log_size_mb(&self, log_file_path: &str) -> Result<f64> {
-        let path = Path::new(log_file_path);
-
-        if !path.exists() {
-            return Ok(0.0);
-        }
-
-        let metadata = path
-            .metadata()
-            .with_context(|| format!("Failed to get metadata for: {log_file_path}"))?;
-
-        let size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
-        Ok(size_mb)
+    /// 获取最大日志文件大小（字节）
+    pub fn max_size_bytes(&self) -> u64 {
+        self.max_size_bytes
     }
 
-    /// 获取配置信息
-    #[allow(dead_code)]
-    pub fn get_config_info(&self) -> (f64, f64) {
-        let max_size_mb = self.max_size_bytes as f64 / (1024.0 * 1024.0);
-        (max_size_mb, self.rotation_threshold)
-    }
-
-    /// 强制轮转日志（不检查大小）
-    #[allow(dead_code)]
-    pub fn force_rotate(&self, log_file_path: &str) -> Result<()> {
-        info!("Force rotating log file: {log_file_path}");
-        self.rotate_log(log_file_path)
+    /// 获取日志轮转阈值（0.0-1.0）
+    pub fn rotation_threshold(&self) -> f64 {
+        self.rotation_threshold
     }
 }
 
@@ -135,37 +114,7 @@ impl LogRotationManager {
 static LOG_ROTATION_MANAGER: once_cell::sync::Lazy<LogRotationManager> =
     once_cell::sync::Lazy::new(LogRotationManager::default);
 
-/// 检查主日志文件是否需要轮转
-#[allow(dead_code)]
-pub fn should_rotate_main_log() -> Result<bool> {
-    LOG_ROTATION_MANAGER.should_rotate(LOG_PATH)
-}
-
-/// 轮转主日志文件
-#[allow(dead_code)]
-pub fn rotate_main_log() -> Result<()> {
-    LOG_ROTATION_MANAGER.rotate_log(LOG_PATH)
-}
-
 /// 检查并轮转主日志文件
 pub fn check_and_rotate_main_log() -> Result<bool> {
     LOG_ROTATION_MANAGER.check_and_rotate(LOG_PATH)
-}
-
-/// 获取主日志文件大小（MB）
-#[allow(dead_code)]
-pub fn get_main_log_size_mb() -> Result<f64> {
-    LOG_ROTATION_MANAGER.get_log_size_mb(LOG_PATH)
-}
-
-/// 强制轮转主日志文件
-#[allow(dead_code)]
-pub fn force_rotate_main_log() -> Result<()> {
-    LOG_ROTATION_MANAGER.force_rotate(LOG_PATH)
-}
-
-/// 获取日志轮转配置信息
-#[allow(dead_code)]
-pub fn get_log_rotation_config() -> (f64, f64) {
-    LOG_ROTATION_MANAGER.get_config_info()
 }
