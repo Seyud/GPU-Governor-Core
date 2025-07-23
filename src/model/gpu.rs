@@ -38,13 +38,20 @@ pub struct GPU {
     pub gaming_mode: bool,
     /// 精确模式
     pub precise: bool,
+    /// 当前工作模式
+    current_mode: String,
+    /// 自适应采样相关
+    adaptive_sampling_enabled: bool,
+    min_adaptive_interval: u64,
+    max_adaptive_interval: u64,
+    last_load: i32,
 }
 
 impl GPU {
     pub fn new() -> Self {
         Self {
             frequency_manager: FrequencyManager::new(),
-            frequency_strategy: FrequencyStrategy::new(),
+            frequency_strategy: FrequencyStrategy::new(500, 500),
             ddr_manager: DdrManager::new(),
             idle_manager: IdleManager::new(),
             gpuv2: false,
@@ -53,6 +60,11 @@ impl GPU {
             need_dcs: false,
             gaming_mode: false,
             precise: false,
+            current_mode: String::new(),
+            adaptive_sampling_enabled: false,
+            min_adaptive_interval: 2,
+            max_adaptive_interval: 20,
+            last_load: 0,
         }
     }
 
@@ -116,9 +128,6 @@ impl GPU {
         self.gaming_mode = gaming_mode;
 
         if gaming_mode {
-            // 应用游戏模式调频策略
-            self.frequency_strategy.set_gaming_mode_params();
-
             // 设置游戏模式下的DDR频率
             let freq_to_use = if self.get_cur_freq() > 0 {
                 self.get_cur_freq()
@@ -141,9 +150,6 @@ impl GPU {
                 warn!("Failed to set DDR frequency in game mode: {e}");
             }
         } else {
-            // 应用普通模式调频策略
-            self.frequency_strategy.set_normal_mode_params();
-
             // 恢复自动DDR频率模式
             if self.is_ddr_freq_fixed() {
                 if let Err(e) = self.set_ddr_freq(999) {
@@ -160,6 +166,11 @@ impl GPU {
 
     pub fn set_precise(&mut self, precise: bool) {
         self.precise = precise;
+    }
+
+    /// 设置当前工作模式
+    pub fn set_current_mode(&mut self, mode: String) {
+        self.current_mode = mode;
     }
 
     /// 读取映射表值 - 使用更简洁的模式匹配
@@ -239,15 +250,11 @@ impl GPU {
 
     // 最常用的策略操作
     pub fn get_margin(&self) -> i64 {
-        self.frequency_strategy.get_margin()
+        self.frequency_strategy.get_margin() as i64
     }
 
     pub fn get_down_threshold(&self) -> i64 {
-        self.frequency_strategy.get_down_threshold()
-    }
-
-    pub fn set_down_threshold(&mut self, threshold: i64) {
-        self.frequency_strategy.set_down_threshold(threshold);
+        self.frequency_strategy.get_down_threshold() as i64
     }
 
     // 批量设置方法 - 减少重复调用
@@ -259,8 +266,8 @@ impl GPU {
         aggressive_down: bool,
     ) {
         let strategy = &mut self.frequency_strategy;
-        strategy.set_margin(margin);
-        strategy.set_down_threshold(down_threshold);
+        strategy.set_margin(margin.try_into().unwrap());
+        strategy.set_down_threshold(down_threshold.try_into().unwrap());
         strategy.set_sampling_interval(sampling_interval);
         strategy.set_aggressive_down(aggressive_down);
     }
@@ -279,33 +286,60 @@ impl GPU {
         self.frequency_strategy.set_up_rate_delay(delay);
     }
 
-    pub fn set_load_thresholds(&mut self, very_low: i32, low: i32, high: i32, very_high: i32) {
-        self.frequency_strategy
-            .set_load_thresholds(very_low, low, high, very_high);
-    }
-
-    pub fn set_load_stability_threshold(&mut self, threshold: i32) {
-        self.frequency_strategy
-            .set_load_stability_threshold(threshold);
-    }
-
-    pub fn set_aggressive_down(&mut self, aggressive: bool) {
-        self.frequency_strategy.set_aggressive_down(aggressive);
-    }
-
-    pub fn set_hysteresis_thresholds(&mut self, up_threshold: i32, down_threshold: i32) {
-        self.frequency_strategy
-            .set_hysteresis_thresholds(up_threshold, down_threshold);
-    }
-
     pub fn set_debounce_times(&mut self, up_time: u64, down_time: u64) {
         self.frequency_strategy
             .set_debounce_times(up_time, down_time);
     }
 
-    pub fn set_adaptive_sampling(&mut self, enabled: bool, min_interval: u64, max_interval: u64) {
-        self.frequency_strategy
-            .set_adaptive_sampling(enabled, min_interval, max_interval);
+    pub fn set_adaptive_sampling(
+        &mut self,
+        enabled: bool,
+        min_interval: u64,
+        max_interval: u64,
+        fixed_interval: u64,
+    ) {
+        if enabled {
+            // 启用自适应采样，初始设置为最小间隔
+            self.frequency_strategy.set_sampling_interval(min_interval);
+            self.adaptive_sampling_enabled = true;
+            self.min_adaptive_interval = min_interval;
+            self.max_adaptive_interval = max_interval;
+        } else {
+            // 禁用自适应采样，使用固定间隔
+            self.frequency_strategy
+                .set_sampling_interval(fixed_interval);
+            self.adaptive_sampling_enabled = false;
+        }
+    }
+
+    /// 根据GPU负载动态调整采样间隔
+    pub fn adjust_sampling_interval_by_load(&mut self, current_load: i32) {
+        if !self.adaptive_sampling_enabled {
+            return;
+        }
+
+        let load_diff = (current_load - self.last_load).abs();
+
+        // 根据负载变化调整采样间隔
+        let new_interval = if load_diff > 30 {
+            // 负载变化大，使用最小间隔快速响应
+            self.min_adaptive_interval
+        } else if load_diff < 5 {
+            // 负载变化小，使用最大间隔降低CPU占用
+            self.max_adaptive_interval
+        } else {
+            // 线性插值计算间隔
+            let ratio = load_diff as f64 / 30.0;
+            let range = self.max_adaptive_interval - self.min_adaptive_interval;
+            self.max_adaptive_interval - (ratio * range as f64) as u64
+        };
+
+        // 确保在有效范围内
+        let new_interval =
+            new_interval.clamp(self.min_adaptive_interval, self.max_adaptive_interval);
+
+        self.frequency_strategy.set_sampling_interval(new_interval);
+        self.last_load = current_load;
     }
 
     // 添加缺失的频率管理委托方法
