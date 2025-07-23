@@ -1,7 +1,4 @@
 use std::{
-    collections::HashSet,
-    fs::File,
-    io::{BufRead, BufReader},
     thread,
     time::{Duration, Instant},
 };
@@ -12,15 +9,21 @@ use inotify::WatchMask;
 use log::{debug, info, warn};
 use once_cell::sync::Lazy;
 use regex::Regex;
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct GameEntry {
+    package: String,
+    mode: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GamesConfig {
+    games: Vec<GameEntry>,
+}
 use std::sync::Mutex;
 
-use crate::{
-    datasource::file_path::*,
-    utils::{
-        file_operate::{check_read_simple, write_file},
-        inotify::InotifyWatcher,
-    },
-};
+use crate::{datasource::file_path::*, utils::inotify::InotifyWatcher};
 
 // 缓存前台应用信息，避免频繁调用系统命令
 struct ForegroundAppCache {
@@ -152,35 +155,30 @@ fn get_foreground_app() -> Result<String> {
 }
 
 // 读取游戏列表
-fn read_games_list(path: &str) -> Result<HashSet<String>> {
-    let mut games = HashSet::new();
-
+use crate::utils::file_operate::{check_read_simple, write_file};
+use std::collections::HashMap;
+fn read_games_list(path: &str) -> Result<HashMap<String, String>> {
     if !check_read_simple(path) {
-        return Ok(games);
+        return Ok(HashMap::new());
     }
 
-    let file =
-        File::open(path).with_context(|| format!("Failed to open games list file: {path}"))?;
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read games list file: {path}"))?;
 
-    let reader = BufReader::new(file);
+    let config: GamesConfig = toml::from_str(&content)
+        .with_context(|| format!("Failed to parse TOML from games list file: {path}"))?;
 
-    for line in reader.lines() {
-        let line = line?;
-        let trimmed = line.trim();
-
-        // 跳过空行和注释
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-
-        games.insert(trimmed.to_string());
-    }
-
-    Ok(games)
+    Ok(config
+        .games
+        .into_iter()
+        .map(|entry| (entry.package, entry.mode))
+        .collect())
 }
 
 // 监控前台应用
-pub fn monitor_foreground_app() -> Result<()> {
+use crate::model::gpu::GPU;
+
+pub fn monitor_foreground_app(mut gpu: GPU) -> Result<()> {
     // 设置线程名称
     info!("{FOREGROUND_APP_THREAD} Start");
 
@@ -229,11 +227,11 @@ pub fn monitor_foreground_app() -> Result<()> {
                         debug!("Foreground app changed: {package_name}");
 
                         // 检查是否是游戏
-                        let is_game = games.contains(&package_name);
+                        let is_game = games.contains_key(&package_name); // 将 contains 改为 contains_key
 
                         // 检查前一个应用是否是游戏
                         let prev_is_game = !app_cache.package_name.is_empty()
-                            && games.contains(&app_cache.package_name);
+                            && games.contains_key(&app_cache.package_name); // 将 contains 改为 contains_key
 
                         // 只有在游戏模式状态变化时才记录info级别日志
                         if is_game {
@@ -244,23 +242,59 @@ pub fn monitor_foreground_app() -> Result<()> {
                                 info!("Game changed: {package_name}");
                             }
                         } else if prev_is_game {
+                            // 读取全局模式名称用于日志显示
+                            let global_mode = match std::fs::read_to_string(CONFIG_TOML_FILE) {
+                                Ok(content) => match toml::from_str::<Config>(&content) {
+                                    Ok(config) => config.global_mode().to_string(),
+                                    Err(_) => "balance".to_string(), // 默认模式
+                                },
+                                Err(_) => "balance".to_string(), // 默认模式
+                            };
                             info!(
-                                "Game mode disabled: switching from game to normal app: {package_name}"
+                                "Game mode disabled: switching to global mode ({global_mode}): {package_name}"
                             );
                         }
 
-                        // 写入游戏模式文件
-                        if let Err(e) = write_file(
-                            GPU_GOVERNOR_GAME_MODE_PATH,
-                            if is_game { "1" } else { "0" },
-                            3,
-                        ) {
-                            warn!("Failed to write game mode: {e}");
+                        // 根据应用类型写入对应的模式文件
+                        if is_game {
+                            if let Some(target_mode) = games.get(&package_name) {
+                                info!("Game detected, applying {target_mode} mode");
+                                if let Err(e) = load_config(&mut gpu, Some(target_mode)) {
+                                    warn!("Failed to apply game-specific mode: {e}");
+                                } else {
+                                    // 写入当前模式到文件
+                                    if let Err(e) = write_file(
+                                        CURRENT_MODE_PATH,
+                                        target_mode.as_bytes(),
+                                        target_mode.len(),
+                                    ) {
+                                        warn!("Failed to write current mode file: {e}");
+                                    }
+                                }
+                            }
                         } else {
-                            debug!(
-                                "Wrote game mode {} to file",
-                                if is_game { "1" } else { "0" }
-                            );
+                            // 当不在游戏中时恢复全局模式
+                            if let Err(e) = load_config(&mut gpu, None) {
+                                warn!("Failed to revert to global mode: {e}");
+                            } else {
+                                // 读取全局模式并写入当前模式文件
+                                match std::fs::read_to_string(CONFIG_TOML_FILE) {
+                                    Ok(content) => match toml::from_str::<Config>(&content) {
+                                        Ok(config) => {
+                                            let global_mode = config.global_mode().to_string();
+                                            if let Err(e) = write_file(
+                                                CURRENT_MODE_PATH,
+                                                global_mode.as_bytes(),
+                                                1024,
+                                            ) {
+                                                warn!("Failed to write current mode file: {e}");
+                                            }
+                                        }
+                                        Err(e) => warn!("Failed to parse config.toml: {e}"),
+                                    },
+                                    Err(e) => warn!("Failed to read config.toml: {e}"),
+                                }
+                            }
                         }
                     }
 
@@ -280,6 +314,7 @@ pub fn monitor_foreground_app() -> Result<()> {
         }
 
         // 休眠一段时间
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(1000));
     }
 }
+use crate::datasource::config_parser::{load_config, Config}; // 添加 Config 导入
