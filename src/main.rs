@@ -10,13 +10,9 @@ use log::{error, info, warn};
 
 use crate::{
     datasource::{
-        config_parser::load_config,
-        file_path::*,
-        foreground_app::monitor_foreground_app,
-        freq_table::gpufreq_table_init,
-        freq_table_parser::freq_table_read,
-        load_monitor::utilization_init,
-        node_monitor::{monitor_config, monitor_gaming},
+        config_parser::load_config, file_path::*, foreground_app::monitor_foreground_app,
+        freq_table::gpufreq_table_init, freq_table_parser::freq_table_read,
+        load_monitor::utilization_init, node_monitor::monitor_config,
     },
     model::gpu::GPU,
     utils::{
@@ -46,7 +42,7 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
     // 尝试加载TOML策略配置
     if Path::new(CONFIG_TOML_FILE).exists() {
         info!("Reading TOML config file: {CONFIG_TOML_FILE}");
-        if let Err(e) = load_config(gpu) {
+        if let Err(e) = load_config(gpu, None) {
             warn!("Failed to load TOML config: {e}, using default settings");
         }
     } else {
@@ -64,21 +60,10 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
 
 /// 启动监控线程
 fn start_monitoring_threads(gpu: GPU) {
-    // 游戏监控线程
-    let gpu_clone1 = gpu.clone();
-    thread::Builder::new()
-        .name(GAME_THREAD.to_string())
-        .spawn(move || {
-            if let Err(e) = monitor_gaming(gpu_clone1) {
-                error!("Gaming monitor error: {e}");
-            }
-        })
-        .expect("Failed to spawn gaming monitor thread");
-
     // 配置监控线程
     let gpu_clone2 = gpu.clone();
     thread::Builder::new()
-        .name(CONF_THREAD.to_string())
+        .name(FREQ_TABLE_MONITOR_THREAD.to_string())
         .spawn(move || {
             if let Err(e) = monitor_config(gpu_clone2) {
                 error!("Config monitor error: {e}");
@@ -87,6 +72,7 @@ fn start_monitoring_threads(gpu: GPU) {
         .expect("Failed to spawn config monitor thread");
 
     // 前台应用监控线程（延迟启动）
+    let gpu_clone = gpu.clone();
     thread::Builder::new()
         .name(FOREGROUND_APP_THREAD.to_string())
         .spawn(move || {
@@ -97,13 +83,13 @@ fn start_monitoring_threads(gpu: GPU) {
             thread::sleep(Duration::from_secs(strategy::FOREGROUND_APP_STARTUP_DELAY));
             info!("Starting foreground app monitor now");
 
-            if let Err(e) = monitor_foreground_app() {
+            if let Err(e) = monitor_foreground_app(gpu_clone) {
                 error!("Foreground app monitor error: {e}");
             }
         })
         .expect("Failed to spawn foreground app monitor thread");
 
-    // 统一的日志等级监控线程（包含日志轮转功能）
+    // 统一的日志等级监控线程
     thread::Builder::new()
         .name(LOG_LEVEL_MONITOR_THREAD.to_string())
         .spawn(move || {
@@ -112,6 +98,17 @@ fn start_monitoring_threads(gpu: GPU) {
             }
         })
         .expect("Failed to spawn log level monitor thread");
+
+    // 监控自定义配置的线程
+    let gpu_clone5 = gpu.clone();
+    thread::Builder::new()
+        .name(CONFIG_MONITOR_THREAD.to_string())
+        .spawn(move || {
+            if let Err(e) = monitor_config(gpu_clone5) {
+                error!("Config TOML monitor error: {e}");
+            }
+        })
+        .expect("Failed to spawn config TOML monitor thread");
 }
 
 /// 配置GPU策略
@@ -119,18 +116,17 @@ fn configure_gpu_strategy(gpu: &mut GPU) {
     // 使用超简化的90%升频策略
     gpu.configure_strategy(
         0,                                 // 无余量
-        1,                                 // 降频阈值
+        10,                                // 降频阈值
         strategy::SAMPLING_INTERVAL_120HZ, // 120Hz采样
         true,                              // 激进降频
     );
 
     // 其他策略设置
-    gpu.frequency_strategy_mut().set_load_stability_threshold(1);
-    gpu.frequency_strategy_mut().set_adaptive_sampling(
-        false,
-        strategy::SAMPLING_INTERVAL_120HZ,
-        strategy::SAMPLING_INTERVAL_120HZ,
-    );
+    gpu.frequency_strategy_mut()
+        .set_load_thresholds(20, 40, 70, 90);
+    // 禁用自适应采样，使用固定采样间隔
+    gpu.frequency_strategy_mut()
+        .set_sampling_interval(strategy::SAMPLING_INTERVAL_120HZ);
 }
 
 /// 显示系统信息
