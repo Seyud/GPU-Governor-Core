@@ -12,8 +12,8 @@ pub struct FrequencyStrategy {
     pub very_high_load_threshold: u32, // 极高负载阈值（百分比）
     /// 调整余量
     pub margin: u32,   // 频率调整余量（MHz）
-    /// 降频阈值
-    pub down_threshold: u32, // 降频判断阈值（百分比）
+    /// 降频计数器配置值（0=禁用降频计数器功能）
+    pub down_counter_threshold: u32, // 降频计数器触发阈值
     /// 激进降频开关
     pub aggressive_down: bool, // 是否启用激进降频
     /// 采样间隔
@@ -31,7 +31,7 @@ impl FrequencyStrategy {
             high_load_threshold: 70,
             very_high_load_threshold: 90,
             margin: 50,
-            down_threshold: 10,
+            down_counter_threshold: 0,
             aggressive_down: true,
             sampling_interval: 8,
             last_adjustment_time: 0,
@@ -44,9 +44,9 @@ impl FrequencyStrategy {
         self.margin = margin;
     }
 
-    /// 设置降频阈值
-    pub fn set_down_threshold(&mut self, threshold: u32) {
-        self.down_threshold = threshold;
+    /// 设置降频计数器配置值
+    pub fn set_down_counter_threshold(&mut self, threshold: u32) {
+        self.down_counter_threshold = threshold;
     }
 
     /// 设置激进降频开关
@@ -69,9 +69,9 @@ impl FrequencyStrategy {
         self.margin
     }
 
-    /// 获取降频阈值
-    pub fn get_down_threshold(&self) -> u32 {
-        self.down_threshold
+    /// 获取降频计数器配置值
+    pub fn get_down_counter_threshold(&self) -> u32 {
+        self.down_counter_threshold
     }
 
     /// 更新最后调整时间

@@ -161,7 +161,7 @@ fn display_system_info(gpu: &GPU) {
         );
         info!(
             "V2 Driver Down Threshold: {} times",
-            gpu.get_down_threshold()
+            gpu.get_down_counter_threshold()
         );
     }
 

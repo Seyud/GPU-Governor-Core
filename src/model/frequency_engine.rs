@@ -54,8 +54,8 @@ impl FrequencyAdjustmentEngine {
             return Ok(());
         }
 
-        // 执行简单的频率调整逻辑
-        Self::execute_frequency_adjustment(gpu, load, current_time)
+        // 执行频率调整逻辑，包含降频计数器
+        Self::execute_frequency_adjustment_with_counter(gpu, load, current_time)
     }
 
     /// 更新当前GPU频率
@@ -86,21 +86,32 @@ impl FrequencyAdjustmentEngine {
         std::thread::sleep(Duration::from_millis(idle_sleep_time));
     }
 
-    /// 执行频率调整逻辑
-    fn execute_frequency_adjustment(gpu: &mut GPU, load: i32, current_time: u64) -> Result<()> {
+    /// 执行频率调整逻辑（包含降频计数器）
+    fn execute_frequency_adjustment_with_counter(
+        gpu: &mut GPU,
+        load: i32,
+        current_time: u64,
+    ) -> Result<()> {
         debug!("Executing frequency adjustment for load: {load}%");
 
         let current_freq = gpu.get_cur_freq();
         let current_idx = gpu.frequency().cur_freq_idx;
         let max_idx = (gpu.get_config_list().len() - 1) as i64;
+        let down_counter_threshold = gpu.frequency_strategy.down_counter_threshold;
 
-        let (target_freq, target_idx) = if load >= strategy::ULTRA_SIMPLE_THRESHOLD {
-            // 负载达到90%或以上，升频一级
+        // 检查是否需要升频（负载达到90%或以上）
+        if load >= strategy::ULTRA_SIMPLE_THRESHOLD {
             debug!(
                 "Load {}% >= {}%, checking up rate delay",
                 load,
                 strategy::ULTRA_SIMPLE_THRESHOLD
             );
+
+            // 重置降频计数器（因为检测到高负载）
+            if down_counter_threshold > 0 {
+                gpu.idle_manager.load_zone_counter = 0;
+                debug!("Reset down counter due to high load");
+            }
 
             // 检查升频延迟
             let last_adjust_time = gpu.frequency_strategy.last_adjustment_time;
@@ -115,11 +126,59 @@ impl FrequencyAdjustmentEngine {
             }
 
             let next_idx = (current_idx + 1).min(max_idx);
-            (gpu.get_freq_by_index(next_idx), next_idx)
-        } else {
-            // 负载低于90%，降频一级
+            let target_freq = gpu.get_freq_by_index(next_idx);
+            if target_freq != current_freq {
+                Self::apply_frequency_change(gpu, target_freq, next_idx, current_time)?;
+            }
+            return Ok(());
+        }
+
+        // 处理降频逻辑
+        if down_counter_threshold > 0 {
+            // 启用降频计数器模式
             debug!(
-                "Load {}% < {}%, checking down rate delay",
+                "Load {}% < {}%, using down counter (threshold: {})",
+                load,
+                strategy::ULTRA_SIMPLE_THRESHOLD,
+                down_counter_threshold
+            );
+
+            // 当前负载低于阈值，增加计数器
+            gpu.idle_manager.load_zone_counter += 1;
+            debug!(
+                "Down counter: {}/{}",
+                gpu.idle_manager.load_zone_counter, down_counter_threshold
+            );
+
+            // 检查是否达到降频条件
+            if gpu.idle_manager.load_zone_counter >= down_counter_threshold as i32 {
+                debug!("Down counter threshold reached, checking down rate delay");
+
+                // 检查降频延迟
+                let last_adjust_time = gpu.frequency_strategy.last_adjustment_time;
+                let down_delay = gpu.frequency_strategy.down_debounce_time;
+                if current_time - last_adjust_time < down_delay {
+                    debug!(
+                        "Down rate delay not met: {}ms < {}ms, skipping frequency change",
+                        current_time - last_adjust_time,
+                        down_delay
+                    );
+                    return Ok(());
+                }
+
+                // 执行降频
+                let next_idx = (current_idx - 1).max(0);
+                let target_freq = gpu.get_freq_by_index(next_idx);
+                if target_freq != current_freq {
+                    Self::apply_frequency_change(gpu, target_freq, next_idx, current_time)?;
+                    // 重置计数器
+                    gpu.idle_manager.load_zone_counter = 0;
+                }
+            }
+        } else {
+            // 禁用降频计数器模式，负载低于90%，降频一级
+            debug!(
+                "Load {}% < {}%, checking down rate delay (no counter)",
                 load,
                 strategy::ULTRA_SIMPLE_THRESHOLD
             );
@@ -137,12 +196,10 @@ impl FrequencyAdjustmentEngine {
             }
 
             let next_idx = (current_idx - 1).max(0);
-            (gpu.get_freq_by_index(next_idx), next_idx)
-        };
-
-        // 应用频率变化
-        if target_freq != current_freq {
-            Self::apply_frequency_change(gpu, target_freq, target_idx, current_time)?;
+            let target_freq = gpu.get_freq_by_index(next_idx);
+            if target_freq != current_freq {
+                Self::apply_frequency_change(gpu, target_freq, next_idx, current_time)?;
+            }
         }
 
         Ok(())
