@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::{debug, info, warn};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::{datasource::load_monitor::get_gpu_load, model::gpu::GPU, utils::constants::strategy};
+use crate::{datasource::load_monitor::get_gpu_load, model::gpu::GPU};
 
 /// GPU频率调整引擎 - 负责执行智能调频算法
 pub struct FrequencyAdjustmentEngine;
@@ -98,14 +98,25 @@ impl FrequencyAdjustmentEngine {
         let current_idx = gpu.frequency().cur_freq_idx;
         let max_idx = (gpu.get_config_list().len() - 1) as i64;
         let down_counter_threshold = gpu.frequency_strategy.down_counter_threshold;
+        let margin = gpu.frequency_strategy.margin;
 
-        // 检查是否需要升频（负载达到90%或以上）
-        if load >= strategy::ULTRA_SIMPLE_THRESHOLD {
-            debug!(
-                "Load {}% >= {}%, checking up rate delay",
-                load,
-                strategy::ULTRA_SIMPLE_THRESHOLD
-            );
+        // 获取升频阈值（从配置中读取）
+        let up_threshold = gpu.frequency_strategy.ultra_simple_threshold as i32;
+
+        // 根据margin计算降频阈值
+        // 当margin为0时使用原来的策略（使用升频阈值作为降频基准）
+        // 当margin>0时使用100-margin作为降频阈值
+        let down_threshold = if margin == 0 {
+            up_threshold
+        } else {
+            (100 - margin) as i32
+        };
+
+        debug!("Current margin: {margin}%, up_threshold: {up_threshold}%, down_threshold: {down_threshold}");
+
+        // 检查是否需要升频（负载达到升频阈值或以上）
+        if load >= up_threshold {
+            debug!("Load {load}% >= {up_threshold}%, checking up rate delay");
 
             // 重置降频计数器（因为检测到高负载）
             if down_counter_threshold > 0 {
@@ -134,25 +145,46 @@ impl FrequencyAdjustmentEngine {
         }
 
         // 处理降频逻辑
-        if down_counter_threshold > 0 {
-            // 启用降频计数器模式
-            debug!(
-                "Load {}% < {}%, using down counter (threshold: {})",
-                load,
-                strategy::ULTRA_SIMPLE_THRESHOLD,
-                down_counter_threshold
-            );
+        if load < down_threshold {
+            if down_counter_threshold > 0 {
+                // 启用降频计数器模式
+                debug!("Load {load}% < {down_threshold}%, using down counter (threshold: {down_counter_threshold})");
 
-            // 当前负载低于阈值，增加计数器
-            gpu.idle_manager.load_zone_counter += 1;
-            debug!(
-                "Down counter: {}/{}",
-                gpu.idle_manager.load_zone_counter, down_counter_threshold
-            );
+                // 当前负载低于阈值，增加计数器
+                gpu.idle_manager.load_zone_counter += 1;
+                debug!(
+                    "Down counter: {}/{}",
+                    gpu.idle_manager.load_zone_counter, down_counter_threshold
+                );
 
-            // 检查是否达到降频条件
-            if gpu.idle_manager.load_zone_counter >= down_counter_threshold as i32 {
-                debug!("Down counter threshold reached, checking down rate delay");
+                // 检查是否达到降频条件
+                if gpu.idle_manager.load_zone_counter >= down_counter_threshold as i32 {
+                    debug!("Down counter threshold reached, checking down rate delay");
+
+                    // 检查降频延迟
+                    let last_adjust_time = gpu.frequency_strategy.last_adjustment_time;
+                    let down_delay = gpu.frequency_strategy.down_debounce_time;
+                    if current_time - last_adjust_time < down_delay {
+                        debug!(
+                            "Down rate delay not met: {}ms < {}ms, skipping frequency change",
+                            current_time - last_adjust_time,
+                            down_delay
+                        );
+                        return Ok(());
+                    }
+
+                    // 执行降频
+                    let next_idx = (current_idx - 1).max(0);
+                    let target_freq = gpu.get_freq_by_index(next_idx);
+                    if target_freq != current_freq {
+                        Self::apply_frequency_change(gpu, target_freq, next_idx, current_time)?;
+                        // 重置计数器
+                        gpu.idle_manager.load_zone_counter = 0;
+                    }
+                }
+            } else {
+                // 禁用降频计数器模式，负载低于阈值，降频一级
+                debug!("Load {load}% < {down_threshold}%, checking down rate delay (no counter)");
 
                 // 检查降频延迟
                 let last_adjust_time = gpu.frequency_strategy.last_adjustment_time;
@@ -166,40 +198,14 @@ impl FrequencyAdjustmentEngine {
                     return Ok(());
                 }
 
-                // 执行降频
                 let next_idx = (current_idx - 1).max(0);
                 let target_freq = gpu.get_freq_by_index(next_idx);
                 if target_freq != current_freq {
                     Self::apply_frequency_change(gpu, target_freq, next_idx, current_time)?;
-                    // 重置计数器
-                    gpu.idle_manager.load_zone_counter = 0;
                 }
             }
         } else {
-            // 禁用降频计数器模式，负载低于90%，降频一级
-            debug!(
-                "Load {}% < {}%, checking down rate delay (no counter)",
-                load,
-                strategy::ULTRA_SIMPLE_THRESHOLD
-            );
-
-            // 检查降频延迟
-            let last_adjust_time = gpu.frequency_strategy.last_adjustment_time;
-            let down_delay = gpu.frequency_strategy.down_debounce_time;
-            if current_time - last_adjust_time < down_delay {
-                debug!(
-                    "Down rate delay not met: {}ms < {}ms, skipping frequency change",
-                    current_time - last_adjust_time,
-                    down_delay
-                );
-                return Ok(());
-            }
-
-            let next_idx = (current_idx - 1).max(0);
-            let target_freq = gpu.get_freq_by_index(next_idx);
-            if target_freq != current_freq {
-                Self::apply_frequency_change(gpu, target_freq, next_idx, current_time)?;
-            }
+            debug!("Load {load}% >= {down_threshold}%, no frequency change needed");
         }
 
         Ok(())

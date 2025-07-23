@@ -7,11 +7,11 @@ pub struct FrequencyStrategy {
     pub down_debounce_time: u64, // 降频防抖时间（毫秒）
     /// 负载阈值
     pub very_low_load_threshold: u32, // 极低负载阈值（百分比）
-    pub low_load_threshold: u32,       // 低负载阈值（百分比）
-    pub high_load_threshold: u32,      // 高负载阈值（百分比）
-    pub very_high_load_threshold: u32, // 极高负载阈值（百分比）
+    pub low_load_threshold: u32,     // 低负载阈值（百分比）
+    pub high_load_threshold: u32,    // 高负载阈值（百分比）
+    pub ultra_simple_threshold: u32, // 极简阈值（百分比）
     /// 调整余量
-    pub margin: u32,   // 频率调整余量（MHz）
+    pub margin: u32, // 频率调整余量（MHz）
     /// 降频计数器配置值（0=禁用降频计数器功能）
     pub down_counter_threshold: u32, // 降频计数器触发阈值
     /// 激进降频开关
@@ -29,7 +29,7 @@ impl FrequencyStrategy {
             very_low_load_threshold: 20,
             low_load_threshold: 40,
             high_load_threshold: 70,
-            very_high_load_threshold: 90,
+            ultra_simple_threshold: 90,
             margin: 50,
             down_counter_threshold: 0,
             aggressive_down: true,
@@ -91,11 +91,11 @@ impl FrequencyStrategy {
     }
 
     /// 设置负载阈值
-    pub fn set_load_thresholds(&mut self, very_low: u32, low: u32, high: u32, very_high: u32) {
+    pub fn set_load_thresholds(&mut self, very_low: u32, low: u32, high: u32, ultra_simple: u32) {
         self.very_low_load_threshold = very_low;
         self.low_load_threshold = low;
         self.high_load_threshold = high;
-        self.very_high_load_threshold = very_high;
+        self.ultra_simple_threshold = ultra_simple;
     }
 }
 
