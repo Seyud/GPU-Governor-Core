@@ -45,6 +45,9 @@ impl FrequencyAdjustmentEngine {
 
     /// 处理负载数据
     fn process_load(gpu: &mut GPU, load: i32, current_time: u64) -> Result<()> {
+        // 根据负载动态调整采样间隔（如果启用了自适应采样）
+        gpu.adjust_sampling_interval_by_load(load);
+
         // 检查空闲状态
         if load <= gpu.idle_manager.idle_threshold {
             Self::handle_idle_state(gpu);
@@ -94,19 +97,45 @@ impl FrequencyAdjustmentEngine {
         let (target_freq, target_idx) = if load >= strategy::ULTRA_SIMPLE_THRESHOLD {
             // 负载达到90%或以上，升频一级
             debug!(
-                "Load {}% >= {}%, upgrading frequency",
+                "Load {}% >= {}%, checking up rate delay",
                 load,
                 strategy::ULTRA_SIMPLE_THRESHOLD
             );
+
+            // 检查升频延迟
+            let last_adjust_time = gpu.frequency_strategy.last_adjustment_time;
+            let up_delay = gpu.frequency_strategy.up_debounce_time;
+            if current_time - last_adjust_time < up_delay {
+                debug!(
+                    "Up rate delay not met: {}ms < {}ms, skipping frequency change",
+                    current_time - last_adjust_time,
+                    up_delay
+                );
+                return Ok(());
+            }
+
             let next_idx = (current_idx + 1).min(max_idx);
             (gpu.get_freq_by_index(next_idx), next_idx)
         } else {
             // 负载低于90%，降频一级
             debug!(
-                "Load {}% < {}%, downscaling frequency",
+                "Load {}% < {}%, checking down rate delay",
                 load,
                 strategy::ULTRA_SIMPLE_THRESHOLD
             );
+
+            // 检查降频延迟
+            let last_adjust_time = gpu.frequency_strategy.last_adjustment_time;
+            let down_delay = gpu.frequency_strategy.down_debounce_time;
+            if current_time - last_adjust_time < down_delay {
+                debug!(
+                    "Down rate delay not met: {}ms < {}ms, skipping frequency change",
+                    current_time - last_adjust_time,
+                    down_delay
+                );
+                return Ok(());
+            }
+
             let next_idx = (current_idx - 1).max(0);
             (gpu.get_freq_by_index(next_idx), next_idx)
         };
