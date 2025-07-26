@@ -10,9 +10,13 @@ use log::{error, info, warn};
 
 use crate::{
     datasource::{
-        config_parser::load_config, file_path::*, foreground_app::monitor_foreground_app,
-        freq_table::gpufreq_table_init, freq_table_parser::freq_table_read,
-        load_monitor::utilization_init, node_monitor::monitor_config,
+        config_parser::load_config,
+        file_path::*,
+        foreground_app::monitor_foreground_app,
+        freq_table::gpufreq_table_init,
+        freq_table_parser::freq_table_read,
+        load_monitor::utilization_init,
+        node_monitor::{monitor_custom_config, monitor_freq_table_config},
     },
     model::gpu::GPU,
     utils::{
@@ -60,16 +64,16 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
 
 /// 启动监控线程
 fn start_monitoring_threads(gpu: GPU) {
-    // 配置监控线程
+    // 频率表配置监控线程
     let gpu_clone2 = gpu.clone();
     thread::Builder::new()
         .name(FREQ_TABLE_MONITOR_THREAD.to_string())
         .spawn(move || {
-            if let Err(e) = monitor_config(gpu_clone2) {
-                error!("Config monitor error: {e}");
+            if let Err(e) = monitor_freq_table_config(gpu_clone2) {
+                error!("Frequency table config monitor error: {e}");
             }
         })
-        .expect("Failed to spawn config monitor thread");
+        .expect("Failed to spawn frequency table config monitor thread");
 
     // 前台应用监控线程（延迟启动）
     let gpu_clone = gpu.clone();
@@ -99,16 +103,16 @@ fn start_monitoring_threads(gpu: GPU) {
         })
         .expect("Failed to spawn log level monitor thread");
 
-    // 监控自定义配置的线程
+    // 自定义配置监控线程
     let gpu_clone5 = gpu.clone();
     thread::Builder::new()
         .name(CONFIG_MONITOR_THREAD.to_string())
         .spawn(move || {
-            if let Err(e) = monitor_config(gpu_clone5) {
-                error!("Config TOML monitor error: {e}");
+            if let Err(e) = monitor_custom_config(gpu_clone5) {
+                error!("Custom config monitor error: {e}");
             }
         })
-        .expect("Failed to spawn config TOML monitor thread");
+        .expect("Failed to spawn custom config monitor thread");
 }
 
 /// 配置GPU策略

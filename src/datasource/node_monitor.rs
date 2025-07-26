@@ -1,14 +1,14 @@
 use anyhow::Result;
 use inotify::WatchMask;
-use log::{error, info};
+use log::{error, info, warn};
 
 use crate::{
-    datasource::{file_path::*, freq_table_parser::freq_table_read},
+    datasource::{config_parser::load_config, file_path::*, freq_table_parser::freq_table_read},
     model::gpu::GPU,
     utils::{file_operate::check_read_simple, inotify::InotifyWatcher},
 };
 
-pub fn monitor_config(mut gpu: GPU) -> Result<()> {
+pub fn monitor_freq_table_config(mut gpu: GPU) -> Result<()> {
     // 设置线程名称（在Rust中无法轻易设置当前线程名称）
     info!("{FREQ_TABLE_MONITOR_THREAD} Start");
 
@@ -50,5 +50,36 @@ pub fn monitor_config(mut gpu: GPU) -> Result<()> {
     loop {
         inotify.wait_and_handle()?;
         freq_table_read(&config_file, &mut gpu)?;
+    }
+}
+
+pub fn monitor_custom_config(mut gpu: GPU) -> Result<()> {
+    // 设置线程名称
+    info!("{CONFIG_MONITOR_THREAD} Start");
+
+    // 使用自定义配置文件
+    let config_file = CONFIG_TOML_FILE.to_string();
+
+    // 检查自定义配置文件是否存在
+    if !check_read_simple(&config_file) {
+        warn!("Custom config file not found: {config_file}");
+        return Ok(());
+    }
+
+    info!("Monitoring custom config: {config_file}");
+
+    let mut inotify = InotifyWatcher::new()?;
+    inotify.add(&config_file, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
+
+    loop {
+        inotify.wait_and_handle()?;
+        match load_config(&mut gpu, None) {
+            Ok(_) => {
+                info!("Custom config reloaded successfully");
+            }
+            Err(e) => {
+                warn!("Failed to reload custom config: {e}");
+            }
+        }
     }
 }
