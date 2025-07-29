@@ -14,52 +14,13 @@ import sys
 from pathlib import Path
 
 
-# 在导入任何其他模块之前立即清理PATH环境变量中的双引号字符
-# 这样可以防止Python扩展加载时出现问题
-def _clean_path_environment():
-    """清理PATH环境变量中的双引号字符，防止Python扩展加载失败"""
-    path_var = os.environ.get("PATH", "")
-    if '"' in path_var:
-        clean_path = path_var.replace('"', "")
-        os.environ["PATH"] = clean_path
-        print("已清理PATH环境变量中的双引号字符")
-
-    # 同时清理其他可能包含路径的环境变量
-    for env_var in ["Path", "path"]:
-        if env_var in os.environ:
-            value = os.environ[env_var]
-            if '"' in value:
-                clean_value = value.replace('"', "")
-                os.environ[env_var] = clean_value
-                print(f"已清理{env_var}环境变量中的双引号字符")
-
-
-# 立即执行清理操作
-_clean_path_environment()
-
-
-def clean_path_string(path_str):
-    """
-    清理路径字符串中的双引号字符
-    Args:
-        path_str: 路径字符串
-    Returns:
-        清理后的路径字符串
-    """
-    if isinstance(path_str, str):
-        return path_str.replace('"', "").replace("'", "")
-    return str(path_str).replace('"', "").replace("'", "")
-
 
 class GPUGovernorBuilder:
     def __init__(self):
-        # 清理系统PATH中的双引号字符，防止Python扩展加载失败
-        self._clean_system_path()
-
-        # 配置路径（确保没有双引号字符）
-        self.android_ndk_home = clean_path_string("D:/android-ndk")
-        self.llvm_path = clean_path_string("D:/LLVM")
-        self.upx_path = clean_path_string("D:/upx/upx.exe")
+        # 配置路径
+        self.android_ndk_home = "D:/android-ndk"
+        self.llvm_path = "D:/LLVM"
+        self.upx_path = "D:/upx/upx.exe"
 
         # 项目配置
         self.target = "aarch64-linux-android"
@@ -68,30 +29,6 @@ class GPUGovernorBuilder:
 
         # 设置环境变量
         self._setup_environment()
-
-    def _clean_system_path(self):
-        """清理系统PATH环境变量中的双引号字符（额外保险措施）"""
-        # 清理所有可能的PATH相关环境变量
-        path_vars = ["PATH", "Path", "path"]
-
-        for var_name in path_vars:
-            if var_name in os.environ:
-                current_path = os.environ[var_name]
-                if '"' in current_path:
-                    clean_path = current_path.replace('"', "")
-                    os.environ[var_name] = clean_path
-                    print(f"已清理{var_name}环境变量中的双引号字符")
-
-        # 同时清理其他可能包含路径且有双引号的环境变量
-        for key, value in list(os.environ.items()):
-            if (
-                isinstance(value, str)
-                and '"' in value
-                and any(keyword in key.lower() for keyword in ["path", "dir", "home"])
-            ):
-                clean_value = value.replace('"', "")
-                os.environ[key] = clean_value
-                print(f"已清理{key}环境变量中的双引号字符")
 
     def _setup_environment(self):
         """设置编译所需的环境变量"""
@@ -103,23 +40,19 @@ class GPUGovernorBuilder:
             "BINDGEN_EXTRA_CLANG_ARGS": f"--target=aarch64-linux-android -I{self.android_ndk_home}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include",
         }
 
-        # 更新PATH环境变量，清理双引号字符
+        # 更新PATH环境变量
         current_path = os.environ.get("PATH", "")
-        # 移除PATH中的双引号字符，防止Python扩展加载失败
-        current_path = clean_path_string(current_path)
         new_path_parts = [
             f"{self.llvm_path}/bin",
             f"{self.android_ndk_home}/toolchains/llvm/prebuilt/windows-x86_64/bin",
             current_path,
         ]
-        env_vars["PATH"] = clean_path_string(";".join(new_path_parts))
+        env_vars["PATH"] = ";".join(new_path_parts)
 
-        # 设置环境变量，清理所有值中的双引号字符
+        # 设置环境变量
         for key, value in env_vars.items():
-            # 移除环境变量值中的双引号字符，防止Python扩展加载失败
-            clean_value = clean_path_string(str(value))
-            os.environ[key] = clean_value
-            print(f"设置环境变量: {key}={clean_value}")
+            os.environ[key] = str(value)
+            print(f"设置环境变量: {key}={value}")
 
     def _check_dependencies(self):
         """检查编译依赖是否存在"""
