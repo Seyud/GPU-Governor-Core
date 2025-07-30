@@ -63,7 +63,6 @@ jobs:
           cp module/customize.sh temp_package/
 
           cp module/module.prop temp_package/
-          cp module/post-fs-data.sh temp_package/
           cp module/service.sh temp_package/
           cp module/uninstall.sh temp_package/
           cp module/volt_list.txt temp_package/
