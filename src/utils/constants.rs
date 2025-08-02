@@ -4,7 +4,7 @@ pub const NOTES: &str = "Mediatek Mali GPU Governor";
 pub const AUTHOR: &str = "Author: walika @CoolApk, localhost_hutao @Telegram";
 pub const SPECIAL: &str =
     "Special Thanks: HamJin @CoolApk, asto18089 @CoolApk and helloklf @Github";
-pub const VERSION: &str = "Version: v2.8.0";
+pub const VERSION: &str = "Version: v2.9.0";
 
 /// GPU 调频策略常量
 pub mod strategy {
