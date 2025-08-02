@@ -2,3 +2,5 @@
 target/
 .cargo/config.toml
 log/
+Scripts/
+Lib/

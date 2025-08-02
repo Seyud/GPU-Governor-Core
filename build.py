@@ -12,20 +12,34 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+import toml
 
 
 
 class GPUGovernorBuilder:
-    def __init__(self):
+    def __init__(self, config_path="build_config.toml"):
+        # 读取配置文件
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = toml.load(f)
+        
         # 配置路径
-        self.android_ndk_home = "D:/android-ndk"
-        self.llvm_path = "D:/LLVM"
-        self.upx_path = "D:/upx/upx.exe"
+        paths = config.get('paths', {})
+        self.android_ndk_home = paths.get('android_ndk_home')
+        self.llvm_path = paths.get('llvm_path')
+        self.upx_path = paths.get('upx_path')
 
         # 项目配置
-        self.target = "aarch64-linux-android"
-        self.binary_name = "gpugovernor"
-        self.output_dir = "output"
+        self.target = paths.get('target', "aarch64-linux-android")
+        self.binary_name = paths.get('binary_name', "gpugovernor")
+        self.output_dir = paths.get('output_dir', "output")
+
+        # 检查必需的路径配置是否存在
+        if not self.android_ndk_home:
+            raise ValueError("配置文件中缺少 android_ndk_home 路径配置")
+        if not self.llvm_path:
+            raise ValueError("配置文件中缺少 llvm_path 路径配置")
+        if not self.upx_path:
+            raise ValueError("配置文件中缺少 upx_path 路径配置")
 
         # 设置环境变量
         self._setup_environment()
@@ -342,10 +356,13 @@ def main():
     parser.add_argument(
         "--compress-only", action="store_true", help="仅压缩现有二进制文件"
     )
+    parser.add_argument(
+        "--config", default="build_config.toml", help="配置文件路径"
+    )
 
     args = parser.parse_args()
 
-    builder = GPUGovernorBuilder()
+    builder = GPUGovernorBuilder(args.config)
 
     if args.clean:
         builder.clean()

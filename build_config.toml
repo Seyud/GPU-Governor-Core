@@ -1,0 +1,8 @@
+[paths]
+android_ndk_home = "D:/android-ndk"
+llvm_path = "D:/LLVM"
+upx_path = "D:/upx/upx.exe"
+
+target = "aarch64-linux-android"
+binary_name = "gpugovernor"
+output_dir = "output"
