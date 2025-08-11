@@ -227,10 +227,6 @@ impl GPU {
         self.frequency_manager.get_middle_freq()
     }
 
-    pub fn get_second_highest_freq(&self) -> i64 {
-        self.frequency_manager.get_second_highest_freq()
-    }
-
     pub fn get_config_list(&self) -> Vec<i64> {
         self.frequency_manager.get_config_list()
     }

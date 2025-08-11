@@ -112,14 +112,6 @@ impl FrequencyManager {
         self.config_list[mid_idx]
     }
 
-    /// 获取第二高频率
-    pub fn get_second_highest_freq(&self) -> i64 {
-        if self.config_list.len() < 2 {
-            return self.get_max_freq();
-        }
-        self.config_list[self.config_list.len() - 2]
-    }
-
     /// 获取v2驱动支持的最接近频率
     pub fn get_closest_v2_supported_freq(&self, target_freq: i64) -> i64 {
         if self.v2_supported_freqs.is_empty() {

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::{debug, info, warn};
+use log::{debug, warn};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::{datasource::load_monitor::get_gpu_load, model::gpu::GPU};
@@ -10,8 +10,6 @@ pub struct FrequencyAdjustmentEngine;
 impl FrequencyAdjustmentEngine {
     /// 主要的频率调整循环
     pub fn run_adjustment_loop(gpu: &mut GPU) -> Result<()> {
-        info!("Starting advanced GPU governor with ultra-simplified 90% threshold strategy");
-
         debug!(
             "config:{:?}, freq:{}",
             gpu.get_config_list(),
