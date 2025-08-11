@@ -9,18 +9,14 @@ use std::time::Duration;
 use crate::{
     datasource::file_path::LOG_LEVEL_PATH,
     utils::{
-        file_operate::check_read_simple, inotify::InotifyWatcher,
-        log_rotation::check_and_rotate_main_log,
+        file_operate::check_read_simple, inotify::InotifyWatcher, log_rotation::LogRotationMonitor,
     },
 };
-
-/// 日志等级变化回调函数类型
-pub type LogLevelCallback = Box<dyn Fn(LevelFilter) + Send + Sync>;
 
 /// 统一的日志等级管理器
 pub struct LogLevelManager {
     current_level: Arc<Mutex<LevelFilter>>,
-    callbacks: Arc<Mutex<Vec<LogLevelCallback>>>,
+    rotation_monitor: Arc<Mutex<Option<LogRotationMonitor>>>,
 }
 
 impl LogLevelManager {
@@ -28,7 +24,7 @@ impl LogLevelManager {
     pub fn new() -> Self {
         Self {
             current_level: Arc::new(Mutex::new(LevelFilter::Info)),
-            callbacks: Arc::new(Mutex::new(Vec::new())),
+            rotation_monitor: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -64,10 +60,11 @@ impl LogLevelManager {
         *self.current_level.lock().unwrap()
     }
 
-    /// 更新日志等级并通知所有回调
+    /// 更新日志等级
     pub fn update_level(&self, new_level: LevelFilter) {
         let mut current = self.current_level.lock().unwrap();
         if *current != new_level {
+            let old_level = *current;
             *current = new_level;
             drop(current); // 释放锁
 
@@ -75,21 +72,39 @@ impl LogLevelManager {
             log::set_max_level(new_level);
             info!("Log level updated to: {new_level}");
 
-            // 通知所有回调
-            let callbacks = self.callbacks.lock().unwrap();
-            for callback in callbacks.iter() {
-                callback(new_level);
-            }
+            // 根据日志等级变化管理日志轮转监控
+            self.manage_log_rotation_monitor(old_level, new_level);
         }
     }
 
-    /// 添加日志等级变化回调
-    pub fn add_callback<F>(&self, callback: F)
-    where
-        F: Fn(LevelFilter) + Send + Sync + 'static,
-    {
-        let mut callbacks = self.callbacks.lock().unwrap();
-        callbacks.push(Box::new(callback));
+    /// 根据日志等级管理日志轮转监控
+    fn manage_log_rotation_monitor(&self, old_level: LevelFilter, new_level: LevelFilter) {
+        let mut monitor = self.rotation_monitor.lock().unwrap();
+
+        // 如果新等级是Debug，且之前不是Debug，则启动监控
+        if new_level == LevelFilter::Debug && old_level != LevelFilter::Debug {
+            if monitor.is_none() {
+                match crate::utils::log_rotation::start_main_log_monitor() {
+                    Ok(rotation_monitor) => {
+                        *monitor = Some(rotation_monitor);
+                        info!("Log rotation background monitor started (Debug mode enabled)");
+                    }
+                    Err(e) => {
+                        warn!("Failed to start log rotation monitor: {}", e);
+                    }
+                }
+            }
+        }
+        // 如果新等级不是Debug，且之前是Debug，则停止监控
+        else if new_level != LevelFilter::Debug && old_level == LevelFilter::Debug {
+            if let Some(mut rotation_monitor) = monitor.take() {
+                if let Err(e) = rotation_monitor.stop() {
+                    warn!("Failed to stop log rotation monitor: {}", e);
+                } else {
+                    info!("Log rotation background monitor stopped (Debug mode disabled)");
+                }
+            }
+        }
     }
 
     /// 启动日志等级监控线程
@@ -148,28 +163,7 @@ impl LogLevelManager {
 
 /// 全局日志等级管理器实例
 static LOG_LEVEL_MANAGER: once_cell::sync::Lazy<Arc<LogLevelManager>> =
-    once_cell::sync::Lazy::new(|| {
-        let manager = Arc::new(LogLevelManager::new());
-
-        // 添加日志轮转回调
-        manager.add_callback(move |level| {
-            // 只在debug等级时执行日志轮转检查
-            if level == LevelFilter::Debug {
-                match check_and_rotate_main_log() {
-                    Ok(rotated) => {
-                        if rotated {
-                            info!("Log file rotated successfully");
-                        }
-                    }
-                    Err(e) => {
-                        warn!("Failed to check/rotate log file: {e}");
-                    }
-                }
-            }
-        });
-
-        manager
-    });
+    once_cell::sync::Lazy::new(|| Arc::new(LogLevelManager::new()));
 
 /// 获取全局日志等级管理器
 pub fn get_log_level_manager() -> Arc<LogLevelManager> {

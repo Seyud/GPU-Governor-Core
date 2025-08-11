@@ -171,13 +171,6 @@ fn display_system_info(gpu: &GPU) {
 
     // DDR频率信息
     display_ddr_info(gpu);
-
-    // 策略信息
-    info!("Using ultra-simplified strategy: Load >= 90% = upgrade, Load < 90% = downscale");
-    info!(
-        "Second highest frequency: {}KHz",
-        gpu.get_second_highest_freq()
-    );
 }
 
 /// 显示DDR相关信息

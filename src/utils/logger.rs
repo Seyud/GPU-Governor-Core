@@ -4,13 +4,15 @@ use std::sync::Mutex;
 
 use anyhow::{Context, Result};
 use chrono::Local;
-use log::{LevelFilter, Metadata, Record};
+use log::{Metadata, Record};
 use once_cell::sync::Lazy;
+
+use log::LevelFilter;
 
 use crate::{
     datasource::file_path::{LOG_LEVEL_PATH, LOG_PATH},
-    utils::log_level_manager::{get_current_log_level, LogLevelManager},
-    utils::log_rotation::LogRotationManager,
+    utils::log_level_manager::LogLevelManager,
+    utils::log_rotation::{check_and_rotate_main_log, start_main_log_monitor, LogRotationManager},
 };
 
 // 自定义日志实现 - 支持文件写入和轮转
@@ -29,12 +31,6 @@ impl CustomLogger {
         let mut writer = self.file_writer.lock().unwrap();
 
         if writer.is_none() {
-            // 只在debug等级时检查并执行日志轮转
-            let current_level = get_current_log_level();
-            if current_level == LevelFilter::Debug {
-                self.check_and_rotate_log()?;
-            }
-
             // 创建或打开日志文件
             let file = OpenOptions::new()
                 .create(true)
@@ -45,13 +41,6 @@ impl CustomLogger {
             *writer = Some(BufWriter::new(file));
         }
 
-        Ok(())
-    }
-
-    fn check_and_rotate_log(&self) -> Result<()> {
-        // 使用统一的日志轮转管理器
-        let rotation_manager = LogRotationManager::default();
-        rotation_manager.check_and_rotate(LOG_PATH)?;
         Ok(())
     }
 
@@ -118,8 +107,14 @@ pub fn init_logger() -> Result<()> {
 
     // 记录当前使用的日志等级
     log::info!("Logger initialized with level: {log_level}");
+
+    // 获取当前日志等级
+    let current_level = crate::utils::log_level_manager::get_current_log_level();
+    log::info!("Current log level from manager: {current_level}");
     log::info!("Log file path: {LOG_PATH}");
     log::info!("Log level config path: {LOG_LEVEL_PATH}");
+
+    // 初始化日志轮转管理器
     let rotation_manager = LogRotationManager::default();
     log::info!(
         "Max log file size: {}MB",
@@ -129,6 +124,18 @@ pub fn init_logger() -> Result<()> {
         "Log rotation threshold: {}%",
         (rotation_manager.rotation_threshold() * 100.0) as u8
     );
+
+    // 检查并执行日志轮转（仅在debug等级时）
+    if log_level == LevelFilter::Debug {
+        if let Err(e) = check_and_rotate_main_log() {
+            log::warn!("Failed to check/rotate main log file: {}", e);
+        }
+
+        // 启动后台日志监控（仅在debug等级时）
+        if let Err(e) = start_main_log_monitor() {
+            log::warn!("Failed to start main log monitor: {}", e);
+        }
+    }
 
     // 在debug级别记录一条消息，说明某些错误只会在debug级别显示
     log::debug!("Some error messages will only be shown at debug level");
