@@ -125,9 +125,6 @@ fn configure_gpu_strategy(gpu: &mut GPU) {
         true,                              // 激进降频
     );
 
-    // 其他策略设置
-    gpu.frequency_strategy_mut()
-        .set_load_thresholds(20, 40, 70, 90);
     // 禁用自适应采样，使用固定采样间隔
     gpu.frequency_strategy_mut()
         .set_sampling_interval(strategy::SAMPLING_INTERVAL_120HZ);

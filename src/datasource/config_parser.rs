@@ -28,7 +28,6 @@ pub struct Global {
 
 #[derive(Deserialize)]
 pub struct ModeParams {
-    ultra_simple_threshold: i32,
     margin: i64,
     down_counter_threshold: i64,
     aggressive_down: bool,
@@ -63,7 +62,6 @@ pub fn load_config(gpu: &mut GPU, target_mode: Option<&str>) -> Result<()> {
     };
 
     let strategy = gpu.frequency_strategy_mut();
-    strategy.ultra_simple_threshold = params.ultra_simple_threshold.try_into().unwrap();
     strategy.set_margin(params.margin.try_into().unwrap());
     strategy.set_down_counter_threshold(params.down_counter_threshold.try_into().unwrap());
     strategy.set_aggressive_down(params.aggressive_down);
