@@ -149,13 +149,11 @@ impl GPU {
             if let Err(e) = self.set_ddr_freq(ddr_opp) {
                 warn!("Failed to set DDR frequency in game mode: {e}");
             }
-        } else {
+        } else if self.is_ddr_freq_fixed()
+            && let Err(e) = self.set_ddr_freq(999)
+        {
             // 恢复自动DDR频率模式
-            if self.is_ddr_freq_fixed() {
-                if let Err(e) = self.set_ddr_freq(999) {
-                    warn!("Failed to restore auto DDR mode: {e}");
-                }
-            }
+            warn!("Failed to restore auto DDR mode: {e}");
         }
     }
 
@@ -345,6 +343,27 @@ impl GPU {
 
     pub fn read_freq_le(&self, freq: i64) -> i64 {
         self.frequency_manager.read_freq_le(freq)
+    }
+
+    /// 找到最接近目标频率的索引
+    pub fn find_closest_freq_index(&self, target_freq: i64) -> i64 {
+        let config_list = self.get_config_list();
+        if config_list.is_empty() {
+            return 0;
+        }
+
+        let mut closest_idx = 0;
+        let mut min_diff = (config_list[0] - target_freq).abs();
+
+        for (idx, &freq) in config_list.iter().enumerate() {
+            let diff = (freq - target_freq).abs();
+            if diff < min_diff {
+                min_diff = diff;
+                closest_idx = idx as i64;
+            }
+        }
+
+        closest_idx
     }
 
     // 主要的频率调整方法 - 现在使用新的引擎
