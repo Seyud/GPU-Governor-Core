@@ -57,5 +57,5 @@ pub const DDR_SECOND_FREQ: i64 = 1; // 第二档内存频率和电压
 pub const DDR_THIRD_FREQ: i64 = 2; // 第三档内存频率和电压
 pub const DDR_FOURTH_FREQ: i64 = 3; // 第四档内存频率和电压
 pub const DDR_FIFTH_FREQ: i64 = 4; // 第五档内存频率和电压
-                                   // 策略配置文件路径
+// 策略配置文件路径
 pub const CONFIG_TOML_FILE: &str = "/data/adb/gpu_governor/config/config.toml";

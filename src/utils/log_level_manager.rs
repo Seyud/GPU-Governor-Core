@@ -1,6 +1,6 @@
 use anyhow::Result;
 use inotify::WatchMask;
-use log::{debug, info, warn, LevelFilter};
+use log::{LevelFilter, debug, info, warn};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -96,13 +96,14 @@ impl LogLevelManager {
             }
         }
         // 如果新等级不是Debug，且之前是Debug，则停止监控
-        else if new_level != LevelFilter::Debug && old_level == LevelFilter::Debug {
-            if let Some(mut rotation_monitor) = monitor.take() {
-                if let Err(e) = rotation_monitor.stop() {
-                    warn!("Failed to stop log rotation monitor: {}", e);
-                } else {
-                    info!("Log rotation background monitor stopped (Debug mode disabled)");
-                }
+        else if new_level != LevelFilter::Debug
+            && old_level == LevelFilter::Debug
+            && let Some(mut rotation_monitor) = monitor.take()
+        {
+            if let Err(e) = rotation_monitor.stop() {
+                warn!("Failed to stop log rotation monitor: {}", e);
+            } else {
+                info!("Log rotation background monitor stopped (Debug mode disabled)");
             }
         }
     }

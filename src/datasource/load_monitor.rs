@@ -3,7 +3,7 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use log::{debug, error, info};
 
 use crate::{
@@ -52,16 +52,16 @@ fn kernel_ged_load() -> Result<i32> {
     let buf = read_file(KERNEL_LOAD, 32)?;
     let parts: Vec<&str> = buf.split_whitespace().collect();
 
-    if parts.len() >= 3 {
-        if let Ok(idle) = parts[2].parse::<i32>() {
-            let load = 100 - idle;
-            debug!("gedload {load}");
-            return Ok(if 100 - idle == 0 {
-                module_ged_load()?
-            } else {
-                100 - idle
-            });
-        }
+    if parts.len() >= 3
+        && let Ok(idle) = parts[2].parse::<i32>()
+    {
+        let load = 100 - idle;
+        debug!("gedload {load}");
+        return Ok(if 100 - idle == 0 {
+            module_ged_load()?
+        } else {
+            100 - idle
+        });
     }
 
     module_ged_idle()
@@ -75,16 +75,16 @@ fn kernel_debug_ged_load() -> Result<i32> {
     let buf = read_file(KERNEL_D_LOAD, 32)?;
     let parts: Vec<&str> = buf.split_whitespace().collect();
 
-    if parts.len() >= 3 {
-        if let Ok(idle) = parts[2].parse::<i32>() {
-            let load = 100 - idle;
-            debug!("dbggedload {load}");
-            return Ok(if 100 - idle == 0 {
-                kernel_ged_load()?
-            } else {
-                100 - idle
-            });
-        }
+    if parts.len() >= 3
+        && let Ok(idle) = parts[2].parse::<i32>()
+    {
+        let load = 100 - idle;
+        debug!("dbggedload {load}");
+        return Ok(if 100 - idle == 0 {
+            kernel_ged_load()?
+        } else {
+            100 - idle
+        });
     }
 
     kernel_ged_load()
@@ -98,16 +98,16 @@ fn kernel_d_ged_load() -> Result<i32> {
     let buf = read_file(KERNEL_DEBUG_LOAD, 32)?;
     let parts: Vec<&str> = buf.split_whitespace().collect();
 
-    if parts.len() >= 3 {
-        if let Ok(idle) = parts[2].parse::<i32>() {
-            let load = 100 - idle;
-            debug!("dgedload {load}");
-            return Ok(if 100 - idle == 0 {
-                kernel_debug_ged_load()?
-            } else {
-                100 - idle
-            });
-        }
+    if parts.len() >= 3
+        && let Ok(idle) = parts[2].parse::<i32>()
+    {
+        let load = 100 - idle;
+        debug!("dgedload {load}");
+        return Ok(if 100 - idle == 0 {
+            kernel_debug_ged_load()?
+        } else {
+            100 - idle
+        });
     }
 
     kernel_debug_ged_load()
@@ -121,15 +121,15 @@ fn mali_load() -> Result<i32> {
     let buf = read_file(PROC_MALI_LOAD, 256)?;
 
     // Parse "gpu/cljs0/cljs1=XX" format
-    if let Some(pos) = buf.find('=') {
-        if let Ok(load) = buf[pos + 1..].trim().parse::<i32>() {
-            debug!("mali {load}");
-            return Ok(if load == 0 {
-                kernel_d_ged_load()?
-            } else {
-                load
-            });
-        }
+    if let Some(pos) = buf.find('=')
+        && let Ok(load) = buf[pos + 1..].trim().parse::<i32>()
+    {
+        debug!("mali {load}");
+        return Ok(if load == 0 {
+            kernel_d_ged_load()?
+        } else {
+            load
+        });
     }
 
     kernel_d_ged_load()
@@ -143,11 +143,11 @@ fn mtk_load() -> Result<i32> {
     let buf = read_file(PROC_MTK_LOAD, 256)?;
 
     // Parse "ACTIVE=XX" format
-    if let Some(pos) = buf.find("ACTIVE=") {
-        if let Ok(load) = buf[pos + 7..].trim().parse::<i32>() {
-            debug!("mtk_mali {load}");
-            return Ok(if load == 0 { mali_load()? } else { load });
-        }
+    if let Some(pos) = buf.find("ACTIVE=")
+        && let Ok(load) = buf[pos + 7..].trim().parse::<i32>()
+    {
+        debug!("mtk_mali {load}");
+        return Ok(if load == 0 { mali_load()? } else { load });
     }
 
     mali_load()
@@ -172,11 +172,11 @@ fn gpufreq_load() -> Result<i32> {
         let line = line?;
 
         // Parse "gpu_loading = XX" format
-        if let Some(pos) = line.find("gpu_loading = ") {
-            if let Ok(load) = line[pos + 14..].trim().parse::<i32>() {
-                debug!("gpufreq {load}");
-                return Ok(if load == 0 { mtk_load()? } else { load });
-            }
+        if let Some(pos) = line.find("gpu_loading = ")
+            && let Ok(load) = line[pos + 14..].trim().parse::<i32>()
+        {
+            debug!("gpufreq {load}");
+            return Ok(if load == 0 { mtk_load()? } else { load });
         }
     }
 
@@ -208,36 +208,36 @@ fn debug_dvfs_load_func() -> Result<i32> {
     // Parse the second line which contains the values
     let parts: Vec<&str> = lines[1].split_whitespace().collect();
 
-    if parts.len() >= 3 {
-        if let (Ok(busy), Ok(idle), Ok(protm)) = (
+    if parts.len() >= 3
+        && let (Ok(busy), Ok(idle), Ok(protm)) = (
             parts[0].parse::<i64>(),
             parts[1].parse::<i64>(),
             parts[2].parse::<i64>(),
-        ) {
-            // Get previous values safely
-            let (prev_busy, prev_idle, prev_protm) = unsafe { (PREV_BUSY, PREV_IDLE, PREV_PROTM) };
+        )
+    {
+        // Get previous values safely
+        let (prev_busy, prev_idle, prev_protm) = unsafe { (PREV_BUSY, PREV_IDLE, PREV_PROTM) };
 
-            // Calculate differences
-            let diff_busy = busy - prev_busy;
-            let diff_idle = idle - prev_idle;
-            let diff_protm = protm - prev_protm;
+        // Calculate differences
+        let diff_busy = busy - prev_busy;
+        let diff_idle = idle - prev_idle;
+        let diff_protm = protm - prev_protm;
 
-            // Update previous values
-            unsafe {
-                PREV_BUSY = busy;
-                PREV_IDLE = idle;
-                PREV_PROTM = protm;
-            }
+        // Update previous values
+        unsafe {
+            PREV_BUSY = busy;
+            PREV_IDLE = idle;
+            PREV_PROTM = protm;
+        }
 
-            // Calculate load percentage
-            let total = diff_busy + diff_idle + diff_protm;
-            if total > 0 {
-                let load = ((diff_busy + diff_protm) * 100 / total) as i32;
-                let load = if load < 0 { 0 } else { load };
+        // Calculate load percentage
+        let total = diff_busy + diff_idle + diff_protm;
+        if total > 0 {
+            let load = ((diff_busy + diff_protm) * 100 / total) as i32;
+            let load = if load < 0 { 0 } else { load };
 
-                debug!("debugutil: {load} {diff_busy} {diff_idle} {diff_protm}");
-                return Ok(if load == 0 { mtk_load()? } else { load });
-            }
+            debug!("debugutil: {load} {diff_busy} {diff_idle} {diff_protm}");
+            return Ok(if load == 0 { mtk_load()? } else { load });
         }
     }
 
@@ -386,11 +386,11 @@ fn read_v1_gpu_freq_from_var_dump() -> Result<i64> {
             }
         }
         // 兼容原有的"cur_freq = XX"格式（备用）
-        else if let Some(pos) = line.find("cur_freq = ") {
-            if let Ok(freq) = line[pos + 11..].trim().parse::<i64>() {
-                debug!("V1 driver GPU frequency from {GPU_FREQ_LOAD_PATH} (legacy format): {freq}");
-                return Ok(freq);
-            }
+        else if let Some(pos) = line.find("cur_freq = ")
+            && let Ok(freq) = line[pos + 11..].trim().parse::<i64>()
+        {
+            debug!("V1 driver GPU frequency from {GPU_FREQ_LOAD_PATH} (legacy format): {freq}");
+            return Ok(freq);
         }
     }
 
@@ -458,7 +458,9 @@ pub fn utilization_init() -> Result<()> {
 
     // 检查是否可以读取GPU频率
     if !freq_path_available {
-        error!("Can't read GPU frequency: all paths ({GPU_CURRENT_FREQ_PATH}, {GPU_DEBUG_CURRENT_FREQ_PATH}, {GPU_FREQ_LOAD_PATH}) are unavailable!");
+        error!(
+            "Can't read GPU frequency: all paths ({GPU_CURRENT_FREQ_PATH}, {GPU_DEBUG_CURRENT_FREQ_PATH}, {GPU_FREQ_LOAD_PATH}) are unavailable!"
+        );
         return Err(anyhow!(
             "Can't read GPU frequency: no valid frequency path available"
         ));

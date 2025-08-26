@@ -109,7 +109,9 @@ impl DdrManager {
                 }
 
                 if !path_written {
-                    debug!("Failed to write DDR_AUTO_MODE_V2 to any v2 driver path (continuing execution)");
+                    debug!(
+                        "Failed to write DDR_AUTO_MODE_V2 to any v2 driver path (continuing execution)"
+                    );
                 }
             } else {
                 // v1 driver，使用DDR_AUTO_MODE_V1（-1）表示自动模式
@@ -223,16 +225,12 @@ impl DdrManager {
                             let reader = BufReader::new(file);
 
                             for line in reader.lines().map_while(Result::ok) {
-                                if line.contains("[OPP") {
-                                    // 解析OPP行
-                                    if let Some(opp_str) = line.get(4..6) {
-                                        if let Ok(opp) = opp_str.parse::<i64>() {
-                                            freq_table.push((
-                                                opp,
-                                                format!("OPP{:02}: {}", opp, line.trim()),
-                                            ));
-                                        }
-                                    }
+                                if line.contains("[OPP")
+                                    && let Some(opp_str) = line.get(4..6)
+                                    && let Ok(opp) = opp_str.parse::<i64>()
+                                {
+                                    freq_table
+                                        .push((opp, format!("OPP{:02}: {}", opp, line.trim())));
                                 }
                             }
                         }
@@ -261,13 +259,10 @@ impl DdrManager {
                                     if opp_part.starts_with("[OPP")
                                         && opp_part.len() >= 6
                                         && ddr_part.starts_with("ddr:")
+                                        && let Ok(opp) = opp_part[4..6].parse::<i64>()
                                     {
-                                        if let Ok(opp) = opp_part[4..6].parse::<i64>() {
-                                            let ddr_desc =
-                                                ddr_part.trim_start_matches("ddr:").trim();
-                                            freq_table
-                                                .push((opp, format!("OPP{opp:02}: {ddr_desc}")));
-                                        }
+                                        let ddr_desc = ddr_part.trim_start_matches("ddr:").trim();
+                                        freq_table.push((opp, format!("OPP{opp:02}: {ddr_desc}")));
                                     }
                                 }
                             }
@@ -307,11 +302,12 @@ impl DdrManager {
             let reader = BufReader::new(file);
 
             for line in reader.lines().map_while(Result::ok) {
-                if line.contains("[OPP") && line.len() >= 6 {
-                    if let Ok(opp) = line[4..6].parse::<i64>() {
-                        freq_list.push(opp);
-                        debug!("Found V2 driver DDR OPP value: {opp}");
-                    }
+                if line.contains("[OPP")
+                    && line.len() >= 6
+                    && let Ok(opp) = line[4..6].parse::<i64>()
+                {
+                    freq_list.push(opp);
+                    debug!("Found V2 driver DDR OPP value: {opp}");
                 }
             }
 

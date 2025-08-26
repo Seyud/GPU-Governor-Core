@@ -7,7 +7,7 @@ use anyhow::Result;
 use log::{error, info, warn};
 use serde::Deserialize;
 
-use crate::model::gpu::{TabType, GPU};
+use crate::model::gpu::{GPU, TabType};
 
 #[derive(Deserialize)]
 struct FreqTableEntry {
@@ -42,7 +42,9 @@ pub fn freq_table_read(config_file: &str, gpu: &mut GPU) -> Result<()> {
         let dram = entry.ddr_opp;
 
         if !volt_is_valid(volt) {
-            error!("Entry freq={freq}, volt={volt}, ddr_opp={dram} is invalid: volt {volt} is not valid");
+            error!(
+                "Entry freq={freq}, volt={volt}, ddr_opp={dram} is invalid: volt {volt} is not valid"
+            );
             continue;
         }
 

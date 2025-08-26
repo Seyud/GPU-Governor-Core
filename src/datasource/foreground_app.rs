@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use dumpsys_rs::Dumpsys;
 use inotify::WatchMask;
 use log::{debug, info, warn};
@@ -185,7 +185,7 @@ pub fn monitor_foreground_app(mut gpu: GPU) -> Result<()> {
     // 初始化缓存
     let mut app_cache = ForegroundAppCache::new();
     let cache_ttl = Duration::from_millis(1000); // 缓存有效期1秒
-                                                 // 初始化警告限流器，设置60秒的限流时间
+    // 初始化警告限流器，设置60秒的限流时间
     let mut warning_throttler = WarningThrottler::new(43200); // 12小时限流
 
     // 读取游戏列表
@@ -206,15 +206,15 @@ pub fn monitor_foreground_app(mut gpu: GPU) -> Result<()> {
     // 主循环
     loop {
         // 检查inotify事件，只在游戏列表文件变化时才重新读取
-        if let Ok(events) = inotify.check_events() {
-            if !events.is_empty() {
-                debug!("Detected changes in games list file");
-                games = read_games_list(GAMES_CONF_PATH)?;
-                info!(
-                    "The game configuration file has changed. Loaded {} games.",
-                    games.len()
-                );
-            }
+        if let Ok(events) = inotify.check_events()
+            && !events.is_empty()
+        {
+            debug!("Detected changes in games list file");
+            games = read_games_list(GAMES_CONF_PATH)?;
+            info!(
+                "The game configuration file has changed. Loaded {} games.",
+                games.len()
+            );
         }
 
         // 获取前台应用
@@ -317,4 +317,4 @@ pub fn monitor_foreground_app(mut gpu: GPU) -> Result<()> {
         thread::sleep(Duration::from_millis(1000));
     }
 }
-use crate::datasource::config_parser::{load_config, Config}; // 添加 Config 导入
+use crate::datasource::config_parser::{Config, load_config}; // 添加 Config 导入
