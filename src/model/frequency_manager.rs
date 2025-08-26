@@ -137,8 +137,17 @@ impl FrequencyManager {
         // 对于v2 driver设备，获取支持的最接近频率
         let freq_to_use = self.get_closest_v2_supported_freq(self.cur_freq);
 
-        // 获取电压值，优先使用频率-电压表，如果没有则尝试使用默认电压表
-        self.cur_volt = self.get_volt(freq_to_use);
+        // 获取电压值，优先使用原频率的电压，如果没有则使用最接近支持频率的电压
+        let original_volt = self.get_volt(self.cur_freq);
+        let closest_volt = self.get_volt(freq_to_use);
+
+        // 如果原频率有对应电压，优先使用原频率的电压
+        // 否则使用最接近支持频率的电压
+        self.cur_volt = if original_volt > 0 {
+            original_volt
+        } else {
+            closest_volt
+        };
 
         self.cur_volt
     }
