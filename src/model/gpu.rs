@@ -234,10 +234,6 @@ impl GPU {
     }
 
     // 最常用的空闲状态操作
-    pub fn reset_load_zone_counter(&mut self) {
-        self.idle_manager.reset_load_zone_counter()
-    }
-
     pub fn is_idle(&self) -> bool {
         self.idle_manager.is_idle()
     }
@@ -247,21 +243,15 @@ impl GPU {
         self.frequency_strategy.get_margin() as i64
     }
 
-    pub fn get_down_counter_threshold(&self) -> i64 {
-        self.frequency_strategy.get_down_counter_threshold() as i64
-    }
-
     // 批量设置方法 - 减少重复调用
     pub fn configure_strategy(
         &mut self,
         margin: i64,
-        down_counter_threshold: i64,
         sampling_interval: u64,
         aggressive_down: bool,
     ) {
         let strategy = &mut self.frequency_strategy;
         strategy.set_margin(margin.try_into().unwrap());
-        strategy.set_down_counter_threshold(down_counter_threshold.try_into().unwrap());
         strategy.set_sampling_interval(sampling_interval);
         strategy.set_aggressive_down(aggressive_down);
     }

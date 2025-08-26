@@ -7,8 +7,6 @@ pub struct FrequencyStrategy {
     pub down_debounce_time: u64, // 降频防抖时间（毫秒）
     /// 调整余量
     pub margin: u32, // 频率调整余量（MHz）
-    /// 降频计数器配置值（0=禁用降频计数器功能）
-    pub down_counter_threshold: u32, // 降频计数器触发阈值
     /// 激进降频开关
     pub aggressive_down: bool, // 是否启用激进降频
     /// 采样间隔
@@ -22,7 +20,6 @@ impl FrequencyStrategy {
         Self {
             up_debounce_time: up_time,
             margin: 50,
-            down_counter_threshold: 0,
             aggressive_down: true,
             sampling_interval: 8,
             last_adjustment_time: 0,
@@ -33,11 +30,6 @@ impl FrequencyStrategy {
     /// 设置频率调整余量
     pub fn set_margin(&mut self, margin: u32) {
         self.margin = margin;
-    }
-
-    /// 设置降频计数器配置值
-    pub fn set_down_counter_threshold(&mut self, threshold: u32) {
-        self.down_counter_threshold = threshold;
     }
 
     /// 设置激进降频开关
@@ -58,11 +50,6 @@ impl FrequencyStrategy {
     /// 获取余量
     pub fn get_margin(&self) -> u32 {
         self.margin
-    }
-
-    /// 获取降频计数器配置值
-    pub fn get_down_counter_threshold(&self) -> u32 {
-        self.down_counter_threshold
     }
 
     /// 更新最后调整时间

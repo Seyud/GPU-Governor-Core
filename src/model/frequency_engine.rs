@@ -165,8 +165,7 @@ impl FrequencyAdjustmentEngine {
         // 更新游戏模式下的DDR频率
         Self::update_ddr_if_gaming(gpu, new_freq)?;
 
-        // 重置计数器并更新时间
-        gpu.reset_load_zone_counter();
+        // 更新时间
         gpu.frequency_strategy_mut()
             .update_last_adjustment_time(current_time);
 

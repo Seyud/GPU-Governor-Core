@@ -117,10 +117,8 @@ fn start_monitoring_threads(gpu: GPU) {
 
 /// 配置GPU策略
 fn configure_gpu_strategy(gpu: &mut GPU) {
-    // 使用超简化的90%升频策略
     gpu.configure_strategy(
         0,                                 // 无余量
-        10,                                // 降频阈值
         strategy::SAMPLING_INTERVAL_120HZ, // 120Hz采样
         true,                              // 激进降频
     );
@@ -159,10 +157,6 @@ fn display_system_info(gpu: &GPU) {
             } else {
                 "Disabled"
             }
-        );
-        info!(
-            "V2 Driver Down Threshold: {} times",
-            gpu.get_down_counter_threshold()
         );
     }
 
