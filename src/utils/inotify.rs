@@ -27,7 +27,7 @@ impl InotifyWatcher {
             .to_str()
             .with_context(|| format!("Invalid path: {}", path_ref.display()))?;
 
-        // Add DELETE_SELF and MOVE_SELF to the mask
+        // 将 DELETE_SELF 和 MOVE_SELF 添加到监控掩码中
         let mask = mask | WatchMask::DELETE_SELF | WatchMask::MOVE_SELF;
 
         let wd = self
@@ -97,12 +97,12 @@ impl InotifyWatcher {
     where
         I: IntoIterator<Item = inotify::Event<&'static [u8]>>,
     {
-        // Collect all watches that need to be updated
+        // 收集所有需要更新的监控项
         let mut watches_to_update = Vec::new();
 
         for event in events {
             if let Some(path) = self.watches.get(&event.wd) {
-                // Re-establish watching after deleting
+                // 在删除后重新建立监控
                 if event.mask.contains(EventMask::IGNORED)
                     || event.mask.contains(EventMask::DELETE_SELF)
                     || event.mask.contains(EventMask::MOVE_SELF)
@@ -112,12 +112,12 @@ impl InotifyWatcher {
             }
         }
 
-        // Update watches
+        // 更新监控
         for (wd, path) in watches_to_update {
-            // Try to recreate the file if it doesn't exist
+            // 如果文件不存在，尝试重新创建
             try_path(&path)?;
 
-            // Re-add the watch
+            // 重新添加监控
             let mask = WatchMask::MODIFY
                 | WatchMask::CLOSE_WRITE
                 | WatchMask::DELETE_SELF
@@ -129,7 +129,7 @@ impl InotifyWatcher {
                 .add(&path, mask)
                 .with_context(|| format!("Failed to re-add watch for: {path}"))?;
 
-            // Update the watches map
+            // 更新监控映射表
             self.watches.remove(&wd);
             self.watches.insert(new_wd, path);
         }
@@ -142,10 +142,10 @@ fn try_path(path: &str) -> Result<()> {
     let path = Path::new(path);
 
     if !path.exists() {
-        // Sleep a bit to allow for file system operations to complete
+        // 稍作等待，让文件系统操作完成
         thread::sleep(Duration::from_micros(WAIT_MOVE_US));
 
-        // Set permissions
+        // 设置权限
         unsafe {
             libc::chmod(
                 path.to_str().unwrap_or("").as_ptr() as *const libc::c_char,

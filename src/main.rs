@@ -1,4 +1,3 @@
-#![allow(non_snake_case)]
 mod datasource;
 mod model;
 mod utils;
