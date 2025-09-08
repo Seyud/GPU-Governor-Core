@@ -1,7 +1,7 @@
 use crate::datasource::file_path::CONFIG_TOML_FILE;
 use crate::model::gpu::GPU;
 use anyhow::Result;
-use log::info;
+use log::{info, warn};
 use serde::Deserialize;
 use std::fs;
 
@@ -55,7 +55,8 @@ pub fn load_config(gpu: &mut GPU, target_mode: Option<&str>) -> Result<()> {
         "performance" => &config.performance,
         "fast" => &config.fast,
         _ => {
-            info!("Invalid mode '{mode}', using balance mode");
+            // 非法模式：采用回退策略并给出警告
+            warn!("Invalid mode '{mode}', using balance mode");
             &config.balance
         }
     };
