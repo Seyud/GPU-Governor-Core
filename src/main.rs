@@ -9,7 +9,7 @@ use log::{error, info, warn};
 
 use crate::{
     datasource::{
-        config_parser::load_config,
+        config_parser::{ConfigDelta, load_config, read_config_delta},
         file_path::*,
         foreground_app::monitor_foreground_app,
         freq_table::gpufreq_table_init,
@@ -62,7 +62,7 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
 }
 
 /// 启动监控线程
-fn start_monitoring_threads(gpu: GPU) {
+fn start_monitoring_threads(gpu: GPU, tx: std::sync::mpsc::Sender<ConfigDelta>) {
     // 频率表配置监控线程
     let gpu_clone2 = gpu.clone();
     thread::Builder::new()
@@ -103,28 +103,15 @@ fn start_monitoring_threads(gpu: GPU) {
         .expect("Failed to spawn log level monitor thread");
 
     // 自定义配置监控线程
-    let gpu_clone5 = gpu.clone();
+    let tx_clone = tx.clone();
     thread::Builder::new()
         .name(CONFIG_MONITOR_THREAD.to_string())
         .spawn(move || {
-            if let Err(e) = monitor_custom_config(gpu_clone5) {
+            if let Err(e) = monitor_custom_config(tx_clone) {
                 error!("Custom config monitor error: {e}");
             }
         })
         .expect("Failed to spawn custom config monitor thread");
-}
-
-/// 配置GPU策略
-fn configure_gpu_strategy(gpu: &mut GPU) {
-    gpu.configure_strategy(
-        0,                                 // 无余量
-        strategy::SAMPLING_INTERVAL_120HZ, // 120Hz采样
-        true,                              // 激进降频
-    );
-
-    // 禁用自适应采样，使用固定采样间隔
-    gpu.frequency_strategy_mut()
-        .set_sampling_interval(strategy::SAMPLING_INTERVAL_120HZ);
 }
 
 /// 显示系统信息
@@ -229,7 +216,13 @@ fn main() -> Result<()> {
     initialize_gpu_config(&mut gpu)?;
 
     // 启动监控线程
-    start_monitoring_threads(gpu.clone());
+    let (tx, rx) = std::sync::mpsc::channel::<ConfigDelta>();
+    start_monitoring_threads(gpu.clone(), tx);
+
+    // 发送一次初始配置增量（非必须，保证与初始化加载一致）
+    if let Ok(delta) = read_config_delta(None) {
+        gpu.apply_config_delta(&delta);
+    }
 
     // 等待线程启动
     thread::sleep(Duration::from_secs(5));
@@ -238,14 +231,11 @@ fn main() -> Result<()> {
     gpu.set_cur_freq(gpu.get_freq_by_index(0));
     gpu.frequency_mut().gen_cur_volt();
 
-    // 配置策略
-    configure_gpu_strategy(&mut gpu);
-
     // 显示系统信息
     display_system_info(&gpu);
 
     info!("Advanced GPU Governor Started");
 
     // 开始频率调整
-    gpu.adjust_gpufreq()
+    gpu.adjust_gpufreq_with_updates(rx)
 }

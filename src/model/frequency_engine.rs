@@ -3,21 +3,32 @@ use log::{debug, warn};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::{datasource::load_monitor::get_gpu_load, model::gpu::GPU};
+use std::sync::mpsc::Receiver;
 
 /// GPU频率调整引擎 - 负责执行智能调频算法
 pub struct FrequencyAdjustmentEngine;
 
 impl FrequencyAdjustmentEngine {
     /// 主要的频率调整循环
-    pub fn run_adjustment_loop(gpu: &mut GPU) -> Result<()> {
+    pub fn run_adjustment_loop(
+        gpu: &mut GPU,
+        rx: Option<Receiver<crate::datasource::config_parser::ConfigDelta>>,
+    ) -> Result<()> {
         debug!(
             "config:{:?}, freq:{}",
             gpu.get_config_list(),
             gpu.get_cur_freq()
         );
-
+        let rx = rx; // shadow
         loop {
             let current_time = Self::get_current_time_ms();
+
+            // 非阻塞接收所有配置增量
+            if let Some(r) = &rx {
+                while let Ok(delta) = r.try_recv() {
+                    gpu.apply_config_delta(&delta);
+                }
+            }
 
             // 更新当前GPU频率
             Self::update_current_frequency(gpu)?;

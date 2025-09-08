@@ -5,7 +5,7 @@ use log::info;
 use serde::Deserialize;
 use std::fs;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Config {
     global: Global,
     powersave: ModeParams,
@@ -20,13 +20,13 @@ impl Config {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct Global {
     mode: String,
     idle_threshold: i32,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct ModeParams {
     margin: i64,
     aggressive_down: bool,
@@ -78,4 +78,43 @@ pub fn load_config(gpu: &mut GPU, target_mode: Option<&str>) -> Result<()> {
 
     info!("Loaded config for mode: {}", config.global.mode);
     Ok(())
+}
+
+#[derive(Clone, Debug)]
+pub struct ConfigDelta {
+    pub margin: i64,
+    pub aggressive_down: bool,
+    pub sampling_interval: u64,
+    pub gaming_mode: bool,
+    pub adaptive_sampling: bool,
+    pub min_adaptive_interval: u64,
+    pub max_adaptive_interval: u64,
+    pub up_rate_delay: u64,
+    pub down_rate_delay: u64,
+    pub idle_threshold: Option<i32>,
+}
+
+pub fn read_config_delta(target_mode: Option<&str>) -> Result<ConfigDelta> {
+    let content = std::fs::read_to_string(CONFIG_TOML_FILE)?;
+    let config: Config = toml::from_str(&content)?;
+    let mode = target_mode.unwrap_or(&config.global.mode);
+    let params = match mode {
+        "powersave" => &config.powersave,
+        "balance" => &config.balance,
+        "performance" => &config.performance,
+        "fast" => &config.fast,
+        _ => &config.balance,
+    };
+    Ok(ConfigDelta {
+        margin: params.margin,
+        aggressive_down: params.aggressive_down,
+        sampling_interval: params.sampling_interval,
+        gaming_mode: params.gaming_mode,
+        adaptive_sampling: params.adaptive_sampling,
+        min_adaptive_interval: params.min_adaptive_interval,
+        max_adaptive_interval: params.max_adaptive_interval,
+        up_rate_delay: params.up_rate_delay,
+        down_rate_delay: params.down_rate_delay,
+        idle_threshold: Some(config.global.idle_threshold),
+    })
 }

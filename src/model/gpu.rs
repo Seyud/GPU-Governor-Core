@@ -243,19 +243,6 @@ impl GPU {
         self.frequency_strategy.get_margin() as i64
     }
 
-    // 批量设置方法 - 减少重复调用
-    pub fn configure_strategy(
-        &mut self,
-        margin: i64,
-        sampling_interval: u64,
-        aggressive_down: bool,
-    ) {
-        let strategy = &mut self.frequency_strategy;
-        strategy.set_margin(margin.try_into().unwrap());
-        strategy.set_sampling_interval(sampling_interval);
-        strategy.set_aggressive_down(aggressive_down);
-    }
-
     // 最常用的DDR操作
     pub fn set_ddr_freq(&mut self, freq: i64) -> Result<()> {
         self.ddr_manager.set_ddr_freq(freq)
@@ -356,10 +343,43 @@ impl GPU {
         closest_idx
     }
 
-    // 主要的频率调整方法 - 现在使用新的引擎
-    pub fn adjust_gpufreq(&mut self) -> Result<()> {
+    // 带通道的热更新版本
+    pub fn adjust_gpufreq_with_updates(
+        &mut self,
+        rx: std::sync::mpsc::Receiver<crate::datasource::config_parser::ConfigDelta>,
+    ) -> Result<()> {
         use crate::model::frequency_engine::FrequencyAdjustmentEngine;
-        FrequencyAdjustmentEngine::run_adjustment_loop(self)
+        FrequencyAdjustmentEngine::run_adjustment_loop(self, Some(rx))
+    }
+
+    pub fn apply_config_delta(&mut self, delta: &crate::datasource::config_parser::ConfigDelta) {
+        self.frequency_strategy.set_margin(delta.margin as u32);
+        self.frequency_strategy
+            .set_aggressive_down(delta.aggressive_down);
+        if delta.adaptive_sampling {
+            self.set_adaptive_sampling(
+                true,
+                delta.min_adaptive_interval,
+                delta.max_adaptive_interval,
+                delta.sampling_interval,
+            );
+        } else {
+            self.set_adaptive_sampling(false, 0, 0, delta.sampling_interval);
+        }
+        self.set_up_rate_delay(delta.up_rate_delay);
+        self.set_debounce_times(delta.up_rate_delay, delta.down_rate_delay);
+        self.set_gaming_mode(delta.gaming_mode);
+        if let Some(idle) = delta.idle_threshold {
+            self.idle_manager_mut().set_idle_threshold(idle);
+        }
+        log::info!(
+            "Applied config delta: margin={} sampling={} adaptive={} gaming={} idle_threshold={:?}",
+            delta.margin,
+            delta.sampling_interval,
+            delta.adaptive_sampling,
+            delta.gaming_mode,
+            delta.idle_threshold
+        );
     }
 }
 

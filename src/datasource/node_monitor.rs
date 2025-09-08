@@ -3,10 +3,15 @@ use inotify::WatchMask;
 use log::{error, info, warn};
 
 use crate::{
-    datasource::{config_parser::load_config, file_path::*, freq_table_parser::freq_table_read},
+    datasource::{
+        config_parser::{ConfigDelta, read_config_delta},
+        file_path::*,
+        freq_table_parser::freq_table_read,
+    },
     model::gpu::GPU,
     utils::{file_operate::check_read_simple, inotify::InotifyWatcher},
 };
+use std::sync::mpsc::Sender;
 
 pub fn monitor_freq_table_config(mut gpu: GPU) -> Result<()> {
     // 设置线程名称（在Rust中无法轻易设置当前线程名称）
@@ -53,7 +58,7 @@ pub fn monitor_freq_table_config(mut gpu: GPU) -> Result<()> {
     }
 }
 
-pub fn monitor_custom_config(mut gpu: GPU) -> Result<()> {
+pub fn monitor_custom_config(tx: Sender<ConfigDelta>) -> Result<()> {
     // 设置线程名称
     info!("{CONFIG_MONITOR_THREAD} Start");
 
@@ -73,13 +78,13 @@ pub fn monitor_custom_config(mut gpu: GPU) -> Result<()> {
 
     loop {
         inotify.wait_and_handle()?;
-        match load_config(&mut gpu, None) {
-            Ok(_) => {
-                info!("Custom config reloaded successfully");
+        match read_config_delta(None) {
+            Ok(delta) => {
+                if tx.send(delta).is_ok() {
+                    info!("Custom config delta sent");
+                }
             }
-            Err(e) => {
-                warn!("Failed to reload custom config: {e}");
-            }
+            Err(e) => warn!("Failed to parse custom config: {e}"),
         }
     }
 }

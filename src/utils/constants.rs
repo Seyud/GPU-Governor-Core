@@ -9,6 +9,5 @@ pub const VERSION: &str = "Version: v2.9.0";
 /// GPU 调频策略常量
 pub mod strategy {
     pub const IDLE_THRESHOLD: i32 = 5;
-    pub const SAMPLING_INTERVAL_120HZ: u64 = 8; // 8ms = ~120Hz
     pub const FOREGROUND_APP_STARTUP_DELAY: u64 = 60; // seconds
 }
