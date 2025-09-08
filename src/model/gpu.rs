@@ -372,6 +372,13 @@ impl GPU {
         if let Some(idle) = delta.idle_threshold {
             self.idle_manager_mut().set_idle_threshold(idle);
         }
+        // 同步模式名称（仅当提供且与当前不同）
+        if let Some(ref mode_name) = delta.mode
+            && self.current_mode != *mode_name
+        {
+            self.set_current_mode(mode_name.clone());
+            log::info!("Current mode synced to: {}", mode_name);
+        }
         log::info!(
             "Applied config delta: margin={} sampling={} adaptive={} gaming={} idle_threshold={:?}",
             delta.margin,

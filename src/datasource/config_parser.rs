@@ -93,6 +93,7 @@ pub struct ConfigDelta {
     pub up_rate_delay: u64,
     pub down_rate_delay: u64,
     pub idle_threshold: Option<i32>,
+    pub mode: Option<String>, // 新增：用于同步 global.mode / 当前模式名
 }
 
 pub fn read_config_delta(target_mode: Option<&str>) -> Result<ConfigDelta> {
@@ -117,5 +118,6 @@ pub fn read_config_delta(target_mode: Option<&str>) -> Result<ConfigDelta> {
         up_rate_delay: params.up_rate_delay,
         down_rate_delay: params.down_rate_delay,
         idle_threshold: Some(config.global.idle_threshold),
+        mode: Some(config.global.mode.clone()),
     })
 }

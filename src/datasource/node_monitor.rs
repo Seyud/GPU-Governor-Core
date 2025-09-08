@@ -4,12 +4,15 @@ use log::{error, info, warn};
 
 use crate::{
     datasource::{
-        config_parser::{ConfigDelta, read_config_delta},
+        config_parser::{Config, ConfigDelta, read_config_delta},
         file_path::*,
         freq_table_parser::freq_table_read,
     },
     model::gpu::GPU,
-    utils::{file_operate::check_read_simple, inotify::InotifyWatcher},
+    utils::{
+        file_operate::{check_read_simple, write_file},
+        inotify::InotifyWatcher,
+    },
 };
 use std::sync::mpsc::Sender;
 
@@ -76,8 +79,16 @@ pub fn monitor_custom_config(tx: Sender<ConfigDelta>) -> Result<()> {
     let mut inotify = InotifyWatcher::new()?;
     inotify.add(&config_file, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
 
+    // 记录上一次的全局模式（启动时读取一次，失败则留空）
+    let mut last_mode: Option<String> = std::fs::read_to_string(&config_file)
+        .ok()
+        .and_then(|c| toml::from_str::<Config>(&c).ok())
+        .map(|cfg| cfg.global_mode().to_string());
+
     loop {
         inotify.wait_and_handle()?;
+
+        // 先发送参数增量
         match read_config_delta(None) {
             Ok(delta) => {
                 if tx.send(delta).is_ok() {
@@ -85,6 +96,27 @@ pub fn monitor_custom_config(tx: Sender<ConfigDelta>) -> Result<()> {
                 }
             }
             Err(e) => warn!("Failed to parse custom config: {e}"),
+        }
+
+        // 检测全局模式是否变化，若变化则更新 CURRENT_MODE_PATH
+        match std::fs::read_to_string(&config_file) {
+            Ok(content) => match toml::from_str::<Config>(&content) {
+                Ok(cfg) => {
+                    let mode_now = cfg.global_mode().to_string();
+                    if last_mode.as_deref() != Some(mode_now.as_str()) {
+                        // 更新文件
+                        match write_file(CURRENT_MODE_PATH, mode_now.as_bytes(), 1024) {
+                            Ok(_) => info!(
+                                "Global mode changed -> {mode_now}, current_mode file updated"
+                            ),
+                            Err(e) => warn!("Failed to write current_mode file: {e}"),
+                        }
+                        last_mode = Some(mode_now);
+                    }
+                }
+                Err(e) => warn!("Failed to parse config.toml when checking mode change: {e}"),
+            },
+            Err(e) => warn!("Failed to read config.toml when checking mode change: {e}"),
         }
     }
 }
