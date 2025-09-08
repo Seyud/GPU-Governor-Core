@@ -79,8 +79,11 @@ impl FrequencyAdjustmentEngine {
 
     /// 处理空闲状态
     fn handle_idle_state(gpu: &GPU) {
-        let idle_sleep_time = if gpu.is_precise() { 200 } else { 160 };
-        debug!("Idle state, sleeping for {idle_sleep_time}ms");
+        let idle_sleep_time = 160; // 统一使用普通模式的休眠时间
+        debug!(
+            "Idle state, sleeping for {idle_sleep_time}ms (precise mode: {})",
+            gpu.is_precise()
+        );
         std::thread::sleep(Duration::from_millis(idle_sleep_time));
     }
 
@@ -188,13 +191,12 @@ impl FrequencyAdjustmentEngine {
 
     /// 应用采样间隔睡眠
     fn apply_sampling_sleep(gpu: &GPU) {
-        if gpu.is_precise() {
-            return; // 精确模式不睡眠
-        }
-
         let sleep_time = gpu.frequency_strategy.get_sampling_interval();
 
-        debug!("Sleeping for {sleep_time}ms");
+        debug!(
+            "Sleeping for {sleep_time}ms (precise mode: {})",
+            gpu.is_precise()
+        );
         std::thread::sleep(Duration::from_millis(sleep_time));
     }
 }
