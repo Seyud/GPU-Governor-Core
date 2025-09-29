@@ -1,6 +1,17 @@
 name: ci-build
 'on':
-  push: null
+  push:
+    paths:
+      # Rust源代码
+      - 'src/**'
+      # Cargo配置文件
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      # Git子模块配置
+      - '.gitmodules'
+      - 'module'
+      # 工作流文件本身
+      - '.github/workflows/build.yml'
 env:
   CARGO_TERM_COLOR: always
 jobs:
