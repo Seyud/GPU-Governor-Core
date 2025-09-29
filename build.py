@@ -159,7 +159,7 @@ class GPUGovernorBuilder:
 
         # 执行cargo clippy代码检查
         print("执行代码质量检查...")
-        clippy_cmd = ["cargo", "clippy", "--", "-D", "warnings"]
+        clippy_cmd = ["cargo", "clippy", "--target", self.target, "--", "-D", "warnings"]
         print(f"执行命令: {' '.join(clippy_cmd)}")
 
         try:
