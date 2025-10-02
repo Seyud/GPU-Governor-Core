@@ -7,12 +7,12 @@
 // 线程名称常量
 // =============================================================================
 
-/// 主监控线程名称
-pub const MAIN_THREAD: &str = "LoadMonitor";
+/// 主线程名称
+pub const MAIN_THREAD: &str = "GPU_GovMain";
 /// 频率表监控线程名称
-pub const FREQ_TABLE_MONITOR_THREAD: &str = "FreqTableMonitor";
+pub const FREQ_TABLE_MONITOR_THREAD: &str = "FreqTabMonitor";
 /// 前台应用监控线程名称
-pub const FOREGROUND_APP_THREAD: &str = "ForegroundAppWatcher";
+pub const FOREGROUND_APP_THREAD: &str = "FgAppWatcher";
 /// 日志级别监控线程名称
 pub const LOG_LEVEL_MONITOR_THREAD: &str = "LogLevelMonitor";
 /// 配置文件监控线程名称
