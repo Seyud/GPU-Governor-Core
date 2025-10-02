@@ -1,8 +1,8 @@
 [package]
 name = "gpugovernor"
-version = "2.9.0"
+version = "2.10.0"
 edition = "2024"
-authors = ["Rust Port: Seyud"]
+authors = ["Seyud", "Tools-cx-app"]
 description = "Mediatek Mali GPU Load-Based Frequency Adjustment"
 
 [dependencies]
@@ -16,6 +16,13 @@ regex = "1.11.3"
 dumpsys-rs = { git = "https://github.com/shadow3aaa/dumpsys-rs" }
 toml = "0.9.7"
 serde = { version = "1.0.228", features = ["derive"] }
+
+[profile.dev]
+opt-level = 0
+debug = true
+overflow-checks = true
+incremental = true
+codegen-units = 256
 
 [profile.release]
 overflow-checks = false
