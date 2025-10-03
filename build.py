@@ -11,16 +11,17 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
-import toml
+import tomllib
 
 
 
 class GPUGovernorBuilder:
     def __init__(self, config_path="build_config.toml"):
         # 读取配置文件
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = toml.load(f)
+        with open(config_path, 'rb') as f:
+            config = tomllib.load(f)
         
         # 配置路径
         paths = config.get('paths', {})
@@ -52,6 +53,7 @@ class GPUGovernorBuilder:
             "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER": f"{self.android_ndk_home}/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android33-clang.cmd",
             "LIBCLANG_PATH": f"{self.llvm_path}/bin",
             "BINDGEN_EXTRA_CLANG_ARGS": f"--target=aarch64-linux-android -I{self.android_ndk_home}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include",
+            "CARGO_TERM_COLOR": "always",
         }
 
         # 更新PATH环境变量
@@ -67,6 +69,54 @@ class GPUGovernorBuilder:
         for key, value in env_vars.items():
             os.environ[key] = str(value)
             print(f"设置环境变量: {key}={value}")
+
+    def _run_command_with_live_output(self, cmd):
+        """实时输出命令的执行进度，并收集完整输出"""
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+        )
+
+        stdout_lines = []
+        stderr_lines = []
+
+        def stream_output(pipe, buffer, target_stream):
+            try:
+                for line in iter(pipe.readline, ""):
+                    buffer.append(line)
+                    target_stream.write(line)
+                    target_stream.flush()
+            finally:
+                pipe.close()
+
+        stdout_thread = threading.Thread(
+            target=stream_output,
+            args=(process.stdout, stdout_lines, sys.stdout),
+            daemon=True,
+        )
+        stderr_thread = threading.Thread(
+            target=stream_output,
+            args=(process.stderr, stderr_lines, sys.stderr),
+            daemon=True,
+        )
+
+        stdout_thread.start()
+        stderr_thread.start()
+
+        try:
+            return_code = process.wait()
+        except KeyboardInterrupt:
+            process.terminate()
+            raise
+
+        stdout_thread.join()
+        stderr_thread.join()
+
+        return return_code, "".join(stdout_lines), "".join(stderr_lines)
 
     def _check_dependencies(self):
         """检查编译依赖是否存在"""
@@ -97,12 +147,12 @@ class GPUGovernorBuilder:
         constants_path = project_root / "src" / "utils" / "constants.rs"
 
         try:
-            with cargo_toml_path.open("r", encoding="utf-8") as cargo_file:
-                cargo_data = toml.load(cargo_file)
+            with cargo_toml_path.open("rb") as cargo_file:
+                cargo_data = tomllib.load(cargo_file)
         except FileNotFoundError:
             print(f"警告：未找到 Cargo.toml（{cargo_toml_path}），无法同步版本信息")
             return False
-        except toml.TomlDecodeError as exc:
+        except tomllib.TOMLDecodeError as exc:
             print(f"警告：解析 Cargo.toml 失败：{exc}")
             return False
 
@@ -217,49 +267,35 @@ class GPUGovernorBuilder:
         clippy_cmd = ["cargo", "clippy", "--target", self.target, "--", "-D", "warnings"]
         print(f"执行命令: {' '.join(clippy_cmd)}")
 
-        try:
-            result = subprocess.run(
-                clippy_cmd,
-                check=True,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="ignore",
-            )
-            print("代码质量检查通过！")
-            if result.stdout:
-                print(result.stdout)
-        except subprocess.CalledProcessError as e:
-            print(f"代码质量检查失败：{e}")
-            if hasattr(e, "stderr") and e.stderr:
-                print(f"错误输出：{e.stderr}")
-            if hasattr(e, "stdout") and e.stdout:
-                print(f"标准输出：{e.stdout}")
+        return_code, stdout, stderr = self._run_command_with_live_output(clippy_cmd)
+
+        if return_code != 0:
+            print(f"代码质量检查失败：命令返回码 {return_code}")
+            if stderr.strip():
+                print(f"错误输出：{stderr}")
+            if stdout.strip():
+                print(f"标准输出：{stdout}")
             print("请修复上述警告和错误后重新编译")
             return False
+
+        print("代码质量检查通过！")
 
         # 执行cargo build命令
         cmd = ["cargo", "build", "--release", "--target", self.target]
         print(f"执行命令: {' '.join(cmd)}")
 
-        try:
-            result = subprocess.run(
-                cmd,
-                check=True,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="ignore",
-            )
-            print("编译成功！")
-            if result.stdout:
-                print(result.stdout)
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"编译失败：{e}")
-            if hasattr(e, "stderr") and e.stderr:
-                print(f"错误输出：{e.stderr}")
+        return_code, stdout, stderr = self._run_command_with_live_output(cmd)
+
+        if return_code != 0:
+            print(f"编译失败：命令返回码 {return_code}")
+            if stderr.strip():
+                print(f"错误输出：{stderr}")
+            if stdout.strip():
+                print(f"标准输出：{stdout}")
             return False
+
+        print("编译成功！")
+        return True
 
     def copy_binary(self):
         """复制编译后的二进制文件到输出目录"""
