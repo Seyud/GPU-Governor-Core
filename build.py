@@ -90,9 +90,64 @@ class GPUGovernorBuilder:
         print("所有依赖项检查通过")
         return True
 
+    def _sync_version_constant(self):
+        """同步 Cargo.toml 中版本号到 constants.rs"""
+        project_root = Path(__file__).resolve().parent
+        cargo_toml_path = project_root / "Cargo.toml"
+        constants_path = project_root / "src" / "utils" / "constants.rs"
+
+        try:
+            with cargo_toml_path.open("r", encoding="utf-8") as cargo_file:
+                cargo_data = toml.load(cargo_file)
+        except FileNotFoundError:
+            print(f"警告：未找到 Cargo.toml（{cargo_toml_path}），无法同步版本信息")
+            return False
+        except toml.TomlDecodeError as exc:
+            print(f"警告：解析 Cargo.toml 失败：{exc}")
+            return False
+
+        version = cargo_data.get("package", {}).get("version")
+        if not version:
+            print("警告：Cargo.toml 中未找到版本号")
+            return False
+
+        if not constants_path.exists():
+            print(f"警告：未找到 constants.rs（{constants_path}），无法同步版本信息")
+            return False
+
+        version_line = f'pub const VERSION: &str = "Version: v{version}";\n'
+
+        try:
+            with constants_path.open("r", encoding="utf-8") as const_file:
+                lines = const_file.readlines()
+        except FileNotFoundError:
+            print(f"警告：无法读取 constants.rs（{constants_path}）")
+            return False
+
+        for index, line in enumerate(lines):
+            if line.lstrip().startswith("pub const VERSION"):
+                if lines[index] == version_line:
+                    print(f"版本常量已是最新：v{version}")
+                    return True
+                lines[index] = version_line
+                break
+        else:
+            lines.append("\n") if lines and lines[-1].strip() != "" else None
+            lines.append(version_line)
+
+        with constants_path.open("w", encoding="utf-8") as const_file:
+            const_file.writelines(lines)
+
+        print(f"已将版本常量更新为：v{version}")
+        return True
+
     def build(self):
         """执行Rust项目编译"""
         print("开始编译Rust项目...")
+
+        if not self._sync_version_constant():
+            print("错误：版本常量同步失败，终止编译")
+            return False
 
         # 检查依赖
         if not self._check_dependencies():
