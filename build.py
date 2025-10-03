@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 GPU Governor 编译脚本
-自动执行Rust项目的编译工作，默认不进行UPX压缩
-使用 --with-upx 参数可以同时进行编译和压缩
+自动执行Rust项目的编译和UPX压缩工作
+提供清理等辅助操作，可通过配置修改行为
 """
 
 import argparse
@@ -407,10 +407,6 @@ class GPUGovernorBuilder:
 def main():
     parser = argparse.ArgumentParser(description="GPU Governor 编译脚本")
     parser.add_argument("--clean", action="store_true", help="清理编译输出")
-    parser.add_argument("--with-upx", action="store_true", help="编译并使用UPX压缩")
-    parser.add_argument(
-        "--compress-only", action="store_true", help="仅压缩现有二进制文件"
-    )
     parser.add_argument(
         "--config", default="build_config.toml", help="配置文件路径"
     )
@@ -423,22 +419,8 @@ def main():
         builder.clean()
         return
 
-    if args.compress_only:
-        if builder.compress():
-            print("压缩完成")
-        else:
-            print("压缩失败")
-            sys.exit(1)
-        return
-
-    if args.with_upx:
-        # 编译和压缩流程
-        if not builder.build_and_compress():
-            sys.exit(1)
-        return
-
-    # 默认：仅编译流程
-    if not builder.build_only_flow():
+    # 默认：编译并压缩流程
+    if not builder.build_and_compress():
         sys.exit(1)
 
 
