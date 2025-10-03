@@ -171,6 +171,11 @@ impl GPU {
         self.current_mode = mode;
     }
 
+    /// 获取当前工作模式
+    pub fn current_mode(&self) -> &str {
+        &self.current_mode
+    }
+
     /// 读取映射表值 - 使用更简洁的模式匹配
     pub fn read_tab(&self, tab_type: TabType, freq: i64) -> i64 {
         match tab_type {

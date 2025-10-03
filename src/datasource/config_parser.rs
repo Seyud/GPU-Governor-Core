@@ -1,7 +1,7 @@
 use crate::datasource::file_path::CONFIG_TOML_FILE;
 use crate::model::gpu::GPU;
 use anyhow::Result;
-use log::{info, warn};
+use log::{debug, info, warn};
 use serde::Deserialize;
 use std::fs;
 
@@ -47,6 +47,12 @@ pub fn load_config(gpu: &mut GPU, target_mode: Option<&str>) -> Result<()> {
         .set_idle_threshold(config.global.idle_threshold);
 
     let mode = target_mode.unwrap_or(&config.global.mode);
+
+    if gpu.current_mode() == mode {
+        debug!("Mode `{}` 已经生效，跳过重新加载", mode);
+        return Ok(());
+    }
+
     // 存储当前模式以便访问
     gpu.set_current_mode(mode.to_string());
     let params = match mode {
@@ -77,7 +83,7 @@ pub fn load_config(gpu: &mut GPU, target_mode: Option<&str>) -> Result<()> {
     gpu.set_up_rate_delay(params.up_rate_delay);
     gpu.set_debounce_times(params.up_rate_delay, params.down_rate_delay);
 
-    info!("Loaded config for mode: {}", config.global.mode);
+    info!("Loaded config for mode: {}", mode);
     Ok(())
 }
 

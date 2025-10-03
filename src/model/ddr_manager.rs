@@ -1,5 +1,6 @@
 use anyhow::Result;
-use log::{debug, info, warn};
+use log::{debug, warn};
+use std::cell::Cell;
 use std::path::Path;
 
 use crate::datasource::file_path::*;
@@ -16,6 +17,8 @@ pub struct DdrManager {
     pub ddr_v2_supported_freqs: Vec<i64>,
     /// 是否使用v2驱动
     pub gpuv2: bool,
+    /// 最近一次写入的DDR OPP值缓存
+    last_written_ddr_opp: Cell<Option<i64>>,
 }
 
 impl DdrManager {
@@ -25,6 +28,7 @@ impl DdrManager {
             ddr_freq: 0,
             ddr_v2_supported_freqs: Vec::new(),
             gpuv2: false,
+            last_written_ddr_opp: Cell::new(None),
         }
     }
 
@@ -38,6 +42,7 @@ impl DdrManager {
                 DDR_AUTO_MODE_V1
             };
             self.ddr_freq_fixed = false;
+            self.last_written_ddr_opp.set(None);
             debug!("DDR frequency not fixed (auto mode)");
             return self.write_ddr_freq();
         }
@@ -58,6 +63,7 @@ impl DdrManager {
                 DDR_AUTO_MODE_V1
             };
             self.ddr_freq_fixed = false;
+            self.last_written_ddr_opp.set(None);
             debug!("DDR frequency not fixed");
             return self.write_ddr_freq();
         }
@@ -91,6 +97,7 @@ impl DdrManager {
     /// 写入DDR频率
     pub fn write_ddr_freq(&self) -> Result<()> {
         if !self.ddr_freq_fixed {
+            self.last_written_ddr_opp.set(None);
             // 如果不固定内存频率，根据驱动类型写入不同的自动模式值
             if self.gpuv2 {
                 // v2 driver，使用DDR_AUTO_MODE_V2（999）表示自动模式
@@ -161,17 +168,19 @@ impl DdrManager {
             }
         }
 
-        // 输出DDR_OPP值的含义
-        let opp_description = match ddr_opp {
-            DDR_HIGHEST_FREQ => "Highest Frequency and Voltage",
-            DDR_SECOND_FREQ => "Second Level Frequency and Voltage",
-            DDR_THIRD_FREQ => "Third Level Frequency and Voltage",
-            DDR_FOURTH_FREQ => "Fourth Level Frequency and Voltage",
-            DDR_FIFTH_FREQ => "Fifth Level Frequency and Voltage",
-            _ => "Custom Level",
-        };
+        if self.last_written_ddr_opp.get() != Some(ddr_opp) {
+            let opp_description = match ddr_opp {
+                DDR_HIGHEST_FREQ => "Highest Frequency and Voltage",
+                DDR_SECOND_FREQ => "Second Level Frequency and Voltage",
+                DDR_THIRD_FREQ => "Third Level Frequency and Voltage",
+                DDR_FOURTH_FREQ => "Fourth Level Frequency and Voltage",
+                DDR_FIFTH_FREQ => "Fifth Level Frequency and Voltage",
+                _ => "Custom Level",
+            };
 
-        info!("Set DDR frequency with OPP value: {ddr_opp} ({opp_description})");
+            debug!("Set DDR frequency with OPP value: {ddr_opp} ({opp_description})");
+            self.last_written_ddr_opp.set(Some(ddr_opp));
+        }
         Ok(())
     }
 
@@ -313,7 +322,7 @@ impl DdrManager {
 
             // 按升序排序
             freq_list.sort();
-            info!(
+            debug!(
                 "Read {} DDR OPP values from V2 driver table",
                 freq_list.len()
             );
