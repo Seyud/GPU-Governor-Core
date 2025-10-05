@@ -19,7 +19,7 @@ impl FrequencyStrategy {
     pub fn new(up_time: u64, down_time: u64) -> Self {
         Self {
             up_debounce_time: up_time,
-            margin: 50,
+            margin: 27,
             aggressive_down: true,
             sampling_interval: 8,
             last_adjustment_time: 0,
