@@ -89,7 +89,28 @@ impl FrequencyAdjustmentEngine {
     }
 
     /// 处理空闲状态
-    fn handle_idle_state(gpu: &GPU) {
+    fn handle_idle_state(gpu: &mut GPU) {
+        // 获取最低频率
+        let min_freq = gpu.get_min_freq();
+        let current_freq = gpu.get_cur_freq();
+
+        // 如果当前频率不是最低频率,则降低到最低频率
+        if current_freq != min_freq && min_freq > 0 {
+            debug!("GPU idle detected, reducing frequency from {current_freq}KHz to {min_freq}KHz");
+
+            // 更新频率管理器
+            gpu.frequency_mut().cur_freq = min_freq;
+            gpu.frequency_mut().cur_freq_idx = gpu.frequency().read_freq_index(min_freq);
+
+            // 生成电压并写入频率
+            gpu.frequency_mut().gen_cur_volt();
+            if let Err(e) = gpu.frequency().write_freq(gpu.need_dcs, true) {
+                warn!("Failed to write idle frequency: {e}");
+            } else {
+                debug!("Successfully set GPU to idle frequency: {min_freq}KHz");
+            }
+        }
+
         let idle_sleep_time = 160; // 统一使用普通模式的休眠时间
         debug!(
             "Idle state, sleeping for {idle_sleep_time}ms (precise mode: {})",
