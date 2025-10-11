@@ -54,6 +54,8 @@ class GPUGovernorBuilder:
             "LIBCLANG_PATH": f"{self.llvm_path}/bin",
             "BINDGEN_EXTRA_CLANG_ARGS": f"--target=aarch64-linux-android -I{self.android_ndk_home}/toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/include",
             "CARGO_TERM_COLOR": "always",
+            "CARGO_TERM_PROGRESS_WHEN": "always",
+            "CARGO_TERM_PROGRESS_WIDTH": "80",
         }
 
         # 更新PATH环境变量
@@ -70,8 +72,22 @@ class GPUGovernorBuilder:
             os.environ[key] = str(value)
             print(f"设置环境变量: {key}={value}")
 
-    def _run_command_with_live_output(self, cmd):
-        """实时输出命令的执行进度，并收集完整输出"""
+    def _run_command_with_live_output(self, cmd, inherit_tty=False):
+        """执行命令并在需要时实时输出。
+
+        当 inherit_tty 为 True 时，子进程直接继承当前终端，
+        可保持 cargo 的动态进度条；此时不收集输出内容。
+        """
+
+        if inherit_tty:
+            process = subprocess.Popen(cmd)
+            try:
+                return_code = process.wait()
+            except KeyboardInterrupt:
+                process.terminate()
+                raise
+            return return_code, "", ""
+
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -267,7 +283,7 @@ class GPUGovernorBuilder:
         clippy_cmd = ["cargo", "clippy", "--target", self.target, "--", "-D", "warnings"]
         print(f"执行命令: {' '.join(clippy_cmd)}")
 
-        return_code, stdout, stderr = self._run_command_with_live_output(clippy_cmd)
+        return_code, stdout, stderr = self._run_command_with_live_output(clippy_cmd, inherit_tty=True)
 
         if return_code != 0:
             print(f"代码质量检查失败：命令返回码 {return_code}")
@@ -284,7 +300,7 @@ class GPUGovernorBuilder:
         cmd = ["cargo", "build", "--release", "--target", self.target]
         print(f"执行命令: {' '.join(cmd)}")
 
-        return_code, stdout, stderr = self._run_command_with_live_output(cmd)
+        return_code, stdout, stderr = self._run_command_with_live_output(cmd, inherit_tty=True)
 
         if return_code != 0:
             print(f"编译失败：命令返回码 {return_code}")
