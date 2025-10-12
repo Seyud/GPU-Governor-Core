@@ -171,11 +171,6 @@ impl FrequencyManager {
 
     /// 写入频率到系统文件
     pub fn write_freq(&self, need_dcs: bool, is_idle: bool) -> Result<()> {
-        // 第一步：确保DVFS处于关闭状态（仅对v1驱动）
-        if !self.gpuv2 {
-            self.ensure_dvfs_disabled()?;
-        }
-
         // 根据驱动类型获取要使用的频率
         let freq_to_use = if self.gpuv2 {
             self.get_closest_v2_supported_freq(self.cur_freq)
@@ -205,7 +200,22 @@ impl FrequencyManager {
             return Ok(());
         }
 
-        // 确定写入模式
+        if !self.gpuv2 {
+            if is_idle {
+                self.write_idle_mode_v1(volt_path, opp_path, volt_reset)?;
+            } else {
+                self.write_manual_mode_v1(
+                    volt_path,
+                    opp_path,
+                    volt_reset,
+                    &content,
+                    &volt_content,
+                )?;
+            }
+            return Ok(());
+        }
+
+        // 确定写入模式（v2驱动）
         if is_idle {
             self.write_idle_mode(volt_path, opp_path, volt_reset, opp_reset_zero)?;
         } else if need_dcs && self.gpuv2 && self.cur_freq_idx == 0 {
@@ -297,17 +307,45 @@ impl FrequencyManager {
         volt_content: &str,
     ) -> Result<()> {
         debug!("Writing in normal mode");
-        if self.gpuv2 {
-            FileHelper::write_string_safe(volt_path, volt_reset);
-            let result = FileHelper::write_string_safe(opp_path, opp_reset_minus_one);
-            if !result {
-                FileHelper::write_string_safe(opp_path, opp_reset_zero);
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-            FileHelper::write_string_safe(volt_path, volt_content);
-        } else {
+        FileHelper::write_string_safe(volt_path, volt_reset);
+        let result = FileHelper::write_string_safe(opp_path, opp_reset_minus_one);
+        if !result {
             FileHelper::write_string_safe(opp_path, opp_reset_zero);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        FileHelper::write_string_safe(volt_path, volt_content);
+        Ok(())
+    }
+
+    fn write_manual_mode_v1(
+        &self,
+        volt_path: &str,
+        opp_path: &str,
+        volt_reset: &str,
+        content: &str,
+        volt_content: &str,
+    ) -> Result<()> {
+        debug!("Writing V1 manual frequency");
+        self.ensure_dvfs_disabled()?;
+
+        if self.cur_volt == 0 {
+            FileHelper::write_string_safe(volt_path, volt_reset);
+            FileHelper::write_string_safe(opp_path, content);
+        } else {
+            FileHelper::write_string_safe(opp_path, "0");
             FileHelper::write_string_safe(volt_path, volt_content);
+        }
+        Ok(())
+    }
+
+    fn write_idle_mode_v1(&self, volt_path: &str, opp_path: &str, volt_reset: &str) -> Result<()> {
+        debug!("Writing V1 idle mode (release to DVFS)");
+
+        FileHelper::write_string_safe(opp_path, "0");
+        FileHelper::write_string_safe(opp_path, "-1");
+        FileHelper::write_string_safe(volt_path, volt_reset);
+        if std::path::Path::new(MALI_DVFS_ENABLE).exists() {
+            FileHelper::write_string_safe(MALI_DVFS_ENABLE, "1");
         }
         Ok(())
     }

@@ -249,9 +249,9 @@ pub fn get_gpu_load() -> Result<i32> {
 }
 
 pub fn get_gpu_current_freq(is_v1_driver: bool) -> Result<i64> {
-    // 对于v1驱动设备，只使用gpufreq_var_dump方法读取频率
+    // 对于v1驱动设备
     if is_v1_driver {
-        return read_v1_gpu_freq_from_var_dump();
+        return read_v1_gpu_freq();
     }
 
     // 对于v2驱动设备，使用原有的多路径读取策略
@@ -319,6 +319,80 @@ pub fn get_gpu_current_freq(is_v1_driver: bool) -> Result<i64> {
 
     // 如果无法从前两个路径读取，尝试从GPU_FREQ_LOAD_PATH读取（作为v2驱动的备用方案）
     read_v1_gpu_freq_from_var_dump()
+}
+
+fn read_v1_gpu_freq() -> Result<i64> {
+    if let Some(freq) = read_v1_gpu_freq_from_fixed()? {
+        debug!("V1 driver GPU frequency from {GPUFREQ_VOLT}: {freq}");
+        return Ok(freq);
+    }
+
+    if let Some(freq) = read_v1_gpu_freq_from_opp()? {
+        debug!("V1 driver GPU frequency from {GPUFREQ_OPP}: {freq}");
+        return Ok(freq);
+    }
+
+    read_v1_gpu_freq_from_var_dump()
+}
+
+fn read_v1_gpu_freq_from_fixed() -> Result<Option<i64>> {
+    if !get_status(GPUFREQ_VOLT) {
+        return Ok(None);
+    }
+
+    let buf = match read_file(GPUFREQ_VOLT, 256) {
+        Ok(content) => {
+            write_status(GPUFREQ_VOLT, true);
+            content
+        }
+        Err(e) => {
+            debug!("Failed to read {GPUFREQ_VOLT}: {e}");
+            write_status(GPUFREQ_VOLT, false);
+            return Ok(None);
+        }
+    };
+
+    for line in buf.lines() {
+        if line.contains("g_fixed_freq")
+            && let Some(freq) = extract_first_number(line)
+            && freq > 0
+        {
+            return Ok(Some(freq));
+        }
+    }
+
+    Ok(None)
+}
+
+fn read_v1_gpu_freq_from_opp() -> Result<Option<i64>> {
+    if !get_status(GPUFREQ_OPP) {
+        return Ok(None);
+    }
+
+    let buf = match read_file(GPUFREQ_OPP, 256) {
+        Ok(content) => {
+            write_status(GPUFREQ_OPP, true);
+            content
+        }
+        Err(e) => {
+            debug!("Failed to read {GPUFREQ_OPP}: {e}");
+            write_status(GPUFREQ_OPP, false);
+            return Ok(None);
+        }
+    };
+
+    for line in buf.lines() {
+        if let Some(pos) = line.find("freq") {
+            let slice = &line[pos..];
+            if let Some(freq) = extract_first_number(slice)
+                && freq > 0
+            {
+                return Ok(Some(freq));
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 /// 专门用于v1驱动设备的GPU频率读取函数
@@ -398,6 +472,12 @@ fn read_v1_gpu_freq_from_var_dump() -> Result<i64> {
     Err(anyhow!(
         "Cannot parse V1 driver GPU frequency from {GPU_FREQ_LOAD_PATH}"
     ))
+}
+
+fn extract_first_number(line: &str) -> Option<i64> {
+    line.split(|c: char| !c.is_ascii_digit())
+        .find(|s| !s.is_empty())
+        .and_then(|num| num.parse::<i64>().ok())
 }
 
 pub fn utilization_init() -> Result<()> {
