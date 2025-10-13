@@ -60,6 +60,17 @@ impl CustomLogger {
 
         Ok(())
     }
+
+    fn reset_writer(&self) -> Result<()> {
+        let mut writer = self.file_writer.lock().unwrap();
+        if let Some(ref mut buf_writer) = *writer {
+            buf_writer
+                .flush()
+                .with_context(|| "Failed to flush log file during reset")?;
+        }
+        *writer = None;
+        Ok(())
+    }
 }
 
 impl log::Log for CustomLogger {
@@ -93,6 +104,10 @@ impl log::Log for CustomLogger {
 
 // 全局日志实例
 static LOGGER: Lazy<CustomLogger> = Lazy::new(CustomLogger::new);
+
+pub fn reset_log_file_writer() -> Result<()> {
+    LOGGER.reset_writer()
+}
 
 pub fn init_logger() -> Result<()> {
     // 启动时清空日志文件，保证每次启动都是新日志

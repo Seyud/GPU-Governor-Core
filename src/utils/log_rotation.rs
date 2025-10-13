@@ -9,7 +9,7 @@ use std::thread;
 use std::time::Duration;
 
 use crate::datasource::file_path::LOG_PATH;
-use crate::utils::log_level_manager::get_current_log_level;
+use crate::utils::{log_level_manager::get_current_log_level, logger::reset_log_file_writer};
 
 /// 日志轮转管理器
 pub struct LogRotationManager {
@@ -110,6 +110,9 @@ impl LogRotationManager {
             .with_context(|| format!("Failed to create new log file: {log_file_path}"))?;
 
         info!("New log file created: {log_file_path}");
+
+        reset_log_file_writer()
+            .with_context(|| "Failed to reset log file writer after rotation")?;
 
         Ok(())
     }
