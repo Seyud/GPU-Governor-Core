@@ -176,9 +176,11 @@ fn read_games_list(path: &str) -> Result<HashMap<String, String>> {
 }
 
 // 监控前台应用
+use crate::datasource::config_parser::ConfigDelta;
 use crate::model::gpu::GPU;
+use std::sync::mpsc::Sender;
 
-pub fn monitor_foreground_app(mut gpu: GPU) -> Result<()> {
+pub fn monitor_foreground_app(mut gpu: GPU, tx: Option<Sender<ConfigDelta>>) -> Result<()> {
     // 设置线程名称
     info!("{FOREGROUND_APP_THREAD} Start");
 
@@ -270,6 +272,27 @@ pub fn monitor_foreground_app(mut gpu: GPU) -> Result<()> {
                                     ) {
                                         warn!("Failed to write current mode file: {e}");
                                     }
+
+                                    // 通过 channel 发送配置增量到主调频循环
+                                    if let Some(ref sender) = tx {
+                                        match crate::datasource::config_parser::read_config_delta(
+                                            Some(target_mode),
+                                        ) {
+                                            Ok(delta) => {
+                                                if sender.send(delta).is_ok() {
+                                                    info!(
+                                                        "Game mode config delta sent to main loop: {}",
+                                                        target_mode
+                                                    );
+                                                } else {
+                                                    warn!("Failed to send game mode config delta");
+                                                }
+                                            }
+                                            Err(e) => warn!(
+                                                "Failed to read config delta for game mode: {e}"
+                                            ),
+                                        }
+                                    }
                                 }
                             }
                         } else {
@@ -288,6 +311,20 @@ pub fn monitor_foreground_app(mut gpu: GPU) -> Result<()> {
                                                 1024,
                                             ) {
                                                 warn!("Failed to write current mode file: {e}");
+                                            }
+
+                                            // 通过 channel 发送配置增量到主调频循环
+                                            if let Some(ref sender) = tx {
+                                                match crate::datasource::config_parser::read_config_delta(None) {
+                                                    Ok(delta) => {
+                                                        if sender.send(delta).is_ok() {
+                                                            info!("Global mode config delta sent to main loop: {}", global_mode);
+                                                        } else {
+                                                            warn!("Failed to send global mode config delta");
+                                                        }
+                                                    }
+                                                    Err(e) => warn!("Failed to read config delta for global mode: {e}"),
+                                                }
                                             }
                                         }
                                         Err(e) => warn!("Failed to parse config.toml: {e}"),

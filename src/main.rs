@@ -76,6 +76,7 @@ fn start_monitoring_threads(gpu: GPU, tx: std::sync::mpsc::Sender<ConfigDelta>) 
 
     // 前台应用监控线程（延迟启动）
     let gpu_clone = gpu.clone();
+    let tx_clone = tx.clone(); // 克隆 sender 用于前台应用监控
     thread::Builder::new()
         .name(FOREGROUND_APP_THREAD.to_string())
         .spawn(move || {
@@ -86,7 +87,7 @@ fn start_monitoring_threads(gpu: GPU, tx: std::sync::mpsc::Sender<ConfigDelta>) 
             thread::sleep(Duration::from_secs(strategy::FOREGROUND_APP_STARTUP_DELAY));
             info!("Starting foreground app monitor now");
 
-            if let Err(e) = monitor_foreground_app(gpu_clone) {
+            if let Err(e) = monitor_foreground_app(gpu_clone, Some(tx_clone)) {
                 error!("Foreground app monitor error: {e}");
             }
         })
