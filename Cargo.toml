@@ -1,6 +1,6 @@
 [package]
 name = "gpugovernor"
-version = "2.10.0"
+version = "2.10.3"
 edition = "2024"
 authors = ["Seyud", "Tools-cx-app"]
 description = "Mediatek Mali GPU Load-Based Frequency Adjustment"
