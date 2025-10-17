@@ -18,8 +18,7 @@ toml = "0.9.8"
 serde = { version = "1.0.228", features = ["derive"] }
 
 [profile.dev]
-opt-level = 0
-debug = true
+lto = true
 overflow-checks = true
 incremental = true
 codegen-units = 256
