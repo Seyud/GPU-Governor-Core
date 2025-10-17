@@ -2,7 +2,7 @@ mod datasource;
 mod model;
 mod utils;
 
-use std::{path::Path, thread, time::Duration};
+use std::{fs, path::Path, thread, time::Duration};
 
 use anyhow::Result;
 use log::{error, info, warn};
@@ -30,20 +30,19 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
     utilization_init()?;
 
     // 读取频率表配置文件
-    let config_file = FREQ_TABLE_CONFIG_FILE;
-    if Path::new(config_file).exists() {
+    if fs::exists(FREQ_TABLE_CONFIG_FILE)? {
         info!("Reading frequency table config file: {config_file}");
-        freq_table_read(config_file, gpu)
+        freq_table_read(FREQ_TABLE_CONFIG_FILE, gpu)
             .map_err(|e| anyhow::anyhow!("Failed to read frequency table config file: {}", e))?;
     } else {
         return Err(anyhow::anyhow!(
             "Frequency table config file not found: {}",
-            config_file
+            FREQ_TABLE_CONFIG_FILE
         ));
     }
 
     // 尝试加载TOML策略配置
-    if Path::new(CONFIG_TOML_FILE).exists() {
+    if fs::exists(CONFIG_TOML_FILE)? {
         info!("Reading TOML config file: {CONFIG_TOML_FILE}");
         if let Err(e) = load_config(gpu, None) {
             warn!("Failed to load TOML config: {e}, using default settings");
