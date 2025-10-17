@@ -1,10 +1,13 @@
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
+
 use anyhow::Result;
 use inotify::WatchMask;
 use log::{LevelFilter, debug, info, warn};
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
 
 use crate::{
     datasource::file_path::LOG_LEVEL_PATH,

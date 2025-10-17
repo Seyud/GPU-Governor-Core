@@ -1,9 +1,10 @@
-use crate::datasource::file_path::CONFIG_TOML_FILE;
-use crate::model::gpu::GPU;
+use std::fs;
+
 use anyhow::Result;
 use log::{debug, info, warn};
 use serde::Deserialize;
-use std::fs;
+
+use crate::{datasource::file_path::CONFIG_TOML_FILE, model::gpu::GPU};
 
 #[derive(Deserialize, Clone)]
 pub struct Config {

@@ -1,9 +1,12 @@
+use std::{
+    sync::mpsc::Receiver,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
+
 use anyhow::Result;
 use log::{debug, warn};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::{datasource::load_monitor::get_gpu_load, model::gpu::GPU};
-use std::sync::mpsc::Receiver;
 
 /// GPU频率调整引擎 - 负责执行智能调频算法
 pub struct FrequencyAdjustmentEngine;

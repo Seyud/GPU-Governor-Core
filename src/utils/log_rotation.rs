@@ -1,15 +1,22 @@
+use std::{
+    fs,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+    time::Duration,
+};
+
 use anyhow::{Context, Result};
 use chrono::Local;
 use log::{LevelFilter, debug, info, warn};
-use std::fs;
-use std::path::Path;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use std::time::Duration;
 
-use crate::datasource::file_path::LOG_PATH;
-use crate::utils::{log_level_manager::get_current_log_level, logger::reset_log_file_writer};
+use crate::{
+    datasource::file_path::LOG_PATH,
+    utils::{log_level_manager::get_current_log_level, logger::reset_log_file_writer},
+};
 
 /// 日志轮转管理器
 pub struct LogRotationManager {

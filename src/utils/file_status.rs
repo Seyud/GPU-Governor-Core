@@ -1,6 +1,6 @@
+use std::{sync::Mutex, collections::HashMap};
+
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
-use std::sync::Mutex;
 
 // Global status map
 static STATUS_MAP: Lazy<Mutex<HashMap<String, bool>>> = Lazy::new(|| Mutex::new(HashMap::new()));

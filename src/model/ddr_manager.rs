@@ -1,10 +1,9 @@
+use std::{cell::Cell, path::Path};
+
 use anyhow::Result;
 use log::{debug, warn};
-use std::cell::Cell;
-use std::path::Path;
 
-use crate::datasource::file_path::*;
-use crate::utils::file_helper::FileHelper;
+use crate::{datasource::file_path::*, utils::file_helper::FileHelper};
 
 /// DDR频率管理器 - 负责内存频率控制
 #[derive(Clone)]

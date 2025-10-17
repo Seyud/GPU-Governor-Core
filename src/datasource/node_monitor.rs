@@ -1,3 +1,5 @@
+use std::sync::mpsc::Sender;
+
 use anyhow::Result;
 use inotify::WatchMask;
 use log::{error, info, warn};
@@ -14,7 +16,6 @@ use crate::{
         inotify::InotifyWatcher,
     },
 };
-use std::sync::mpsc::Sender;
 
 pub fn monitor_freq_table_config(mut gpu: GPU) -> Result<()> {
     // 设置线程名称（在Rust中无法轻易设置当前线程名称）

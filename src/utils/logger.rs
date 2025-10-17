@@ -1,13 +1,13 @@
-use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Write};
-use std::sync::Mutex;
+use std::{
+    fs::{File, OpenOptions},
+    io::{BufWriter, Write},
+    sync::Mutex,
+};
 
 use anyhow::{Context, Result};
 use chrono::Local;
-use log::{Metadata, Record};
+use log::{LevelFilter, Metadata, Record};
 use once_cell::sync::Lazy;
-
-use log::LevelFilter;
 
 use crate::{
     datasource::file_path::{LOG_LEVEL_PATH, LOG_PATH},

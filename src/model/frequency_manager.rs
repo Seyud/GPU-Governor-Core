@@ -1,10 +1,9 @@
+use std::{collections::HashMap, path::Path};
+
 use anyhow::Result;
 use log::{debug, warn};
-use std::collections::HashMap;
-use std::path::Path;
 
-use crate::datasource::file_path::*;
-use crate::utils::file_helper::FileHelper;
+use crate::{datasource::file_path::*, utils::file_helper::FileHelper};
 
 /// 频率管理器 - 负责GPU频率的计算和调整逻辑
 #[derive(Clone)]
