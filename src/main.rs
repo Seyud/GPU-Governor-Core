@@ -31,7 +31,7 @@ fn initialize_gpu_config(gpu: &mut GPU) -> Result<()> {
 
     // 读取频率表配置文件
     if fs::exists(FREQ_TABLE_CONFIG_FILE)? {
-        info!("Reading frequency table config file: {config_file}");
+        info!("Reading frequency table config file: {FREQ_TABLE_CONFIG_FILE}");
         freq_table_read(FREQ_TABLE_CONFIG_FILE, gpu)
             .map_err(|e| anyhow::anyhow!("Failed to read frequency table config file: {}", e))?;
     } else {
