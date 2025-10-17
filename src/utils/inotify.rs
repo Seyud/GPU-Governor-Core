@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path, thread, time::Duration};
+use std::{collections::HashMap, fs, path::Path, thread, time::Duration};
 
 use anyhow::{Context, Result};
 use inotify::{EventMask, Inotify, WatchMask};
@@ -139,18 +139,13 @@ impl InotifyWatcher {
 }
 
 fn try_path(path: &str) -> Result<()> {
-    let path = Path::new(path);
-
-    if !path.exists() {
+    if !fs::exists(path)? {
         // 稍作等待，让文件系统操作完成
         thread::sleep(Duration::from_micros(WAIT_MOVE_US));
 
         // 设置权限
         unsafe {
-            libc::chmod(
-                path.to_str().unwrap_or("").as_ptr() as *const libc::c_char,
-                RECREATE_DEFAULT_PERM,
-            );
+            libc::chmod(path.as_ptr() as *const libc::c_char, RECREATE_DEFAULT_PERM);
         }
     }
 

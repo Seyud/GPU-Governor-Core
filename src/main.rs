@@ -2,7 +2,7 @@ mod datasource;
 mod model;
 mod utils;
 
-use std::{fs, path::Path, thread, time::Duration};
+use std::{fs, thread, time::Duration};
 
 use anyhow::Result;
 use log::{error, info, warn};

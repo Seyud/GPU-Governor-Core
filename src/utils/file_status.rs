@@ -1,4 +1,4 @@
-use std::{sync::Mutex, collections::HashMap};
+use std::{collections::HashMap, sync::Mutex};
 
 use once_cell::sync::Lazy;
 

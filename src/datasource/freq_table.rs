@@ -1,4 +1,5 @@
 use std::{
+    fs,
     fs::File,
     io::{BufRead, BufReader},
     path::Path,
@@ -78,7 +79,7 @@ fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
     let mut freq_list = Vec::new();
 
     // 检查频率表文件是否存在
-    if !Path::new(GPUFREQV2_TABLE).exists() || !check_read_simple(GPUFREQV2_TABLE) {
+    if !fs::exists(GPUFREQV2_TABLE).unwrap_or(false) || !check_read_simple(GPUFREQV2_TABLE) {
         warn!("V2 driver frequency table file not found: {GPUFREQV2_TABLE}");
         return Ok(freq_list);
     }
@@ -115,13 +116,14 @@ fn read_v2_driver_freq_table() -> Result<Vec<i64>> {
 // 检测内存频率控制文件
 fn detect_ddr_freq_paths() -> Result<()> {
     // 检查v1驱动的内存频率控制文件
-    let v1_path_exists = Path::new(DVFSRC_V1_PATH).exists() && check_read_simple(DVFSRC_V1_PATH);
+    let v1_path_exists =
+        fs::exists(DVFSRC_V1_PATH).unwrap_or(false) && check_read_simple(DVFSRC_V1_PATH);
 
     // 检查v2驱动的内存频率控制文件
     let v2_path1_exists =
-        Path::new(DVFSRC_V2_PATH_1).exists() && check_read_simple(DVFSRC_V2_PATH_1);
+        fs::exists(DVFSRC_V2_PATH_1).unwrap_or(false) && check_read_simple(DVFSRC_V2_PATH_1);
     let v2_path2_exists =
-        Path::new(DVFSRC_V2_PATH_2).exists() && check_read_simple(DVFSRC_V2_PATH_2);
+        fs::exists(DVFSRC_V2_PATH_2).unwrap_or(false) && check_read_simple(DVFSRC_V2_PATH_2);
 
     // 记录检测到的文件
     info!("DDR Frequency Control Files Detection:");

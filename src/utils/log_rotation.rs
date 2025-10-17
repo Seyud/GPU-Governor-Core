@@ -94,7 +94,7 @@ impl LogRotationManager {
         let backup_path = format!("{log_file_path}.bak");
 
         // 如果备份文件已存在，删除它
-        if Path::new(&backup_path).exists() {
+        if fs::exists(&backup_path)? {
             fs::remove_file(&backup_path)
                 .with_context(|| format!("Failed to remove old backup file: {backup_path}"))?;
             debug!("Removed old backup file: {backup_path}");

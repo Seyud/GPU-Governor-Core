@@ -1,5 +1,5 @@
 use std::{
-    path::Path,
+    fs,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -37,7 +37,7 @@ impl LogLevelManager {
         let default_level = LevelFilter::Info;
 
         // 检查配置文件是否存在
-        if !Path::new(LOG_LEVEL_PATH).exists() {
+        if !fs::exists(LOG_LEVEL_PATH).unwrap_or(false) {
             return Ok(default_level);
         }
 

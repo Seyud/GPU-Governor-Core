@@ -1,4 +1,4 @@
-use std::{cell::Cell, path::Path};
+use std::{cell::Cell, fs};
 
 use anyhow::Result;
 use log::{debug, warn};
@@ -104,7 +104,7 @@ impl DdrManager {
 
                 let mut path_written = false;
                 for path in &paths {
-                    if Path::new(path).exists() {
+                    if fs::exists(path)? {
                         let auto_mode_str = DDR_AUTO_MODE_V2.to_string();
                         debug!("Writing {auto_mode_str} to v2 DDR path: {path}");
                         if FileHelper::write_string_safe(path, &auto_mode_str) {
@@ -121,7 +121,7 @@ impl DdrManager {
                 }
             } else {
                 // v1 driver，使用DDR_AUTO_MODE_V1（-1）表示自动模式
-                if Path::new(DVFSRC_V1_PATH).exists() {
+                if fs::exists(DVFSRC_V1_PATH)? {
                     let auto_mode_str = DDR_AUTO_MODE_V1.to_string();
                     debug!("Writing {auto_mode_str} to v1 DDR path: {DVFSRC_V1_PATH}");
                     FileHelper::write_string_safe(DVFSRC_V1_PATH, &auto_mode_str);
@@ -143,7 +143,7 @@ impl DdrManager {
 
             let mut path_written = false;
             for path in &paths {
-                if Path::new(path).exists() {
+                if fs::exists(path)? {
                     debug!("Writing {freq_str} to v2 DDR path: {path}");
                     if FileHelper::write_string_safe(path, &freq_str) {
                         path_written = true;
@@ -159,7 +159,7 @@ impl DdrManager {
             }
         } else {
             // v1 driver
-            if Path::new(DVFSRC_V1_PATH).exists() {
+            if fs::exists(DVFSRC_V1_PATH)? {
                 debug!("Writing {freq_str} to v1 DDR path: {DVFSRC_V1_PATH}");
                 FileHelper::write_string_safe(DVFSRC_V1_PATH, &freq_str);
             } else {
@@ -225,7 +225,7 @@ impl DdrManager {
             let opp_tables = [DVFSRC_V2_OPP_TABLE_1, DVFSRC_V2_OPP_TABLE_2];
 
             for opp_table in &opp_tables {
-                if Path::new(opp_table).exists() {
+                if fs::exists(opp_table)? {
                     debug!("Reading v2 DDR OPP table: {opp_table}");
 
                     match File::open(opp_table) {
@@ -250,7 +250,7 @@ impl DdrManager {
             }
         } else {
             // v1 driver
-            if Path::new(DVFSRC_V1_OPP_TABLE).exists() {
+            if fs::exists(DVFSRC_V1_OPP_TABLE)? {
                 debug!("Reading v1 DDR OPP table: {DVFSRC_V1_OPP_TABLE}");
 
                 match File::open(DVFSRC_V1_OPP_TABLE) {
@@ -298,7 +298,7 @@ impl DdrManager {
         let mut found_path = None;
 
         for path in &paths {
-            if Path::new(path).exists() {
+            if fs::exists(path).unwrap_or(false) {
                 found_path = Some(*path);
                 debug!("Found V2 driver DDR OPP table file: {path}");
                 break;
