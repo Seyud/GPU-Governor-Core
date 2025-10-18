@@ -230,7 +230,10 @@ pub fn monitor_foreground_app(mut gpu: GPU, tx: Option<Sender<ConfigDelta>>) -> 
                 Ok(package_name) => {
                     // 只有当包名变化时才处理
                     if package_name == app_cache.package_name {
-                        return Ok(());
+                        // 包名未变化,更新缓存时间戳后继续下一次循环
+                        app_cache.update(package_name);
+                        thread::sleep(Duration::from_millis(1000));
+                        continue;
                     }
                     // 将前台应用变化的日志改为debug级别
                     debug!("Foreground app changed: {package_name}");
