@@ -1,0 +1,15 @@
+# Rust 代码格式化配置
+# 确保导入语句按标准分组：std -> 外部依赖 -> crate
+
+# 导入分组和排序
+imports_granularity = "Crate"      # 将同一 crate 的导入合并
+group_imports = "StdExternalCrate" # 按 std、外部、crate 分组
+reorder_imports = true             # 重新排序导入
+
+# 确保在分组之间添加空行
+imports_layout = "Vertical"
+
+# 格式化选项
+edition = "2024"
+max_width = 100
+tab_spaces = 4

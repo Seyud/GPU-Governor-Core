@@ -85,7 +85,7 @@ impl log::Log for CustomLogger {
         let now = Local::now();
         let timestamp = now.format("%Y-%m-%d %H:%M:%S").to_string();
         let level_str = record.level().to_string();
-        let log_message = format!("[{}][{}]: {}\n", timestamp, level_str, record.args());
+        let log_message = format!("[{}] [{}]: {}\n", timestamp, level_str, record.args());
 
         // 只写入到文件（忽略错误以避免程序崩溃）
         if let Err(e) = self.write_to_file(&log_message) {
