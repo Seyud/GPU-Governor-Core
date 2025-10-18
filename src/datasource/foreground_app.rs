@@ -305,8 +305,8 @@ pub fn monitor_foreground_app(mut gpu: GPU, tx: Option<Sender<ConfigDelta>>) -> 
                                 }
                             }
                         }
-                    } else {
-                        // 当不在游戏中时恢复全局模式
+                    } else if prev_is_game {
+                        // 只有从游戏模式切换到非游戏时才需要恢复全局模式
                         if let Err(e) = load_config(&mut gpu, None) {
                             warn!("Failed to revert to global mode: {e}");
                         } else {
@@ -343,6 +343,7 @@ pub fn monitor_foreground_app(mut gpu: GPU, tx: Option<Sender<ConfigDelta>>) -> 
                             }
                         }
                     }
+                    // 如果之前不是游戏且当前也不是游戏，则不需要做任何操作
 
                     // 更新缓存
                     app_cache.update(package_name);
