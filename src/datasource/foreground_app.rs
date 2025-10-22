@@ -19,10 +19,7 @@ use crate::{
         file_path::*,
     },
     model::gpu::GPU,
-    utils::{
-        file_operate::{check_read_simple, write_file},
-        inotify::InotifyWatcher,
-    },
+    utils::{file_operate::check_read_simple, inotify::InotifyWatcher},
 };
 
 #[derive(Debug, Deserialize)]
@@ -274,15 +271,6 @@ pub fn monitor_foreground_app(mut gpu: GPU, tx: Option<Sender<ConfigDelta>>) -> 
                             if let Err(e) = load_config(&mut gpu, Some(target_mode)) {
                                 warn!("Failed to apply game-specific mode: {e}");
                             } else {
-                                // 写入当前模式到文件
-                                if let Err(e) = write_file(
-                                    CURRENT_MODE_PATH,
-                                    target_mode.as_bytes(),
-                                    target_mode.len(),
-                                ) {
-                                    warn!("Failed to write current mode file: {e}");
-                                }
-
                                 // 通过 channel 发送配置增量到主调频循环
                                 if let Some(ref sender) = tx {
                                     match crate::datasource::config_parser::read_config_delta(Some(
@@ -310,36 +298,20 @@ pub fn monitor_foreground_app(mut gpu: GPU, tx: Option<Sender<ConfigDelta>>) -> 
                         if let Err(e) = load_config(&mut gpu, None) {
                             warn!("Failed to revert to global mode: {e}");
                         } else {
-                            // 读取全局模式并写入当前模式文件
-                            match std::fs::read_to_string(CONFIG_TOML_FILE) {
-                                Ok(content) => match toml::from_str::<Config>(&content) {
-                                    Ok(config) => {
-                                        let global_mode = config.global_mode().to_string();
-                                        if let Err(e) = write_file(
-                                            CURRENT_MODE_PATH,
-                                            global_mode.as_bytes(),
-                                            1024,
-                                        ) {
-                                            warn!("Failed to write current mode file: {e}");
-                                        }
-
-                                        // 通过 channel 发送配置增量到主调频循环
-                                        if let Some(ref sender) = tx {
-                                            match crate::datasource::config_parser::read_config_delta(None) {
-                                                    Ok(delta) => {
-                                                        if sender.send(delta).is_ok() {
-                                                            info!("Global mode config delta sent to main loop: {}", global_mode);
-                                                        } else {
-                                                            warn!("Failed to send global mode config delta");
-                                                        }
-                                                    }
-                                                    Err(e) => warn!("Failed to read config delta for global mode: {e}"),
-                                                }
+                            // 通过 channel 发送配置增量到主调频循环
+                            if let Some(ref sender) = tx {
+                                match crate::datasource::config_parser::read_config_delta(None) {
+                                    Ok(delta) => {
+                                        if sender.send(delta).is_ok() {
+                                            info!("Global mode config delta sent to main loop");
+                                        } else {
+                                            warn!("Failed to send global mode config delta");
                                         }
                                     }
-                                    Err(e) => warn!("Failed to parse config.toml: {e}"),
-                                },
-                                Err(e) => warn!("Failed to read config.toml: {e}"),
+                                    Err(e) => {
+                                        warn!("Failed to read config delta for global mode: {e}")
+                                    }
+                                }
                             }
                         }
                     }

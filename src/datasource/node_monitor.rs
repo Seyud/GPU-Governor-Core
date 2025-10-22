@@ -78,7 +78,8 @@ pub fn monitor_custom_config(tx: Sender<ConfigDelta>) -> Result<()> {
     info!("Monitoring custom config: {config_file}");
 
     let mut inotify = InotifyWatcher::new()?;
-    inotify.add(&config_file, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
+    // 只监听 CLOSE_WRITE 事件，避免重复触发
+    inotify.add(&config_file, WatchMask::CLOSE_WRITE)?;
 
     // 记录上一次的全局模式（启动时读取一次，失败则留空）
     let mut last_mode: Option<String> = std::fs::read_to_string(&config_file)

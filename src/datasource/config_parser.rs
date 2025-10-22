@@ -4,7 +4,11 @@ use anyhow::Result;
 use log::{debug, info, warn};
 use serde::Deserialize;
 
-use crate::{datasource::file_path::CONFIG_TOML_FILE, model::gpu::GPU};
+use crate::{
+    datasource::file_path::{CONFIG_TOML_FILE, CURRENT_MODE_PATH},
+    model::gpu::GPU,
+    utils::file_operate::write_file,
+};
 
 #[derive(Deserialize, Clone)]
 pub struct Config {
@@ -51,6 +55,10 @@ pub fn load_config(gpu: &mut GPU, target_mode: Option<&str>) -> Result<()> {
 
     if gpu.current_mode() == mode {
         debug!("Mode `{}` 已经生效，跳过重新加载", mode);
+        // 即使跳过重新加载，也要确保文件内容正确
+        if let Err(e) = write_file(CURRENT_MODE_PATH, mode.as_bytes(), 1024) {
+            warn!("Failed to write current_mode file: {e}");
+        }
         return Ok(());
     }
 
@@ -85,6 +93,14 @@ pub fn load_config(gpu: &mut GPU, target_mode: Option<&str>) -> Result<()> {
     gpu.set_debounce_times(params.up_rate_delay, params.down_rate_delay);
 
     info!("Loaded config for mode: {}", mode);
+
+    // 写入当前模式到文件
+    if let Err(e) = write_file(CURRENT_MODE_PATH, mode.as_bytes(), 1024) {
+        warn!("Failed to write current_mode file: {e}");
+    } else {
+        debug!("Current mode written to file: {mode}");
+    }
+
     Ok(())
 }
 
