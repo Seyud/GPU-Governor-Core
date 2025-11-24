@@ -177,7 +177,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "dumpsys-rs"
 version = "0.1.1"
-source = "git+https://github.com/shadow3aaa/dumpsys-rs#9d71b501f7c18846536f804edf258aa16062d779"
+source = "git+https://github.com/shadow3aaa/dumpsys-rs#1e7c3299dcbdbbd8a992c0b926a8060ac1ac9d39"
 dependencies = [
  "binder_ndk",
  "os_pipe",
