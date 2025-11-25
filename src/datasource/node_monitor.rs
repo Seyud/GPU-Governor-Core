@@ -22,18 +22,21 @@ pub fn monitor_freq_table_config(mut gpu: GPU) -> Result<()> {
     info!("{FREQ_TABLE_MONITOR_THREAD} Start");
 
     // 使用频率表配置文件
-    let config_file = FREQ_TABLE_CONFIG_FILE.to_string();
+    let config_path = std::path::Path::new(FREQ_TABLE_CONFIG_FILE);
+    let config_dir = config_path.parent().unwrap_or(std::path::Path::new("/"));
+    let config_filename = config_path
+        .file_name()
+        .unwrap_or(std::ffi::OsStr::new("gpu_freq_table.toml"))
+        .to_string_lossy()
+        .to_string();
 
     // 检查频率表配置文件是否存在
-    if !check_read_simple(&config_file) {
+    if !check_read_simple(FREQ_TABLE_CONFIG_FILE) {
         error!("CONFIG NOT FOUND: {}", std::io::Error::last_os_error());
-        return Err(anyhow::anyhow!(
-            "Frequency table config file not found: {}",
-            config_file
-        ));
-    };
+        // 即使文件不存在，也继续尝试监控目录
+    }
 
-    info!("Using Config: {config_file}");
+    info!("Using Config: {FREQ_TABLE_CONFIG_FILE}");
 
     // 使用read_freq_ge和read_freq_le方法获取频率范围
     let min_freq = gpu.get_min_freq();
@@ -51,14 +54,35 @@ pub fn monitor_freq_table_config(mut gpu: GPU) -> Result<()> {
     info!("Config values: min_freq={min_freq}KHz, max_freq={max_freq}KHz, margin={margin}%");
 
     let mut inotify = InotifyWatcher::new()?;
-    inotify.add(&config_file, WatchMask::CLOSE_WRITE | WatchMask::MODIFY)?;
+    // 监听目录的 MOVED_TO 和 CLOSE_WRITE
+    inotify.add(
+        config_dir,
+        WatchMask::MOVED_TO | WatchMask::CLOSE_WRITE | WatchMask::MODIFY,
+    )?;
 
     // 初始读取频率表配置
-    freq_table_read(&config_file, &mut gpu)?;
+    if check_read_simple(FREQ_TABLE_CONFIG_FILE) {
+        freq_table_read(FREQ_TABLE_CONFIG_FILE, &mut gpu)?;
+    }
 
     loop {
-        inotify.wait_and_handle()?;
-        freq_table_read(&config_file, &mut gpu)?;
+        let events = inotify.wait_and_handle()?;
+
+        // 检查是否有针对配置文件的事件
+        let mut config_changed = false;
+        for event in events {
+            if let Some(name) = &event.name
+                && name == &config_filename
+            {
+                config_changed = true;
+                break;
+            }
+        }
+
+        if config_changed {
+            info!("Detected change in freq table config: {FREQ_TABLE_CONFIG_FILE}");
+            freq_table_read(FREQ_TABLE_CONFIG_FILE, &mut gpu)?;
+        }
     }
 }
 
@@ -67,28 +91,56 @@ pub fn monitor_custom_config(tx: Sender<ConfigDelta>) -> Result<()> {
     info!("{CONFIG_MONITOR_THREAD} Start");
 
     // 使用自定义配置文件
-    let config_file = CONFIG_TOML_FILE.to_string();
+    let config_path = std::path::Path::new(CONFIG_TOML_FILE);
+    let config_dir = config_path.parent().unwrap_or(std::path::Path::new("/"));
+    let config_filename = config_path
+        .file_name()
+        .unwrap_or(std::ffi::OsStr::new("config.toml"))
+        .to_string_lossy()
+        .to_string();
 
     // 检查自定义配置文件是否存在
-    if !check_read_simple(&config_file) {
-        warn!("Custom config file not found: {config_file}");
-        return Ok(());
+    if !check_read_simple(CONFIG_TOML_FILE) {
+        warn!("Custom config file not found: {CONFIG_TOML_FILE}");
+        // 即使文件不存在，我们也应该监控目录，以便文件被创建时能检测到
     }
 
-    info!("Monitoring custom config: {config_file}");
+    info!(
+        "Monitoring custom config directory: {}",
+        config_dir.display()
+    );
 
     let mut inotify = InotifyWatcher::new()?;
-    // 只监听 CLOSE_WRITE 事件，避免重复触发
-    inotify.add(&config_file, WatchMask::CLOSE_WRITE)?;
+    // 监听目录的 MOVED_TO (mv覆盖) 和 CLOSE_WRITE (直接编辑)
+    // 注意：InotifyWatcher::add 会自动添加 DELETE_SELF 和 MOVE_SELF，这对目录监控也是有用的
+    inotify.add(config_dir, WatchMask::MOVED_TO | WatchMask::CLOSE_WRITE)?;
 
     // 记录上一次的全局模式（启动时读取一次，失败则留空）
-    let mut last_mode: Option<String> = std::fs::read_to_string(&config_file)
+    let mut last_mode: Option<String> = std::fs::read_to_string(CONFIG_TOML_FILE)
         .ok()
         .and_then(|c| toml::from_str::<Config>(&c).ok())
         .map(|cfg| cfg.global_mode().to_string());
 
     loop {
-        inotify.wait_and_handle()?;
+        // 等待事件
+        let events = inotify.wait_and_handle()?;
+
+        // 检查是否有针对 config.toml 的事件
+        let mut config_changed = false;
+        for event in events {
+            if let Some(name) = &event.name
+                && name == &config_filename
+            {
+                config_changed = true;
+                break;
+            }
+        }
+
+        if !config_changed {
+            continue;
+        }
+
+        info!("Detected change in config file: {CONFIG_TOML_FILE}");
 
         // 先发送参数增量
         match read_config_delta(None) {
@@ -101,7 +153,7 @@ pub fn monitor_custom_config(tx: Sender<ConfigDelta>) -> Result<()> {
         }
 
         // 检测全局模式是否变化，若变化则更新 CURRENT_MODE_PATH
-        match std::fs::read_to_string(&config_file) {
+        match std::fs::read_to_string(CONFIG_TOML_FILE) {
             Ok(content) => match toml::from_str::<Config>(&content) {
                 Ok(cfg) => {
                     let mode_now = cfg.global_mode().to_string();

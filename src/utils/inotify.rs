@@ -1,10 +1,19 @@
-use std::{collections::HashMap, fs, path::Path, thread, time::Duration};
+use std::{collections::HashMap, ffi::OsStr, fs, path::Path, thread, time::Duration};
 
 use anyhow::{Context, Result};
 use inotify::{EventMask, Inotify, WatchMask};
 
 const WAIT_MOVE_US: u64 = 500 * 1000;
 const RECREATE_DEFAULT_PERM: u32 = 0o666;
+
+#[derive(Debug, Clone)]
+pub struct SimpleEvent {
+    pub wd: inotify::WatchDescriptor,
+    pub mask: EventMask,
+    #[allow(dead_code)]
+    pub cookie: u32,
+    pub name: Option<String>,
+}
 
 pub struct InotifyWatcher {
     inotify: Inotify,
@@ -41,62 +50,55 @@ impl InotifyWatcher {
         Ok(())
     }
 
-    pub fn wait_and_handle(&mut self) -> Result<()> {
+    pub fn wait_and_handle(&mut self) -> Result<Vec<SimpleEvent>> {
         let mut buffer = [0; 4096];
         let events = self
             .inotify
             .read_events_blocking(&mut buffer)
             .with_context(|| "Failed to read inotify events")?;
 
-        // 转换事件类型
-        let mut converted_events = Vec::new();
-        for event in events {
-            let converted_event = inotify::Event {
-                wd: event.wd,
-                mask: event.mask,
-                cookie: event.cookie,
-                name: None, // 简化处理，忽略名称
-            };
-            converted_events.push(converted_event);
-        }
-
-        self.handle_events(converted_events)
+        self.process_events(events)
     }
 
     // 新增：非阻塞地检查事件
-    pub fn check_events(&mut self) -> Result<Vec<inotify::Event<&'static [u8]>>> {
+    pub fn check_events(&mut self) -> Result<Vec<SimpleEvent>> {
         let mut buffer = [0; 4096];
         let events = self
             .inotify
             .read_events(&mut buffer)
             .with_context(|| "Failed to read inotify events")?;
 
-        // 收集事件到向量中
-        let mut events_vec: Vec<inotify::Event<&'static [u8]>> = Vec::new();
+        self.process_events(events)
+    }
+
+    fn process_events<'a, I>(&mut self, events: I) -> Result<Vec<SimpleEvent>>
+    where
+        I: IntoIterator<Item = inotify::Event<&'a OsStr>>,
+    {
+        let mut simple_events = Vec::new();
+        let mut raw_events = Vec::new();
+
         for event in events {
-            // 转换事件类型
-            let converted_event = inotify::Event {
+            let name = event.name.map(|n| n.to_string_lossy().into_owned());
+
+            let simple_event = SimpleEvent {
                 wd: event.wd,
                 mask: event.mask,
                 cookie: event.cookie,
-                name: None, // 简化处理，忽略名称
+                name,
             };
-            events_vec.push(converted_event);
+
+            simple_events.push(simple_event.clone());
+            raw_events.push(simple_event);
         }
 
-        // 如果有事件，处理它们
-        if !events_vec.is_empty() {
-            self.handle_events(events_vec.iter().cloned())?;
-        }
+        self.handle_events(&raw_events)?;
 
-        Ok(events_vec)
+        Ok(simple_events)
     }
 
     // 提取共同的事件处理逻辑
-    fn handle_events<I>(&mut self, events: I) -> Result<()>
-    where
-        I: IntoIterator<Item = inotify::Event<&'static [u8]>>,
-    {
+    fn handle_events(&mut self, events: &[SimpleEvent]) -> Result<()> {
         // 收集所有需要更新的监控项
         let mut watches_to_update = Vec::new();
 
@@ -107,7 +109,7 @@ impl InotifyWatcher {
                     || event.mask.contains(EventMask::DELETE_SELF)
                     || event.mask.contains(EventMask::MOVE_SELF)
                 {
-                    watches_to_update.push((event.wd, path.clone()));
+                    watches_to_update.push((event.wd.clone(), path.clone()));
                 }
             }
         }
