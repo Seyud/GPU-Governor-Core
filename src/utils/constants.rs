@@ -1,7 +1,7 @@
 /// GPU Governor 常量定义
 /// 将分散的常量集中管理，提高代码可维护性
 pub const NOTES: &str = "Mediatek Mali GPU Governor";
-pub const AUTHOR: &str = "Author: walika @CoolApk, Tools-cx-app @GitHub";
+pub const AUTHOR: &str = "Author: walika @CoolApk/Seyud @GitHub, Tools-cx-app @GitHub";
 pub const SPECIAL: &str =
     "Special Thanks: HamJin @CoolApk, asto18089 @CoolApk and helloklf @GitHub";
 pub const VERSION: &str = "Version: v2.11.0";
