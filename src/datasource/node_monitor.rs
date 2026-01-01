@@ -3,10 +3,11 @@ use std::sync::mpsc::Sender;
 use anyhow::Result;
 use inotify::WatchMask;
 use log::{error, info, warn};
+use serde::Deserialize;
 
 use crate::{
     datasource::{
-        config_parser::{Config, ConfigDelta, read_config_delta},
+        config_parser::{ConfigDelta, read_config_delta},
         file_path::*,
         freq_table_parser::freq_table_read,
     },
@@ -16,6 +17,24 @@ use crate::{
         inotify::InotifyWatcher,
     },
 };
+
+/// 仅包含 global 部分的简化配置结构，用于提取全局模式
+/// 不需要解析完整配置，只需要 global.mode 字段
+#[derive(Deserialize)]
+struct GlobalConfigOnly {
+    global: GlobalOnly,
+}
+
+#[derive(Deserialize)]
+struct GlobalOnly {
+    mode: String,
+}
+
+impl GlobalConfigOnly {
+    fn global_mode(&self) -> &str {
+        &self.global.mode
+    }
+}
 
 pub fn monitor_freq_table_config(mut gpu: GPU) -> Result<()> {
     // 设置线程名称（在Rust中无法轻易设置当前线程名称）
@@ -116,9 +135,10 @@ pub fn monitor_custom_config(tx: Sender<ConfigDelta>) -> Result<()> {
     inotify.add(config_dir, WatchMask::MOVED_TO | WatchMask::CLOSE_WRITE)?;
 
     // 记录上一次的全局模式（启动时读取一次，失败则留空）
+    // 使用简化的 GlobalConfigOnly 结构来提取模式，更宽容地处理配置格式
     let mut last_mode: Option<String> = std::fs::read_to_string(CONFIG_TOML_FILE)
         .ok()
-        .and_then(|c| toml::from_str::<Config>(&c).ok())
+        .and_then(|c| toml::from_str::<GlobalConfigOnly>(&c).ok())
         .map(|cfg| cfg.global_mode().to_string());
 
     loop {
@@ -153,8 +173,10 @@ pub fn monitor_custom_config(tx: Sender<ConfigDelta>) -> Result<()> {
         }
 
         // 检测全局模式是否变化，若变化则更新 CURRENT_MODE_PATH
+        // 使用简化的 GlobalConfigOnly 结构，只需要 global.mode 字段
+        // 这样即使其他配置字段不完整，也能正确更新当前模式
         match std::fs::read_to_string(CONFIG_TOML_FILE) {
-            Ok(content) => match toml::from_str::<Config>(&content) {
+            Ok(content) => match toml::from_str::<GlobalConfigOnly>(&content) {
                 Ok(cfg) => {
                     let mode_now = cfg.global_mode().to_string();
                     if last_mode.as_deref() != Some(mode_now.as_str()) {
