@@ -1,5 +1,5 @@
 [paths]
-android_ndk_home = "D:/android-ndk"
+android_ndk_home = "E:/android-ndk"
 llvm_path = "D:/LLVM"
 upx_path = "D:/upx/upx.exe"
 

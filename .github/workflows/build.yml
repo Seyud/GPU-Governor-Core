@@ -65,7 +65,9 @@ jobs:
           LIBCLANG_SO=$(find /usr/lib -maxdepth 4 -name 'libclang.so*' -path '*llvm*' 2>/dev/null | head -n1)
           [ -z "$LIBCLANG_SO" ] && LIBCLANG_SO=$(find /usr/lib -maxdepth 4 -name 'libclang.so*' 2>/dev/null | head -n1)
           export LIBCLANG_PATH=$(dirname "$LIBCLANG_SO")
-          export BINDGEN_EXTRA_CLANG_ARGS="--target=aarch64-linux-android -I$NDK_PREBUILT/sysroot/usr/include -isystem $(echo $NDK_PREBUILT/lib/clang/*/include)"
+          # target 必须带 API 版本号（r30 起未版本化 triple 会在 sys/cdefs.h 直接报错），
+          # 并补齐 per-triple 头目录（asm/types.h 等）
+          export BINDGEN_EXTRA_CLANG_ARGS="--target=aarch64-linux-android33 -I$NDK_PREBUILT/sysroot/usr/include -I$NDK_PREBUILT/sysroot/usr/include/aarch64-linux-android -isystem $(echo $NDK_PREBUILT/lib/clang/*/include)"
           # 构建发布版本
           cargo build --release --target aarch64-linux-android
           # 准备模块包
